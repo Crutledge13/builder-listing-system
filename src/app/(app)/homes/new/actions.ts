@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { canAddHomes } from "@/lib/permissions";
+import { canAddHomes, canRequestMedia, type Role } from "@/lib/permissions";
+import { detectProvider } from "@/lib/listing-media";
 import { answerSources, readMlsAnswers, storiesFromLevels } from "@/lib/ntreis-form";
 
 const TEXT = ["unparsed_address", "city", "postal_code", "lot_number", "plan_name", "public_remarks", "build_stage", "estimated_completion"] as const;
@@ -81,7 +82,74 @@ export async function createHome(formData: FormData) {
     fail(error?.message.includes("row-level security") ? "You don’t have permission to add homes for that builder." : `Couldn’t save the home: ${error?.message}`);
   }
 
+  // Photos, video and tours (the home has to exist first).
+  const problems = await setUpListingMedia(supabase, data.id, community.id, me.role, formData);
+
   revalidatePath("/homes");
   revalidatePath("/approvals");
+  revalidatePath("/media/requests");
+  if (problems.length) redirect(`/homes/${data.id}?${new URLSearchParams({ error: `The home is saved, but: ${problems.join(" ")}`, at: "listing-media" })}#listing-media`);
+  if (formData.get("photos_by") === "own") redirect(`/media/upload?home=${data.id}`);
   redirect(`/homes/${data.id}?saved=created`);
+}
+
+const NEEDS = new Set(["photos", "twilight", "video", "drone", "floor_plan", "virtual_tour"]);
+
+// The Photos and tours step: tour links, the community's photos and video,
+// and a request for our photographer. Returns anything that didn't work.
+async function setUpListingMedia(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  homeId: string,
+  communityId: string,
+  role: Role,
+  formData: FormData,
+) {
+  const problems: string[] = [];
+
+  const urls = formData.getAll("tour_url").map((u) => String(u).trim());
+  const branded = formData.getAll("tour_branded").map(String);
+  for (const [i, url] of urls.entries()) {
+    if (!url) continue;
+    if (!/^https:\/\/\S+$/i.test(url)) {
+      problems.push(`The tour link "${url.slice(0, 60)}" needs to start with https://.`);
+      continue;
+    }
+    const { error } = await supabase.from("virtual_tours").insert({
+      home_id: homeId, community_id: communityId, provider: detectProvider(url), url, branded: branded[i] === "yes",
+    });
+    if (error) problems.push("A tour link couldn’t be saved.");
+  }
+
+  if (formData.get("include_community") === "1") {
+    const { data: items } = await supabase
+      .from("media")
+      .select("id")
+      .eq("community_id", communityId)
+      .is("home_id", null)
+      .in("kind", ["photo", "video"])
+      .is("deleted_at", null)
+      .order("kind")
+      .order("sort_order");
+    for (const m of items ?? []) {
+      const { error } = await supabase.from("listing_media").insert({ home_id: homeId, media_id: m.id });
+      if (error) {
+        problems.push("The community’s photos couldn’t all be added.");
+        break;
+      }
+    }
+  }
+
+  if (formData.get("photos_by") === "ours" && canRequestMedia(role)) {
+    const needs = formData.getAll("needs").map(String).filter((n) => NEEDS.has(n));
+    if (needs.length) {
+      const notes = String(formData.get("shoot_notes") ?? "").trim();
+      // Builder, address and names are filled in by the database from the home.
+      const { error } = await supabase.from("media_requests").insert({
+        home_id: homeId, community_id: communityId, builder_id: communityId, requested_by: communityId,
+        address: "", community_name: "", builder_name: "", needs, notes: notes || null, due_date: null,
+      });
+      if (error) problems.push("The photographer request couldn’t be sent; request it from the home’s page.");
+    }
+  }
+  return problems;
 }

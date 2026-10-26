@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { canAddHomes, isStaff, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
+import { canAddHomes, canRequestMedia, isStaff, NEED_LABELS, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
 import { createHome } from "./actions";
 import { questionSections, SectionFields } from "@/components/ntreis-questions";
 import { FormSteps } from "@/components/form-steps";
@@ -59,7 +59,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
       {typeof error === "string" && <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
       <form id="new-home" action={createHome} className="mt-8">
-        <FormSteps formId="new-home" steps={[{ title: "The home" }, ...questionSections("new").map((q) => ({ title: q.title, ntreisOnly: q.ntreisOnly }))]}>
+        <FormSteps formId="new-home" steps={[{ title: "The home" }, ...questionSections("new").map((q) => ({ title: q.title, ntreisOnly: q.ntreisOnly })), { title: "Photos and tours" }]}>
           <div className="divide-y divide-line">
         <section className="pb-8 pt-4">
           <h3 className="text-lg font-semibold">Where is it?</h3>
@@ -150,6 +150,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
               }
             />
           ))}
+          <PhotosStep canRequest={canRequestMedia(me.role)} />
         </FormSteps>
       </form>
     </div>
@@ -166,5 +167,83 @@ function Text({ name, label, type = "text", step, placeholder, required, wide, h
       {help && <span className="mt-0.5 block text-xs leading-snug text-muted">{help}</span>}
       <input name={name} type={type} step={step} placeholder={placeholder} required={required} className="field-input mt-1.5" />
     </label>
+  );
+}
+
+// Last step: where the listing's photos, video and tours come from. Photos
+// themselves are added after saving (a file needs a home to belong to).
+function PhotosStep({ canRequest }: { canRequest: boolean }) {
+  return (
+    <div className="mt-4 space-y-8">
+      <fieldset>
+        <legend className="text-sm font-medium">Who&rsquo;s providing the photos?</legend>
+        <span className="mt-0.5 block text-xs leading-snug text-muted">
+          Whatever is delivered or uploaded for this home goes straight onto its MLS listing, in order. You can rearrange or remove anything later on the home&rsquo;s page.
+        </span>
+        <div className="mt-3 space-y-2">
+          {canRequest && (
+            <div className="rounded-xl border border-line p-3 has-[input[value=ours]:checked]:border-accent">
+              <label className="flex items-start gap-3">
+                <input type="radio" name="photos_by" value="ours" className="mt-1 accent-[#3452c7]" />
+                <span>
+                  <span className="font-semibold">Our photographer</span>
+                  <span className="block text-sm text-muted">We send a photographer. Their photos, video and tour links land on this listing automatically.</span>
+                </span>
+              </label>
+              <div className="ml-7 mt-2">
+                <span className="flex flex-wrap gap-x-4 gap-y-1.5">
+                  {Object.entries(NEED_LABELS).map(([k, label]) => (
+                    <label key={k} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" name="needs" value={k} defaultChecked={k === "photos"} className="h-4 w-4 accent-[#3452c7]" /> {label}
+                    </label>
+                  ))}
+                </span>
+                <input name="shoot_notes" placeholder="Anything the photographer should know? (optional)" className="field-input mt-2" />
+              </div>
+            </div>
+          )}
+          <label className="flex items-start gap-3 rounded-xl border border-line p-3 has-[:checked]:border-accent">
+            <input type="radio" name="photos_by" value="own" className="mt-1 accent-[#3452c7]" />
+            <span>
+              <span className="font-semibold">Our own photos or video</span>
+              <span className="block text-sm text-muted">After you save, you go straight to the upload page for this home.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 rounded-xl border border-line p-3 has-[:checked]:border-accent">
+            <input type="radio" name="photos_by" value="later" defaultChecked className="mt-1 accent-[#3452c7]" />
+            <span>
+              <span className="font-semibold">Decide later</span>
+              <span className="block text-sm text-muted">Add photos any time from the home&rsquo;s page.</span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <label className="flex items-start gap-3">
+        <input type="checkbox" name="include_community" value="1" className="mt-1 h-4 w-4 accent-[#3452c7]" />
+        <span>
+          <span className="text-sm font-medium">Add the community&rsquo;s photos and video to this listing</span>
+          <span className="mt-0.5 block text-xs leading-snug text-muted">
+            Amenity, entrance and aerial shots already saved for the community. Optional: they go after this home&rsquo;s own photos, and you can remove any of them later.
+          </span>
+        </span>
+      </label>
+
+      <fieldset>
+        <legend className="text-sm font-medium">3D or video tour links (optional)</legend>
+        <span className="mt-0.5 block text-xs leading-snug text-muted">
+          Matterport, Zillow 3D Home, iGUIDE, Cupix, YouTube or Vimeo share links. Unbranded means no builder or agent names, logos or contact info in the tour; MLSs generally want the unbranded link.
+        </span>
+        {[0, 1].map((i) => (
+          <div key={i} className="mt-2 grid gap-2 sm:grid-cols-[1fr_160px]">
+            <input name="tour_url" type="url" placeholder="https://my.matterport.com/show/?m=..." className="field-input" />
+            <select name="tour_branded" defaultValue="no" className="field-input">
+              <option value="no">Unbranded</option>
+              <option value="yes">Branded</option>
+            </select>
+          </div>
+        ))}
+      </fieldset>
+    </div>
   );
 }

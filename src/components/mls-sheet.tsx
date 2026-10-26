@@ -4,6 +4,35 @@ import { formatMls, resolveField, sheetRuleProblems, type MlsField } from "@/lib
 import type { MlsSheet } from "@/lib/mls-sheet";
 import { CheckOff, CopyButton } from "@/components/mls-client";
 import { MediaPicture } from "@/components/media-tile";
+import { TOUR_PROVIDERS } from "@/lib/listing-media";
+import { PhotoPackButton } from "@/components/photo-pack-button";
+import type { MediaRow } from "@/lib/demo-media";
+
+function slug(s: string) {
+  return s.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase().slice(0, 40) || "photo";
+}
+
+// Photo pack file names, in MLS order: 01-exterior, 02-kitchen, ...
+function packPhotos(list: MediaRow[]) {
+  return list.map((m, i) => ({ id: m.id, label: `${String(i + 1).padStart(2, "0")}-${slug(m.room ?? m.caption ?? m.title)}`, file: m.source === "upload" }));
+}
+
+function packReadme(sheet: MlsSheet) {
+  const lines = [
+    `MLS photo pack for ${sheet.home.unparsed_address}`,
+    `${sheet.mlsPhotos.length} MLS-ready photos, numbered in MLS order. Upload them in this order; the first is the main photo.`,
+    "",
+  ];
+  if (sheet.tours.length) {
+    lines.push("Virtual tours (use the unbranded links on the MLS):");
+    for (const t of sheet.tours) lines.push(`- ${t.title ?? TOUR_PROVIDERS[t.provider]} (${TOUR_PROVIDERS[t.provider]}, ${t.branded ? "branded" : "unbranded"}): ${t.url}`);
+    lines.push("");
+  }
+  if (sheet.videos.length) {
+    lines.push("Videos (download each from the MLS sheet):", ...sheet.videos.map((v) => `- ${v.title}`), "");
+  }
+  return lines.join("\n");
+}
 
 const FROM_TEXT: Record<string, string> = {
   home: "Builder",
@@ -107,10 +136,15 @@ function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeo
           {check && <CheckOff taskId={check.taskId} item="photos" initial={check.checked.includes("photos")} action={check.action} disabled={check.disabled} />}
           Photos, in MLS order ({list.length})
         </span>
-        <Link href={`/media?home=${sheet.home.id}`} className="text-sm font-semibold text-accent underline">Open media</Link>
+        <span className="flex flex-wrap gap-3 text-sm">
+          {list.length > 0 && (
+            <PhotoPackButton name={`mls-photos-${slug(sheet.home.unparsed_address)}`} photos={packPhotos(list)} readme={packReadme(sheet)} />
+          )}
+          <Link href={`/homes/${sheet.home.id}#listing-media`} className="font-semibold text-accent underline">Change what&rsquo;s on the listing</Link>
+        </span>
       </h3>
       {list.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-amber-900">No photos are marked ready for the MLS yet.{sheet.photos.length ? ` ${sheet.photos.length} need checking in the media library.` : ""}</p>
+        <p className="px-4 py-4 text-sm text-amber-900">No photos are marked ready for the MLS yet.{sheet.photos.length > list.length ? ` ${sheet.photos.length - list.length} on the listing still need checking.` : ""}</p>
       ) : (
         <ol className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-5 lg:grid-cols-6">
           {list.map((m, i) => (
@@ -123,6 +157,37 @@ function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeo
             </li>
           ))}
         </ol>
+      )}
+      {sheet.photos.length > list.length && list.length > 0 && (
+        <p className="border-t border-line px-4 py-2 text-xs text-amber-900">
+          {sheet.photos.length - list.length} more on the listing aren&rsquo;t MLS-ready yet (AI warnings or not checked), so they&rsquo;re left out.
+        </p>
+      )}
+      {(sheet.videos.length > 0 || sheet.tours.length > 0) && (
+        <div className="border-t border-line px-4 py-3">
+          <h4 className="flex items-center gap-3 text-sm font-semibold">
+            {check && <CheckOff taskId={check.taskId} item="tours" initial={check.checked.includes("tours")} action={check.action} disabled={check.disabled} />}
+            Video and virtual tours
+          </h4>
+          <p className="mt-0.5 text-xs text-muted">Enter the unbranded tour links on the MLS. Video files can be downloaded here.</p>
+          <ul className="mt-2 space-y-2 text-sm">
+            {sheet.tours.map((t) => (
+              <li key={t.id} className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">{t.title ?? TOUR_PROVIDERS[t.provider]}</span>
+                <span className="rounded bg-soft px-1.5 py-px text-[10px] font-semibold uppercase text-muted">{TOUR_PROVIDERS[t.provider]}</span>
+                <span className={cx("rounded px-1.5 py-px text-[10px] font-semibold uppercase", t.branded ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-700")}>{t.branded ? "Branded" : "Unbranded"}</span>
+                <a href={t.url} target="_blank" rel="noopener noreferrer" className="min-w-0 max-w-[24rem] truncate text-accent underline">{t.url}</a>
+                <CopyButton value={t.url} />
+              </li>
+            ))}
+            {sheet.videos.map((v) => (
+              <li key={v.id} className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Video: {v.title}</span>
+                <a href={`/api/media/${v.id}?download=1`} className="text-accent underline">Download</a>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

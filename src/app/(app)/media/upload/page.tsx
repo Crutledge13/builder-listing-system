@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { canManageMedia, isStaff, ROLE_LABELS } from "@/lib/permissions";
 import { MEDIA_REQUEST_SELECT, type MediaRequest } from "@/components/media-requests";
+import { addJobTour } from "./tour-action";
 import { UploadForm } from "./upload-form";
 import { BackButton } from "@/components/back-button";
 import { loadTagList } from "@/lib/tags";
@@ -76,6 +77,25 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
               <p className="mb-4 text-sm text-muted">Walkthroughs, drone clips and tours.</p>
               <UploadForm {...formProps} mode="videos" />
             </section>
+            {job && (
+              <section id="tour" className="scroll-mt-28 rounded-2xl border border-line p-5">
+                <h2 className="text-lg font-semibold">3D or video tour link{job.needs.includes("virtual_tour") ? "" : " (if this job has one)"}</h2>
+                <p className="mb-4 text-sm text-muted">
+                  Paste the share link from Matterport, Zillow 3D Home, iGUIDE, Cupix, YouTube or Vimeo. It goes straight onto the listing. MLSs generally want the unbranded version (no names, logos or contact info).
+                </p>
+                {sp.tour_saved && <p className="mb-3 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">Tour link saved.</p>}
+                {typeof sp.tour_error === "string" && <p className="mb-3 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-800">{sp.tour_error}</p>}
+                <form action={addJobTour} className="grid gap-3 sm:grid-cols-[1fr_150px_auto]">
+                  <input type="hidden" name="request" value={job.id} />
+                  <input name="url" type="url" required placeholder="https://my.matterport.com/show/?m=..." className="field-input" />
+                  <select name="branded" defaultValue="no" className="field-input">
+                    <option value="no">Unbranded</option>
+                    <option value="yes">Branded</option>
+                  </select>
+                  <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save link</button>
+                </form>
+              </section>
+            )}
           </div>
         )}
       </div>

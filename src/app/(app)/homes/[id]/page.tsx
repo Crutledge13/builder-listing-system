@@ -37,6 +37,7 @@ import {
 import { nextSaturdayCentral, openHouseWhen } from "@/lib/time";
 import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
 import {
+  canManageMedia,
   canRequestMedia,
   canRequestReverseProspecting,
   canScheduleOpenHouses,
@@ -52,6 +53,8 @@ import { loadMlsSheet } from "@/lib/mls-sheet";
 import { AlertCard, loadAlerts } from "@/components/alerts";
 import { NtreisQuestions } from "@/components/ntreis-questions";
 import { canEditMlsAnswers } from "@/lib/ntreis-form";
+import { loadListingMedia } from "@/lib/listing-media";
+import { ListingMediaPanel } from "@/components/listing-media-panel";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -196,7 +199,11 @@ async function HomeDetail({
     .is("deleted_at", null)
     .order("is_cover", { ascending: false })
     .order("sort_order");
-  const ownPhotos = ((mediaRows ?? []) as unknown as MediaRow[]).filter((m) => m.kind === "photo");
+  // What's on the MLS listing, in order (photographer deliveries, uploads, and
+  // community or plan photos the builder added).
+  const listing = await loadListingMedia(supabase, { id: home.id, builder_id: home.builder_id, community_id: home.community_id, plan_name: home.plan_name });
+  const listedPhotos = listing.photos.filter((m) => m.kind === "photo");
+  const ownPhotos = listedPhotos.length ? listedPhotos : ((mediaRows ?? []) as unknown as MediaRow[]).filter((m) => m.kind === "photo");
   // Not built yet (or few photos)? Fill in from the plan's library photos automatically.
   const { data: planRows } = ownPhotos.length < 5 && home.plan_name
     ? await supabase.from("media").select(MEDIA_SELECT).eq("builder_id", home.builder_id).eq("plan_name", home.plan_name).is("home_id", null).is("community_id", null).eq("kind", "photo").is("deleted_at", null).order("sort_order").limit(5)
@@ -494,6 +501,14 @@ async function HomeDetail({
               </form>
             )}
           </section>
+
+          <ListingMediaPanel
+            home={{ id: home.id, community_name: (home.communities as { name: string } | null)?.name ?? "the community", plan_name: home.plan_name }}
+            listing={listing}
+            canEdit={canManageMedia(me.role)}
+            canRequest={canRequestMedia(me.role)}
+            notice={sectionNotice("listing-media")}
+          />
 
           {canRequestMedia(me.role) && (
           <section id="photo-requests" className="scroll-mt-28 border-b border-line py-8">
@@ -911,6 +926,8 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
       : st === "requested" ? "removed the photographer from the request"
       : "updated the photo request";
   }
+  if (action === "listing_media_added") return `put ${(changes as unknown as { title: string }).title} on the MLS listing`;
+  if (action === "listing_media_removed") return `took ${(changes as unknown as { title: string }).title} off the MLS listing`;
   if (action === "media_added") return `added ${(changes as unknown as { title: string }).title} to the media library`;
   if (action === "media_trashed") return `moved ${(changes as unknown as { title: string }).title} to the trash`;
   if (action === "media_restored") return `restored ${(changes as unknown as { title: string }).title}`;
