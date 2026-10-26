@@ -17,7 +17,8 @@ import {
 import { baths, cx, dateTime, money, num } from "@/lib/format";
 import { SourceBadge, StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
-import { changeStatus, saveHome } from "./actions";
+import { cancelOpenHouse, changeStatus, requestChange, resolveRequest, saveHome, scheduleOpenHouse } from "./actions";
+import { openHouseWhen } from "@/lib/time";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -106,6 +107,20 @@ async function HomeDetail({
     : { data: [] as { id: string; full_name: string; role: string }[] };
   const actorName = new Map((actors ?? []).map((a) => [a.id, a.full_name]));
 
+  const [{ data: openHouses }, { data: requests }] = await Promise.all([
+    supabase.from("open_houses").select("id, starts_at, ends_at, remarks, created_by, cancelled_at").eq("home_id", id).is("cancelled_at", null).gte("ends_at", new Date().toISOString()).order("starts_at"),
+    supabase.from("change_requests").select("id, message, status, resolution_note, requested_by, resolved_by, created_at, resolved_at").eq("home_id", id).order("created_at", { ascending: false }),
+  ]);
+  const peopleIds = [...new Set((requests ?? []).flatMap((r) => [r.requested_by, r.resolved_by]).filter((x): x is string => !!x && !actorName.has(x)))];
+  if (peopleIds.length) {
+    const { data: more } = await supabase.from("profiles").select("id, full_name").in("id", peopleIds);
+    (more ?? []).forEach((p) => actorName.set(p.id, p.full_name));
+  }
+  const upcomingOH = openHouses ?? [];
+  const canScheduleOH = ["platform_admin", "builder_owner", "manager", "sales"].includes(me.role);
+  const canResolve = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
+  const openRequests = (requests ?? []).filter((r) => r.status === "open");
+
   const editable = new Set(editableFields(me.role));
   const status = home.workflow_status as WorkflowStatus;
   const transitions = allowedTransitions(me.role, status);
@@ -132,14 +147,14 @@ async function HomeDetail({
 
       <h1 className="mt-3 text-[28px] font-bold leading-tight tracking-tight">{home.unparsed_address}</h1>
       <p className="mt-1 text-muted">
-        {home.communities?.name}, {home.city}, TX {home.postal_code}
+        <Link href={`/communities/${home.community_id}`} className="font-medium text-foreground underline">{home.communities?.name}</Link>, {home.city}, TX {home.postal_code}
         {isStaff(me.role) ? `. Built by ${home.builders?.name.replace(" (demo)", "")}` : ""}
       </p>
 
       {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {saved && (
         <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {saved === "status" ? "Status updated." : saved === "created" ? "Home added as a draft. Finish any details below, then submit it for review." : "Changes saved."}
+          {SAVED_MESSAGES[saved] ?? "Changes saved."}
         </p>
       )}
 
@@ -150,10 +165,10 @@ async function HomeDetail({
         </div>
         <div className="hidden md:block"><HomeArt seed={home.id} stories={home.stories} scene="golden" className="h-full w-full" /></div>
         <div className="hidden md:block"><HomeArt seed={home.id} stories={home.stories} scene="twilight" className="h-full w-full" /></div>
-        <Link href="/media" className="hidden items-center justify-center bg-soft p-4 text-center text-sm text-muted hover:bg-line/60 md:flex">
+        <Link href={`/media?home=${home.id}`} className="hidden items-center justify-center bg-soft p-4 text-center text-sm text-muted hover:bg-line/60 md:flex">
           Interior photos will show here once the media library is on
         </Link>
-        <Link href="/media" className="hidden items-center justify-center bg-soft p-4 text-center text-sm text-muted hover:bg-line/60 md:flex">
+        <Link href={`/media?home=${home.id}`} className="hidden items-center justify-center bg-soft p-4 text-center text-sm text-muted hover:bg-line/60 md:flex">
           Floor plan
         </Link>
       </div>
@@ -179,6 +194,99 @@ async function HomeDetail({
               </div>
             ))}
           </dl>
+
+          <QuickLinks homeId={home.id} communityId={home.community_id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} />
+
+          <section id="open-houses" className="scroll-mt-28 border-b border-line py-8">
+            <h3 className="text-lg font-semibold">Open houses</h3>
+            <ul className="mt-4 space-y-3">
+              {upcomingOH.map((o) => (
+                <li key={o.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line p-4">
+                  <span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-accent-soft text-accent">
+                    <span className="text-[10px] font-semibold uppercase leading-none">{new Date(o.starts_at).toLocaleDateString("en-US", { month: "short", timeZone: "America/Chicago" })}</span>
+                    <span className="text-lg font-bold leading-none">{new Date(o.starts_at).toLocaleDateString("en-US", { day: "numeric", timeZone: "America/Chicago" })}</span>
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold">{openHouseWhen(o.starts_at, o.ends_at)}</div>
+                    <div className="text-sm text-muted">
+                      Set by {actorName.get(o.created_by) ?? "a teammate"}{o.remarks ? `. ${o.remarks}` : ""}
+                    </div>
+                  </div>
+                  {canScheduleOH && (
+                    <form action={cancelOpenHouse}>
+                      <input type="hidden" name="id" value={home.id} />
+                      <input type="hidden" name="open_house_id" value={o.id} />
+                      <button className="rounded-lg px-3 py-1.5 text-sm font-semibold underline hover:bg-soft">Cancel</button>
+                    </form>
+                  )}
+                </li>
+              ))}
+              {upcomingOH.length === 0 && <li className="text-muted">No open houses scheduled.</li>}
+            </ul>
+            {canScheduleOH && (
+              <form action={scheduleOpenHouse} className="mt-5 grid gap-3 rounded-2xl bg-soft p-4 sm:grid-cols-[1.3fr_1fr_1fr]">
+                <input type="hidden" name="id" value={home.id} />
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Date</span>
+                  <input name="date" type="date" required className="field-input" />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Starts</span>
+                  <input name="start" type="time" required defaultValue="13:00" className="field-input" />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Ends</span>
+                  <input name="end" type="time" required defaultValue="16:00" className="field-input" />
+                </label>
+                <label className="block sm:col-span-3">
+                  <span className="mb-1 block text-sm font-medium">Note for buyers’ agents (optional)</span>
+                  <input name="remarks" placeholder="Refreshments, model home tours" className="field-input" />
+                </label>
+                <div className="flex flex-wrap items-center gap-3 sm:col-span-3">
+                  <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Schedule open house</button>
+                  <span className="text-sm text-muted">Times are Central. Our listing coordinator adds it to the MLS.</span>
+                </div>
+              </form>
+            )}
+          </section>
+
+          <section id="requests" className="scroll-mt-28 border-b border-line py-8">
+            <h3 className="text-lg font-semibold">
+              Change requests {openRequests.length > 0 && <span className="font-normal text-muted">{openRequests.length} open</span>}
+            </h3>
+            <p className="mt-1 text-sm text-muted">
+              Spot something wrong or missing? Ask for it here. Managers, owners and marketing see and resolve requests.
+            </p>
+            <form action={requestChange} className="mt-4 space-y-3">
+              <input type="hidden" name="id" value={home.id} />
+              <textarea name="message" rows={3} required placeholder="For example: the price changed to $384,990, or add the upgraded patio to the description" className="field-input leading-relaxed" />
+              <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Request a change</button>
+            </form>
+            <ul className="mt-6 space-y-3">
+              {(requests ?? []).map((r) => (
+                <li key={r.id} className={cx("rounded-2xl border p-4", r.status === "open" ? "border-amber-300 bg-amber-50/50" : "border-line")}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="min-w-0 flex-1 whitespace-pre-line">{r.message}</p>
+                    <span className={cx("rounded-full px-2.5 py-0.5 text-xs font-semibold", REQUEST_STYLES[r.status])}>{REQUEST_LABELS[r.status]}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted">
+                    {actorName.get(r.requested_by) ?? "Someone"}, {dateTime(r.created_at)}
+                    {r.resolved_by && `. ${REQUEST_LABELS[r.status].toLowerCase()} by ${actorName.get(r.resolved_by) ?? "a teammate"}`}
+                    {r.resolution_note && `: “${r.resolution_note}”`}
+                  </p>
+                  {canResolve && r.status === "open" && (
+                    <form action={resolveRequest} className="mt-3 flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="id" value={home.id} />
+                      <input type="hidden" name="request_id" value={r.id} />
+                      <input name="note" placeholder="Note (optional)" className="field-input max-w-xs flex-1 py-2 text-sm" />
+                      <button name="status" value="done" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Mark done</button>
+                      <button name="status" value="declined" className="rounded-lg border border-foreground px-3 py-2 text-sm font-semibold hover:bg-white">Decline</button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <form action={saveHome} className="divide-y divide-line">
             <input type="hidden" name="id" value={home.id} />
@@ -349,6 +457,14 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
     const s = action.replace("status_", "") as WorkflowStatus;
     return `moved it to ${STATUS_LABELS[s] ?? s}`;
   }
+  if (action === "change_requested") return `requested a change: “${(changes as unknown as { message: string }).message}”`;
+  if (action === "change_request_done") return "marked a change request done";
+  if (action === "change_request_declined") return "declined a change request";
+  if (action === "open_house_scheduled") {
+    const c = changes as unknown as { starts_at: string; ends_at: string };
+    return `scheduled an open house for ${openHouseWhen(c.starts_at, c.ends_at)}`;
+  }
+  if (action === "open_house_cancelled") return "cancelled an open house";
   if (action === "moved_to_trash") return "moved it to the trash";
   if (action === "restored") return "restored it from the trash";
   const keys = Object.keys(changes ?? {});
@@ -356,4 +472,39 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
     return `changed the price from ${money(changes.list_price.from as number)} to ${money(changes.list_price.to as number)}`;
   }
   return `edited the ${keys.map((k) => FIELD_NAMES[k] ?? k.replace(/_/g, " ")).join(", ")}`;
+}
+
+const SAVED_MESSAGES: Record<string, string> = {
+  status: "Status updated.",
+  created: "Home added as a draft. Finish any details below, then submit it for review.",
+  request: "Request sent. The builder’s managers and marketing team will see it on this home.",
+  resolved: "Request updated.",
+  "open-house": "Open house scheduled.",
+  "open-house-cancelled": "Open house cancelled.",
+};
+
+const REQUEST_LABELS: Record<string, string> = { open: "Open", done: "Done", declined: "Declined" };
+const REQUEST_STYLES: Record<string, string> = {
+  open: "bg-amber-100 text-amber-900",
+  done: "bg-emerald-100 text-emerald-800",
+  declined: "bg-soft text-muted",
+};
+
+function QuickLinks({ homeId, communityId, openRequests, upcomingOH }: { homeId: string; communityId: string; openRequests: number; upcomingOH: number }) {
+  const items = [
+    { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
+    { href: "#open-houses", title: "Open houses", sub: upcomingOH ? `${upcomingOH} scheduled` : "Schedule one" },
+    { href: `/media?home=${homeId}`, title: "Home photos and video", sub: "Media library" },
+    { href: `/media?community=${communityId}`, title: "Community media", sub: "Amenities, maps, drone" },
+  ];
+  return (
+    <nav className="grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-4" aria-label="On this home">
+      {items.map((i) => (
+        <Link key={i.title} href={i.href} className="rounded-2xl border border-line p-4 transition-shadow hover:shadow-md">
+          <div className="font-semibold">{i.title}</div>
+          <div className="mt-0.5 text-sm text-muted">{i.sub}</div>
+        </Link>
+      ))}
+    </nav>
+  );
 }

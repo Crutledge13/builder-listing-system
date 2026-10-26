@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { cx } from "@/lib/format";
 
 const LINKS = [
-  { href: "/homes", label: "Homes" },
+  { href: "/communities", label: "Communities" },
+  { href: "/homes", label: "All homes" },
   { href: "/approvals", label: "Approvals" },
   { href: "/media", label: "Media" },
 ];
@@ -13,7 +14,7 @@ const LINKS = [
 export function NavLinks() {
   const path = usePathname();
   return (
-    <nav className="flex items-center gap-1 text-[15px]">
+    <nav className="flex items-center gap-1 overflow-x-auto text-[15px] [scrollbar-width:none]">
       {LINKS.map((l) => {
         const active = path.startsWith(l.href);
         return (
@@ -22,12 +23,11 @@ export function NavLinks() {
             href={l.href}
             aria-current={active ? "page" : undefined}
             className={cx(
-              "relative rounded-full px-3 py-2 sm:px-4",
-              active ? "font-semibold text-foreground" : "text-muted hover:bg-soft hover:text-foreground",
+              "shrink-0 whitespace-nowrap rounded-full px-3 py-2 sm:px-4",
+              active ? "bg-soft font-semibold text-foreground" : "text-muted hover:bg-soft hover:text-foreground",
             )}
           >
             {l.label}
-            {active && <span className="absolute inset-x-3 -bottom-[13px] h-[2px] rounded-full bg-foreground sm:inset-x-4" />}
           </Link>
         );
       })}

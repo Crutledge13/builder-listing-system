@@ -43,7 +43,7 @@ export async function proxy(request: NextRequest) {
 
   if (user && isLogin) {
     const url = request.nextUrl.clone();
-    url.pathname = "/homes";
+    url.pathname = "/communities";
     url.search = "";
     return NextResponse.redirect(url);
   }

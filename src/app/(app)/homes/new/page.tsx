@@ -28,7 +28,7 @@ const SPECS: Input[] = [
 ];
 
 async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/new">["searchParams"] }) {
-  const { error } = await searchParams;
+  const { error, community: preset } = await searchParams;
   const me = await requireProfile();
 
   if (!canAddHomes(me.role)) {
@@ -64,7 +64,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
           <div className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2">
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-sm font-medium">Community</span>
-              <select name="community_id" required defaultValue="" className="field-input">
+              <select name="community_id" required defaultValue={typeof preset === "string" ? preset : ""} className="field-input">
                 <option value="" disabled>Choose a community</option>
                 {communities?.map((c) => (
                   <option key={c.id} value={c.id}>

@@ -55,6 +55,7 @@ begin
     (pg_temp.demo_user('owner.mesquite@demo.test', 'Morgan Reyes'), 'owner.mesquite@demo.test', 'Morgan Reyes', 'builder_owner', b_mc),
     (pg_temp.demo_user('manager.mesquite@demo.test', 'Jordan Ellis'), 'manager.mesquite@demo.test', 'Jordan Ellis', 'manager', b_mc),
     (pg_temp.demo_user('sales.mesquite@demo.test', 'Taylor Brooks'), 'sales.mesquite@demo.test', 'Taylor Brooks', 'sales', b_mc),
+    (pg_temp.demo_user('sales2.mesquite@demo.test', 'Jamie Ortiz'), 'sales2.mesquite@demo.test', 'Jamie Ortiz', 'sales', b_mc),
     (pg_temp.demo_user('marketing.mesquite@demo.test', 'Riley Chen'), 'marketing.mesquite@demo.test', 'Riley Chen', 'marketing', b_mc),
     (pg_temp.demo_user('owner.prairie@demo.test', 'Avery Patel'), 'owner.prairie@demo.test', 'Avery Patel', 'builder_owner', b_pl),
     (pg_temp.demo_user('marketing.prairie@demo.test', 'Quinn Harper'), 'marketing.prairie@demo.test', 'Quinn Harper', 'marketing', b_pl);
@@ -139,3 +140,10 @@ begin
     );
   end loop;
 end $$;
+
+-- Salespeople see only their assigned communities (migration 0004).
+insert into public.community_assignments (profile_id, community_id)
+select p.id, c.id from public.profiles p join public.communities c on
+  (p.email = 'sales.mesquite@demo.test' and c.name = 'Oak Creek') or
+  (p.email = 'sales2.mesquite@demo.test' and c.name = 'Willow Bend Ranch')
+on conflict do nothing;

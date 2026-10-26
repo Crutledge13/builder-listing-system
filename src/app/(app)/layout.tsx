@@ -40,10 +40,10 @@ async function Header() {
         </div>
       )}
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-8">
-        <Link href="/homes" className="shrink-0">
+        <Link href="/communities" className="shrink-0">
           <Logo compact />
         </Link>
-        <div className="flex flex-1 justify-center">
+        <div className="flex min-w-0 flex-1 justify-start md:justify-center">
           <NavLinks />
         </div>
 

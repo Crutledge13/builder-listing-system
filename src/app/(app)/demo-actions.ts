@@ -8,7 +8,7 @@ import { DEMO_USERS, demoModeOn } from "@/lib/auth";
 // Works only when DEMO_MODE is on, only for someone already signed in as a
 // demo user, and only to switch to another demo user.
 export async function switchDemoUser(formData: FormData) {
-  if (!demoModeOn()) redirect("/homes");
+  if (!demoModeOn()) redirect("/communities");
 
   const target = String(formData.get("email") ?? "");
   if (!DEMO_USERS.some((u) => u.email === target)) redirect("/homes");
@@ -26,6 +26,6 @@ export async function switchDemoUser(formData: FormData) {
   });
   if (error) redirect("/login?error=invalid");
 
-  const back = String(formData.get("back") ?? "/homes");
-  redirect(back.startsWith("/") && !back.startsWith("//") ? back : "/homes");
+  const back = String(formData.get("back") ?? "/communities");
+  redirect(back.startsWith("/") && !back.startsWith("//") ? back : "/communities");
 }

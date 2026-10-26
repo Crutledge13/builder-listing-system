@@ -61,7 +61,8 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 - `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo.
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
-- `src/app/(app)/` — the signed-in screens: homes list, home detail and edit, approvals, media library (placeholder).
+- `src/app/(app)/` — the signed-in screens: communities (start page) and each community's homes, all homes, home detail (edit, approvals, open houses, change requests), add a home, approvals, media library (placeholder).
+- `src/components/home-art.tsx` — drawn house pictures used until real photos exist.
 - Next.js 16: middleware is called `proxy`, and Cache Components is on, so pages that read the signed-in user wrap that part in `<Suspense>`. Read `node_modules/next/dist/docs/` before using unfamiliar Next.js APIs.
 
 ## Environments
@@ -77,8 +78,18 @@ Environment variables are listed in `.env.example`. Set them in Vercel; never co
 
 When `DEMO_PASSWORD` is set (and `DEMO_MODE` isn't `false`), anyone signed in as a `@demo.test` user gets a "View as…" menu to switch between demo users and show each role's view. Never set `DEMO_PASSWORD` on the live system.
 
+## Sales access
+
+Salespeople see only the communities they're assigned to (`community_assignments`), enforced by RLS through `private.can_see_home`. Owners and managers see their whole builder. A screen to manage assignments doesn't exist yet; assign in the database for now.
+
+## Design
+
+White canvas, Figtree type, "bluebonnet" blue (#3452c7) as the single accent. Image-first cards like the big listing sites. Keep new screens consistent with `src/components/home-card.tsx` and the home detail page.
+
 ## Known follow-ups
 
 - Turn on leaked-password protection in Supabase Auth before the live project goes out.
 - Media library needs Cloudflare R2/Stream connected.
+- Screen for owners and managers to assign salespeople to communities.
+- Approved open houses should show in the listing coordinator's queue for MLS entry.
 - Field-level edit rules for homes are enforced by the `enforce_home_edit_rules` trigger; update it alongside `src/lib/permissions.ts` when the permission grid changes.
