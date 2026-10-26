@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f6f5f1;
+  --surface: #ffffff;
+  --foreground: #1c1b18;
+  --muted: #6b6860;
+  --line: #e4e1d8;
+  --accent: #2f5d4a;
+  --accent-soft: #e5efe9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.field-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.field-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.field-input:disabled {
+  background: #f1efe9;
+  color: var(--muted);
+  cursor: not-allowed;
+}

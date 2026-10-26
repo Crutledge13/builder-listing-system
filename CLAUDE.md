@@ -54,3 +54,31 @@ The permission grid in `docs/` is final once it exists; this table is the starti
 ## Current stage
 
 Demo build with fake data: a thin, real version of the app (logins, two fake builders, six roles, RLS) to work out problems and to show marketing managers. First screens: media library, listing form, approval queue.
+
+## How the code is laid out
+
+- `supabase/migrations/` — every database change, in order. The database's security rules live here. Never change the database by hand without adding a migration file.
+- `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo.
+- `src/proxy.ts` — sends anyone signed out to `/login`.
+- `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
+- `src/app/(app)/` — the signed-in screens: homes list, home detail and edit, approvals, media library (placeholder).
+- Next.js 16: middleware is called `proxy`, and Cache Components is on, so pages that read the signed-in user wrap that part in `<Suspense>`. Read `node_modules/next/dist/docs/` before using unfamiliar Next.js APIs.
+
+## Environments
+
+| | Supabase project | Notes |
+|---|---|---|
+| Test | `builder-listing-test` (ref `fautaulhpsmeqnlzyhdc`, us-east-2) | Fake data only. Demo mode on. |
+| Live | not created yet | Create only after backups are in place. |
+
+Environment variables are listed in `.env.example`. Set them in Vercel; never commit `.env.local`.
+
+## Demo mode
+
+With `DEMO_MODE=true`, anyone signed in as a `@demo.test` user gets a "View as…" menu to switch between demo users and show each role's view. It must be off on the live system.
+
+## Known follow-ups
+
+- Turn on leaked-password protection in Supabase Auth before the live project goes out.
+- Media library needs Cloudflare R2/Stream connected.
+- Field-level edit rules for homes are enforced by the `enforce_home_edit_rules` trigger; update it alongside `src/lib/permissions.ts` when the permission grid changes.
