@@ -6,13 +6,11 @@ export const COMPARE_FIELDS = [
   { key: "bathrooms_full", label: "Full baths" },
   { key: "bathrooms_half", label: "Half baths" },
   { key: "living_area", label: "Square feet" },
-  { key: "public_remarks", label: "Description" },
-] as const;
+] as const; // Descriptions aren't compared: websites and the MLS word them differently on purpose.
 
 export type CompareKey = (typeof COMPARE_FIELDS)[number]["key"];
 
 export function normalize(key: CompareKey, v: unknown): string | null {
   if (v === null || v === undefined || v === "") return null;
-  if (key === "public_remarks") return String(v).replace(/\s+/g, " ").trim().toLowerCase();
   return String(Number(v));
 }

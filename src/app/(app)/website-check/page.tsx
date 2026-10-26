@@ -32,10 +32,6 @@ function show(key: CompareKey, v: unknown) {
   if (v === null || v === undefined || v === "") return <span className="text-muted">—</span>;
   if (key === "list_price") return money(v as number);
   if (key === "living_area") return num(v as number);
-  if (key === "public_remarks") {
-    const s = String(v);
-    return <span title={s}>{s.length > 90 ? s.slice(0, 90) + "…" : s}</span>;
-  }
   return String(v);
 }
 
@@ -69,6 +65,7 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
   const mlsByHome = new Map((mls ?? []).filter((m) => m.home_id).map((m) => [m.home_id as string, m as Row]));
   const newOnWebsite = (web ?? []).filter((w) => !w.home_id);
   const myFields = new Set(editableFields(me.role) as readonly HomeField[]);
+  const canApprove = ["platform_admin", "builder_owner", "manager"].includes(me.role);
   const canManageFeed = ["platform_admin", "builder_owner", "manager"].includes(me.role);
 
   // Line up each home: website | Builder Listings | MLS.
@@ -109,7 +106,7 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
         <div>
           <h1 className="text-[28px] font-bold leading-tight tracking-tight">Website check</h1>
           <p className="mt-1 max-w-2xl text-muted">
-            Lines up {staff ? `${builderName?.replace(" (demo)", "")}’s` : "your"} website, Builder Listings and the MLS so every price, bed, bath, square foot and description matches.
+            Lines up {staff ? `${builderName?.replace(" (demo)", "")}’s` : "your"} website, Builder Listings and the MLS so every price, bed, bath and square foot matches.
           </p>
         </div>
         {staff && builders && (
@@ -274,13 +271,17 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
                         {(communities ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                       <div className="flex flex-wrap gap-2">
-                        <button name="mode" value="send" className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">Push it live</button>
+                        <button name="mode" value="send" className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">{canApprove ? "Push it live" : "Add and send for approval"}</button>
                         <button name="mode" value="draft" className="rounded-lg border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">Add as a draft</button>
                       </div>
-                      <p className="text-xs text-muted">“Push it live” adds and approves it, so our team enters it into the MLS. It isn’t sent to the MLS automatically.</p>
+                      <p className="text-xs text-muted">
+                        {canApprove
+                          ? "“Push it live” adds and approves it, so our team enters it into the MLS. It isn’t sent to the MLS automatically."
+                          : "Adds it and sends it to a manager or owner to approve for the MLS."}
+                      </p>
                     </form>
                   ) : (
-                    <p className="mt-4 text-sm text-muted">A manager or owner can add this home.</p>
+                    <p className="mt-4 text-sm text-muted">Ask your manager or marketing team to add this home.</p>
                   )}
                   {canAddHomes(me.role) && (
                     <form action={dismissWebsiteListing} className="mt-2">
@@ -337,7 +338,7 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
                 <button className="w-full rounded-lg border border-foreground bg-white px-3 py-2 font-semibold hover:bg-soft">Check the website now</button>
               </form>
             )}
-            <p className="text-xs text-muted">Website fields used: price, beds, baths, square feet, description, plan and status. Everything else comes from your team.</p>
+            <p className="text-xs text-muted">Compared: price, beds, baths and square feet. New homes also bring over the description, plan and status. Everything else comes from your team.</p>
           </div>
         </div>
       )}

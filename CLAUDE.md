@@ -23,7 +23,7 @@ Private back-office system for new-construction home builders in Texas. This fil
 | Builder owner | Builder | Everything for their company, plus adding staff |
 | Manager | Builder | Edits listings, approves them for the MLS; no billing |
 | Sales | Builder | Only their assigned communities: pricing, availability, status, open houses, change requests, view and download media. Cannot add homes or upload media. |
-| Marketing | Builder | Descriptions, photos and media; no pricing changes |
+| Marketing | Builder | Adds homes (as drafts) and communities; descriptions, photos and media; no pricing changes after a home is added |
 | Photographer | Contractor (no builder) | Only their assigned jobs: set a shoot time, upload and tag media for that home or community, mark delivered. Sees no homes, prices, builders or other media. |
 
 The permission grid in `docs/` is final once it exists; this table is the starting point.
@@ -121,7 +121,7 @@ Media with `plan_name` and no home or community is the floor plan library (model
 
 ## Website check
 
-`builder_settings` turns a builder's website feed on (owners/managers). `website_listings` are homes as the website shows them; `mls_listings` come from the MLS's read-only feed (never written by us). `/website-check` compares website, Builder Listings and MLS field by field. "Use website value" copies one field over (marked source `website`); homes only on the website can be added as a draft or "pushed live" (added and approved, so our team enters them into the MLS). In the demo both feeds are fake rows in `supabase/seed/demo_round3.sql`.
+`builder_settings` turns a builder's website feed on (owners/managers). `website_listings` are homes as the website shows them; `mls_listings` come from the MLS's read-only feed (never written by us). `/website-check` compares website, Builder Listings and MLS on price, beds, baths and square feet (not descriptions). "Use website value" copies one field over (marked source `website`); homes only on the website can be added as a draft or "pushed live" (added and approved, so our team enters them into the MLS). In the demo both feeds are fake rows in `supabase/seed/demo_round3.sql`.
 
 ## Emails
 

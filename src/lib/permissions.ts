@@ -117,7 +117,7 @@ export const TRANSITION_LABELS: Record<WorkflowStatus, string> = {
 
 // Who may add a new home (matches the database's insert rule).
 export function canAddHomes(role: Role) {
-  return ["platform_admin", "builder_owner", "manager"].includes(role);
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }
 
 // Who may upload media and edit tags (matches the database's media rules).
@@ -162,7 +162,7 @@ export function canManageTeam(role: Role) {
 }
 
 export function canAddCommunities(role: Role) {
-  return role === "platform_admin" || role === "builder_owner" || role === "manager";
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }
 
 // ---------------------------------------------------------------------------
