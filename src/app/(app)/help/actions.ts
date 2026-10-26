@@ -20,6 +20,6 @@ export async function reportIssue(formData: FormData) {
     .select("id")
     .single();
   if (error || !data) redirect("/help?error=" + encodeURIComponent("Couldn’t send that. Please try again."));
-  after(() => sendQueuedEmails(supabase, "issue_reports", data.id));
+  after(() => sendQueuedEmails("issue_reports", data.id));
   redirect("/help?saved=" + encodeURIComponent("Thanks. Our team has it and will follow up."));
 }

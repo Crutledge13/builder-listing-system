@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { ROLE_LABELS, canManageTeam, rolesICanGive, type Role } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { setAssignments } from "@/app/(app)/admin/actions";
+import { AccessHistory } from "@/components/access-history";
 import { inviteTeammate, setTeammateActive, updateTeammate } from "./actions";
 
 export default function TeamPage(props: PageProps<"/team">) {
@@ -177,6 +178,7 @@ async function Team() {
           </fieldset>
         </form>
       </div>
+      <AccessHistory />
     </div>
   );
 }

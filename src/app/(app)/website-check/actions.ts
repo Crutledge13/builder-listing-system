@@ -178,6 +178,6 @@ export async function askToFixMls(formData: FormData) {
     .select("id")
     .single();
   if (error || !data) back(formData, { error: friendly(error?.message ?? "unknown") });
-  after(() => sendQueuedEmails(supabase, "issue_reports", data.id));
+  after(() => sendQueuedEmails("issue_reports", data.id));
   back(formData, { saved: "Sent to our team. They’ll update the MLS." });
 }

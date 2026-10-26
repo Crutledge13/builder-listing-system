@@ -24,9 +24,9 @@ Private back-office system for new-construction home builders in Texas. This fil
 | Manager | Builder | Edits listings, approves them for the MLS; no billing |
 | Sales | Builder | Only their assigned communities: pricing, availability, status, open houses, change requests, view and download media. Cannot add homes, upload media or request photos. |
 | Marketing | Builder | Adds homes (as drafts) and communities; descriptions, photos and media; no pricing changes after a home is added |
-| Photographer | Contractor (no builder) | Only their assigned jobs: set a shoot time, upload and tag media for that home or community, mark delivered. Sees no homes, prices, builders or other media. |
+| Photographer | Contractor (no builder) | Only their assigned jobs: set a shoot time, upload and tag media for that home or community, mark delivered. Sees the existing photos of the home or community on an open job (reference shots for reshoots), and nothing else: no other homes, prices, listing details or other builders' media. |
 
-The permission grid in `docs/` is final once it exists; this table is the starting point.
+The full permission grid is `docs/permission-grid.md` (draft until the owners approve it; then it is final and this table follows it).
 
 ## Non-negotiable rules
 
@@ -131,7 +131,7 @@ Media with `plan_name` and no home or community is the floor plan library (model
 
 ## Emails
 
-`email_outbox` logs every email the system means to send (reverse prospecting, help reports) to `app_settings.team_email`. `src/lib/email.ts` sends them through Resend when `RESEND_API_KEY` and `EMAIL_FROM` are set; otherwise they're marked not sent and visible in Admin > Settings.
+`email_outbox` logs every email the system means to send (reverse prospecting, help reports) to `app_settings.team_email`. `src/lib/email.ts` sends them through Resend when `RESEND_API_KEY` and `EMAIL_FROM` are set; otherwise they're marked not sent and visible in Admin > Settings. Reading and marking queued emails (`queued_emails_for`, `record_email_result`) is server-only: it needs `SUPABASE_SERVICE_ROLE_KEY`; signed-in users can't call them.
 
 ## Photographer pay (demo)
 
@@ -141,12 +141,19 @@ Media with `plan_name` and no home or community is the floor plan library (model
 
 Builder owners add/change anyone at their company; managers add sales and marketing (`private.can_manage_person`). Turning someone off sets `profiles.is_active = false`: their history stays and they can't sign in (role helpers return nothing for inactive people).
 
+## Activity log
+
+Home, photo and MLS-sheet changes are logged per home. Access changes are logged too (`profiles_log_access`, `community_assignments_log` triggers): people added, role or company changes, access turned off/on, salespeople added to or removed from communities. Builder owners and managers see their company's access history (Team page); our staff see all (Admin > People). Sales and marketing don't see access history.
+
+## Backups and error alerts
+
+Three backup layers, set up per `docs/backups.md`: Supabase point-in-time recovery (live project, paid), hourly encrypted copy of the database and photo originals to Backblaze B2 (`.github/workflows/backup-hourly.yml`, `scripts/backup/`), and readable copies in Google Sheets and Dropbox. A restore drill (`restore-drill.yml`) runs quarterly. Nothing runs on the schedule until the GitHub variable `BACKUPS_ENABLED` is `true`. Sentry (`@sentry/nextjs`, `sentry.*.config.ts`, `src/instrumentation*.ts`) reports errors once `NEXT_PUBLIC_SENTRY_DSN` is set; it never sends user info, cookies, headers, form contents or query strings.
+
 ## Known follow-ups
 
 - Turn on leaked-password protection in Supabase Auth before the live project goes out.
 - Move media storage to Cloudflare R2/Stream before launch, and add a 30-day job that purges trashed files.
 - Thumbnails and web-size copies of uploads; whole-home zip and MLS photo pack downloads.
-- Approved open houses should show in the listing coordinator's queue for MLS entry.
 - Email or text notifications (new photo request, photographer assigned, delivered) once Resend is set up. Reverse prospecting and help emails are already wired (they log until Resend is set).
 - Real website feed and MLS read-only feed connectors (through the shared import door); the demo uses seeded rows.
 - Real photographer payouts (e.g. Stripe Connect); today it's tracking only.

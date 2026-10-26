@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
-import { isStaff, type Role, type WorkflowStatus } from "@/lib/permissions";
+import { isStaff, TASK_KIND_LABELS, type Role, type WorkflowStatus } from "@/lib/permissions";
+import { whenCentral } from "@/lib/time";
 import { money } from "@/lib/format";
 import { StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
@@ -55,6 +56,17 @@ async function Queues() {
     .is("deleted_at", null)
     .in("workflow_status", ["draft", "in_review", "approved_for_mls"])
     .order("updated_at", { ascending: true });
+  // Our team: open MLS work besides new listings (open houses, changes, status).
+  const { data: mlsWork } = isStaff(me.role)
+    ? await supabase
+        .from("tasks")
+        .select("id, kind, title, due_at, priority, source_table, home_id, changes")
+        .in("kind", ["open_house_mls", "listing_status", "mls_update", "mls_entry"])
+        .in("status", ["todo", "in_progress"])
+        .order("due_at", { ascending: true, nullsFirst: false })
+    : { data: null };
+  const entryTask = new Map((mlsWork ?? []).filter((t) => t.kind === "mls_entry").map((t) => [t.home_id, t.id]));
+  const otherWork = (mlsWork ?? []).filter((t) => t.kind !== "mls_entry");
 
   return (
     <div className="max-w-4xl">
@@ -73,6 +85,7 @@ async function Queues() {
         )}
         {queuesFor(me.role).map((q) => {
           const rows = (homes ?? []).filter((h) => q.statuses.includes(h.workflow_status));
+          const isMlsQueue = q.statuses.includes("approved_for_mls") && isStaff(me.role);
           return (
             <section key={q.title}>
               <h2 className="text-[22px] font-semibold">
@@ -83,7 +96,7 @@ async function Queues() {
                 {rows.map((h) => (
                   <Link
                     key={h.id}
-                    href={`/homes/${h.id}`}
+                    href={isMlsQueue && entryTask.get(h.id) ? `/tasks/${entryTask.get(h.id)}` : `/homes/${h.id}`}
                     className="flex items-center gap-4 rounded-2xl border border-line p-3 transition-shadow hover:shadow-md"
                   >
                     <div className="h-16 w-24 shrink-0 overflow-hidden rounded-xl sm:h-20 sm:w-28">
@@ -110,6 +123,26 @@ async function Queues() {
             </section>
           );
         })}
+
+        {isStaff(me.role) && (
+            <section>
+              <h2 className="text-[22px] font-semibold">
+                MLS updates to enter <span className="font-normal text-muted">{otherWork.length}</span>
+              </h2>
+              <p className="mt-1 text-muted">Open houses to add or remove, status changes and edits to live listings. Each opens a work sheet with exactly what to enter.</p>
+              <div className="mt-4 space-y-2">
+                {otherWork.map((t) => (
+                  <Link key={t.id} href={`/tasks/${t.id}`} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line px-4 py-3 transition-shadow hover:shadow-md">
+                    <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent">{TASK_KIND_LABELS[t.kind]}</span>
+                    {t.priority === "high" && <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">High</span>}
+                    <span className="min-w-0 flex-1 font-medium">{t.title}</span>
+                    {t.due_at && <span className="text-sm text-muted">Due {whenCentral(t.due_at)}</span>}
+                  </Link>
+                ))}
+                {otherWork.length === 0 && <p className="rounded-2xl border border-dashed border-line px-4 py-8 text-center text-muted">Nothing waiting here.</p>}
+              </div>
+            </section>
+        )}
       </div>
     </div>
   );

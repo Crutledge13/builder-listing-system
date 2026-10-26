@@ -279,7 +279,7 @@ export async function requestReverseProspecting(formData: FormData) {
     .select("id")
     .single();
   if (error || !data) back(id, { error: friendly(error?.message ?? "unknown"), at: "reverse-prospecting" });
-  after(() => sendQueuedEmails(supabase, "reverse_prospect_requests", data.id));
+  after(() => sendQueuedEmails("reverse_prospect_requests", data.id));
   revalidatePath(`/homes/${id}`);
   back(id, { saved: "reverse-requested", at: "reverse-prospecting" });
 }

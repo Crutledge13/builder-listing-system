@@ -3,12 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { ROLE_LABELS, type Role } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { invitePerson, setAssignments, updatePerson } from "../actions";
+import { AccessHistory } from "@/components/access-history";
 
 export default function PeopleAdmin(props: PageProps<"/admin/people">) {
   return (
     <Suspense fallback={<div className="h-40 animate-pulse rounded-2xl bg-soft" />}>
       <Notice searchParams={props.searchParams} />
       <People />
+      <AccessHistory limit={60} />
     </Suspense>
   );
 }
