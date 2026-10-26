@@ -18,7 +18,7 @@ async function Overview() {
     const { count: n } = await q;
     return n ?? 0;
   };
-  const [builders, communities, homes, people, media, openRequests, readyForMls, inReview] = await Promise.all([
+  const [builders, communities, homes, people, media, openRequests, readyForMls, inReview, tagRequests] = await Promise.all([
     count("builders"),
     count("communities"),
     count("homes", (q) => q.is("deleted_at", null)),
@@ -27,12 +27,14 @@ async function Overview() {
     count("change_requests", (q) => q.eq("status", "open")),
     count("homes", (q) => q.eq("workflow_status", "approved_for_mls").is("deleted_at", null)),
     count("homes", (q) => q.eq("workflow_status", "in_review").is("deleted_at", null)),
+    count("media_tag_requests", (q) => q.eq("status", "pending")),
   ]);
 
   const tiles = [
     { n: readyForMls, label: "ready to enter into the MLS", href: "/approvals", urgent: readyForMls > 0 },
     { n: openRequests, label: "open change requests", href: "/admin/requests", urgent: openRequests > 0 },
     { n: inReview, label: "waiting on builder approval", href: "/approvals" },
+    ...(tagRequests > 0 ? [{ n: tagRequests, label: "new photo tags requested", href: "/admin/tags#requests", urgent: true }] : []),
     { n: builders, label: "builders", href: "/admin/builders" },
     { n: communities, label: "communities", href: "/admin/communities" },
     { n: homes, label: "homes", href: "/homes" },

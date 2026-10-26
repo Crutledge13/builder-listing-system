@@ -15,11 +15,8 @@ export async function saveMedia(formData: FormData) {
   const id = String(formData.get("id"));
   const title = String(formData.get("title") ?? "").trim();
   const room = String(formData.get("room") ?? "");
-  const tags = String(formData.get("tags") ?? "")
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .slice(0, 30);
+  // Picked from the shared list; the database also drops anything not on it.
+  const tags = formData.getAll("tag").map((t) => String(t).trim()).filter(Boolean).slice(0, 30);
   if (!title) back(id, { error: "Give it a title." });
 
   const supabase = await createClient();
@@ -84,4 +81,19 @@ export async function clearAiWarning(formData: FormData) {
   revalidatePath("/media");
   if (data[0].home_id) revalidatePath(`/homes/${data[0].home_id}`);
   back(id, { saved: "cleared" });
+}
+
+// Ask our team to add a tag to the shared list.
+export async function requestTag(formData: FormData) {
+  const mediaId = String(formData.get("media_id"));
+  const label = String(formData.get("label") ?? "").trim().slice(0, 40);
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500) || null;
+  if (!label) back(mediaId, { error: "Type the tag you’d like." });
+  const supabase = await createClient();
+  const { data: existing } = await supabase.from("media_tags").select("label, aliases").eq("active", true);
+  const match = (existing ?? []).find((t) => t.label.toLowerCase() === label.toLowerCase() || (t.aliases as string[]).includes(label.toLowerCase()));
+  if (match) back(mediaId, { error: `“${match.label}” is already on the list. Pick it in the tags box.` });
+  const { error } = await supabase.from("media_tag_requests").insert({ label, note, media_id: mediaId });
+  if (error) back(mediaId, { error: "Your role can’t ask for tags." });
+  back(mediaId, { saved: "tagreq" });
 }

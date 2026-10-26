@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { recordUploads, type UploadedFile } from "./actions";
+import { TagPicker } from "@/components/tag-picker";
+import type { ListTag } from "@/lib/tags";
 
 type Community = { id: string; name: string; builder_id: string; builderName: string };
 type Home = { id: string; community_id: string; unparsed_address: string };
@@ -26,7 +28,9 @@ export function UploadForm({
   showBuilder,
   communityWide,
   doneHref,
+  tagList = [],
 }: {
+  tagList?: ListTag[];
   communities: Community[];
   homes: Home[];
   presetCommunity: string | null;
@@ -40,7 +44,7 @@ export function UploadForm({
   const [homeId, setHomeId] = useState(presetHome ?? "");
   const wholeCommunityOk = !communityWide || communityWide.includes(communityId);
   const [room, setRoom] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<Record<string, "waiting" | "uploading" | "done" | "failed">>({});
   const [busy, setBusy] = useState(false);
@@ -86,7 +90,7 @@ export function UploadForm({
       communityId: community.id,
       homeId: homeId || null,
       room: room || null,
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      tags,
       files: done,
     });
     setBusy(false);
@@ -121,10 +125,11 @@ export function UploadForm({
             {ROOMS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </label>
-        <label className="block">
+        <div className="block">
           <span className="mb-1.5 block text-sm font-medium">Extra tags (optional)</span>
-          <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="twilight, model home, upgraded patio" className="field-input" />
-        </label>
+          <TagPicker list={tagList} name="upload_tag" onChange={setTags} />
+          <span className="mt-1 block text-xs text-muted">From our shared list. Need a new one? Ask from any photo’s page after uploading.</span>
+        </div>
       </div>
 
       <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-line p-8 text-center hover:border-foreground">

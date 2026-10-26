@@ -5,6 +5,7 @@ import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canManageMedia, isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
 import { MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
+import { loadTagList, TAG_CATEGORIES } from "@/lib/tags";
 import { MediaGrid, MediaPicture, MediaTile, planFolderHref } from "@/components/media-tile";
 
 export default function MediaPage(props: PageProps<"/media">) {
@@ -54,6 +55,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     ? await supabase.from("builders").select("id, name").eq("id", effectiveBuilder).maybeSingle()
     : { data: null };
 
+  const tagList = await loadTagList(supabase);
   const filtering = !!(q || room || kind || tag);
   const atTop = !home && !community && !filtering;
 
@@ -212,11 +214,25 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
           <Link key={r} href={params({ room: room === r ? null : r })} className={chip(room === r)}>{ROOM_LABELS[r]}</Link>
         ))}
       </div>
-      {tag && (
-        <p className="mt-3 text-sm">
-          Tagged <b>{tag}</b>. <Link href={params({ tag: null })} className="underline">Clear</Link>
-        </p>
-      )}
+      <details key={tag ?? "none"} data-popover className="relative mt-3 inline-block">
+        <summary className={chip(!!tag) + " cursor-pointer list-none"}>{tag ? `Tag: ${tag}` : "Filter by tag"} ▾</summary>
+        <div className="absolute z-30 mt-2 max-h-96 w-[min(92vw,560px)] overflow-y-auto rounded-2xl border border-line bg-white p-3 shadow-xl">
+          {tag && <Link href={params({ tag: null })} className="mb-2 inline-block text-sm font-semibold text-accent underline">Clear the tag filter</Link>}
+          {TAG_CATEGORIES.map((c) => {
+            const tags = tagList.filter((t) => t.category === c.key);
+            return tags.length ? (
+              <div key={c.key} className="mb-3 last:mb-0">
+                <p className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{c.label}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((t) => (
+                    <Link key={t.id} href={params({ tag: tag === t.label ? null : t.label })} className={chip(tag === t.label)}>{t.label}</Link>
+                  ))}
+                </div>
+              </div>
+            ) : null;
+          })}
+        </div>
+      </details>
 
       {/* Top level: community folders, grouped by builder for our staff */}
       {atTop && (

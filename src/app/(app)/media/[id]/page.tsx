@@ -8,7 +8,9 @@ import { dateTime } from "@/lib/format";
 import { DemoArt, MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
 import { DownloadDrawn, DownloadWithDisclaimer, VideoPlayer } from "@/components/media-client";
 import { DISCLAIMER_TEXT, DisclaimerOverlay, planFolderHref } from "@/components/media-tile";
-import { clearAiWarning, makeCover, rerunAi, saveMedia, setTrashed } from "./actions";
+import { clearAiWarning, makeCover, requestTag, rerunAi, saveMedia, setTrashed } from "./actions";
+import { TagPicker } from "@/components/tag-picker";
+import { loadTagList, pickedTags } from "@/lib/tags";
 import { aiTaggingAvailable } from "@/lib/ai-tagging";
 
 export default function MediaItemPage(props: PageProps<"/media/[id]">) {
@@ -26,6 +28,7 @@ const MESSAGES: Record<string, string> = {
   restored: "Restored from the trash.",
   ai: "AI took another look.",
   cleared: "Marked OK for the MLS. The warning no longer holds up the listing.",
+  tagreq: "Sent. Our team will add the tag or point you to one that fits.",
 };
 
 async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">["params"]; searchParams: PageProps<"/media/[id]">["searchParams"] }) {
@@ -53,6 +56,13 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
   const isPlanItem = !!m.plan_name && !m.home_id;
   const disclaimer = m.kind === "photo" && !!homeFlag?.show_representative_disclaimer;
   const offerDisclaimer = m.kind === "photo" && isPlanItem && !disclaimer;
+
+  const allTags = manage ? await loadTagList(supabase, { includeRetired: true }) : [];
+  const picked = pickedTags(m.tags, allTags);
+  const autoTags = m.tags.filter((t) => !picked.some((p) => p.toLowerCase() === t.toLowerCase()));
+  const { data: myRequests } = manage
+    ? await supabase.from("media_tag_requests").select("id, label, status, answer").eq("media_id", m.id).eq("requested_by", me.id).order("created_at", { ascending: false }).limit(5)
+    : { data: null };
 
   const { data: uploader } = m.uploaded_by
     ? await supabase.from("profiles").select("full_name").eq("id", m.uploaded_by).maybeSingle()
@@ -159,17 +169,49 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
                   {Object.entries(ROOM_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </label>
-              <label className="mt-3 block">
-                <span className="mb-1 block text-sm font-medium">Tags, separated by commas</span>
-                <textarea name="tags" rows={3} defaultValue={m.tags.join(", ")} className="field-input text-sm leading-relaxed" />
-                <span className="mt-1 block text-xs text-muted">The address, plan, community and room are added automatically.</span>
-              </label>
+              <div className="mt-3">
+                <span className="mb-1 block text-sm font-medium">Tags</span>
+                <TagPicker list={allTags.filter((t) => t.active)} defaultValue={picked} requestHref="#request-tag" />
+                <span className="mt-1 block text-xs text-muted">
+                  Pick from our shared list so everyone’s photos stay searchable the same way.
+                  {autoTags.length > 0 && <> Added automatically: {autoTags.join(", ")}.</>}
+                </span>
+              </div>
               <label className="mt-3 flex items-center gap-2 text-sm">
                 <input type="checkbox" name="mls_ready" defaultChecked={m.mls_ready} className="h-4 w-4 accent-[#3452c7]" />
                 Ready for the MLS
               </label>
               <button className="mt-4 w-full rounded-xl bg-foreground px-4 py-2.5 font-semibold text-white hover:bg-black">Save</button>
             </form>
+          )}
+
+          {manage && !m.deleted_at && (
+            <details id="request-tag" className="rounded-2xl border border-line p-5">
+              <summary className="cursor-pointer font-semibold">Need a tag that isn’t on the list?</summary>
+              <form action={requestTag} className="mt-3 space-y-3">
+                <input type="hidden" name="media_id" value={m.id} />
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Tag you’d like</span>
+                  <input name="label" required maxLength={40} placeholder="e.g. Wine room" className="field-input" />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium">Why (optional)</span>
+                  <input name="note" maxLength={500} placeholder="What it’s for, so our team can name it well" className="field-input" />
+                </label>
+                <button className="w-full rounded-xl border border-foreground px-4 py-2.5 font-semibold hover:bg-soft">Send to our team</button>
+                <p className="text-xs text-muted">Our team adds it to the list (or points you to an existing tag). If approved, it’s added to this photo.</p>
+              </form>
+              {myRequests && myRequests.length > 0 && (
+                <ul className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
+                  {myRequests.map((r) => (
+                    <li key={r.id}>
+                      “{r.label}”: {r.status === "pending" ? "waiting on our team" : r.status === "approved" ? "approved" : "not added"}
+                      {r.answer && <span className="text-muted">. {r.answer}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
           )}
 
           {manage && (

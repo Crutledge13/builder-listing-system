@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { canManageMedia, isStaff, ROLE_LABELS } from "@/lib/permissions";
 import { MEDIA_REQUEST_SELECT, type MediaRequest } from "@/components/media-requests";
 import { UploadForm } from "./upload-form";
+import { loadTagList } from "@/lib/tags";
 
 export default function UploadPage(props: PageProps<"/media/upload">) {
   return (
@@ -28,6 +29,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
   }
 
   const supabase = await createClient();
+  const tagList = await loadTagList(supabase);
 
   // Photographers upload only to their open jobs; build the choices from those.
   if (me.role === "photographer") {
@@ -49,6 +51,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
             <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">You have no open jobs to upload to.</p>
           ) : (
             <UploadForm
+              tagList={tagList}
               communities={[...comms.values()]}
               homes={jobs.filter((j) => j.home_id).map((j) => ({ id: j.home_id!, community_id: j.community_id, unparsed_address: j.address }))}
               communityWide={jobs.filter((j) => !j.home_id).map((j) => j.community_id)}
@@ -81,6 +84,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
       </p>
       <div className="mt-8">
         <UploadForm
+          tagList={tagList}
           communities={(communities ?? []).map((c) => ({
             id: c.id,
             name: c.name,

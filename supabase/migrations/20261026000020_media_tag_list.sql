@@ -135,7 +135,7 @@ begin
     auto := auto || c.name;
   end if;
   if new.plan_name is not null then
-    auto := auto || array[new.plan_name || ' plan', 'representative'];
+    auto := auto || array[new.plan_name || ' plan', coalesce(private.tag_label('representative', true), 'representative')];
   end if;
   if new.room is not null then
     -- A room that is also on the list (amenity, aerial, entrance...) uses the list's name.

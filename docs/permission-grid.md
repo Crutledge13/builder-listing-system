@@ -52,6 +52,9 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | See and download photos/video | all | all | own | own | assigned + builder-wide | own | jobs (existing photos, as reference) |
 | Upload | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | jobs |
 | Edit tags, room, cover; move to trash | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | only what they uploaded |
+| Pick tags from the shared list | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | only what they uploaded |
+| Ask for a new tag | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ |
+| Manage the tag list (add, rename, merge, retire, answer requests) | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Request photos (photo requests) | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | ➖ |
 | See photo requests | all | all | own | own | ➖ | own | their jobs |
 | Assign photographer | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |

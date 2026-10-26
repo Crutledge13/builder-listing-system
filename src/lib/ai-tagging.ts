@@ -1,6 +1,7 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadTagList, matchToList, type ListTag } from "@/lib/tags";
 
 // Looks at uploaded photos with Claude and suggests the room, a few tags, a
 // short caption and anything the MLS might reject. Suggestions are marked as
@@ -29,11 +30,11 @@ export function aiTaggingAvailable() {
   return !!process.env.ANTHROPIC_API_KEY;
 }
 
-const SYSTEM = `You label photos for a new-construction home builder's private media library.
+const system = (tagLabels: string[]) => `You label photos for a new-construction home builder's private media library.
 Look at one photo and reply with only a JSON object, no other text:
 {"room": one of ${JSON.stringify(ROOMS)},
  "confidence": number from 0 to 1,
- "tags": up to 6 short lowercase features a buyer's agent would search for (e.g. "quartz countertops", "vaulted ceiling", "covered patio"),
+ "tags": up to 6 tags that clearly show in the photo, copied exactly from this list and nothing else: ${JSON.stringify(tagLabels)},
  "caption": a plain description under 12 words, no hype,
  "flags": any of ${JSON.stringify(FLAGS)} that apply, else []}
 Room guide: "primary_bedroom" and "primary_bath" are the largest or most finished of their kind; use "bedroom"/"bath" when unsure.
@@ -41,7 +42,7 @@ Room guide: "primary_bedroom" and "primary_bath" are the largest or most finishe
 "aerial" for drone shots, "floor_plan" for drawings of a layout, "other" if nothing fits.`;
 
 // Pull the JSON object out of the model's reply and keep only valid values.
-export function parseSuggestion(text: string): AiSuggestion | null {
+export function parseSuggestion(text: string, list: ListTag[] = []): AiSuggestion | null {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) return null;
   let raw: Record<string, unknown>;
@@ -53,9 +54,8 @@ export function parseSuggestion(text: string): AiSuggestion | null {
   const room = ROOMS.includes(raw.room as (typeof ROOMS)[number]) ? (raw.room as AiSuggestion["room"]) : null;
   if (!room) return null;
   const confidence = Math.max(0, Math.min(1, Number(raw.confidence) || 0));
-  const tags = Array.isArray(raw.tags)
-    ? raw.tags.map((t) => String(t).toLowerCase().trim()).filter((t) => t && t.length <= 40).slice(0, 6)
-    : [];
+  // Only tags on our shared list survive (the database checks this too).
+  const tags = Array.isArray(raw.tags) ? matchToList(raw.tags.map((t) => String(t)), list).slice(0, 6) : [];
   const caption = typeof raw.caption === "string" ? raw.caption.trim().slice(0, 140) : "";
   const flags = Array.isArray(raw.flags)
     ? (raw.flags.filter((f) => FLAGS.includes(f as (typeof FLAGS)[number])) as AiSuggestion["flags"])
@@ -87,6 +87,8 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
     return;
   }
   const client = new Anthropic();
+  const list = await loadTagList(supabase);
+  const SYSTEM = system(list.map((t) => t.label));
 
   const work = photos.map((p) => async () => {
     if (!READABLE.has(p.mime_type ?? "")) {
@@ -112,7 +114,7 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
         ],
       });
       const text = reply.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-      const s = parseSuggestion(text);
+      const s = parseSuggestion(text, list);
       if (!s) throw new Error("Unreadable reply");
 
       const patch: Record<string, unknown> = {
