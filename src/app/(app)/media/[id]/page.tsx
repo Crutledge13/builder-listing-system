@@ -33,10 +33,11 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
   const { data } = await supabase.from("media").select(MEDIA_SELECT + ", deleted_at, uploaded_by, size_bytes").eq("id", id).maybeSingle();
   if (!data) notFound();
   const m = data as unknown as MediaRow & { deleted_at: string | null; uploaded_by: string | null; size_bytes: number | null };
-  const manage = canManageMedia(me.role);
+  const manage = canManageMedia(me.role) || (me.role === "photographer" && m.uploaded_by === me.id);
+  const photographer = me.role === "photographer";
   const fileName = m.title.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase();
-  const backHref = m.home_id ? `/media?home=${m.home_id}` : m.community_id ? `/media?community=${m.community_id}` : "/media";
-  const backLabel = m.homes?.unparsed_address ?? m.communities?.name ?? "Media";
+  const backHref = me.role === "photographer" ? "/jobs" : m.home_id ? `/media?home=${m.home_id}` : m.community_id ? `/media?community=${m.community_id}` : "/media";
+  const backLabel = me.role === "photographer" ? "Your jobs" : m.homes?.unparsed_address ?? m.communities?.name ?? "Media";
   const error = typeof sp.error === "string" ? sp.error : null;
   const saved = typeof sp.saved === "string" ? MESSAGES[sp.saved] : null;
 
@@ -76,13 +77,13 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
           <h1 className="mt-5 text-[26px] font-bold leading-tight tracking-tight">{m.title}</h1>
           <p className="mt-1 text-muted">
             {m.room ? ROOM_LABELS[m.room] : m.kind === "video" ? "Video" : "Photo"}
-            {m.homes ? <>, <Link href={`/homes/${m.home_id}`} className="text-foreground underline">{m.homes.unparsed_address}</Link></> : null}
-            {m.communities ? <>, <Link href={`/communities/${m.community_id}`} className="text-foreground underline">{m.communities.name}</Link></> : null}
+            {m.homes && !photographer ? <>, <Link href={`/homes/${m.home_id}`} className="text-foreground underline">{m.homes.unparsed_address}</Link></> : null}
+            {m.communities && !photographer ? <>, <Link href={`/communities/${m.community_id}`} className="text-foreground underline">{m.communities.name}</Link></> : null}
             {isStaff(me.role) && m.builders ? `, ${m.builders.name.replace(" (demo)", "")}` : ""}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {m.tags.map((t) => (
-              <Link key={t} href={`/media?tag=${encodeURIComponent(t)}`} className="rounded-full bg-soft px-3 py-1 text-sm hover:bg-line">
+              photographer ? <span key={t} className="rounded-full bg-soft px-3 py-1 text-sm">{t}</span> : <Link key={t} href={`/media?tag=${encodeURIComponent(t)}`} className="rounded-full bg-soft px-3 py-1 text-sm hover:bg-line">
                 {t}
               </Link>
             ))}
@@ -138,7 +139,7 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
 
           {manage && (
             <div className="space-y-2">
-              {m.home_id && m.kind === "photo" && !m.is_cover && !m.deleted_at && (
+              {!photographer && m.home_id && m.kind === "photo" && !m.is_cover && !m.deleted_at && (
                 <form action={makeCover}>
                   <input type="hidden" name="id" value={m.id} />
                   <input type="hidden" name="home_id" value={m.home_id} />

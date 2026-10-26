@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { HomeArt } from "@/components/home-art";
@@ -16,6 +16,7 @@ export default function CommunitiesPage() {
 
 async function CommunityList() {
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   const supabase = await createClient();
   const staff = isStaff(me.role);
 

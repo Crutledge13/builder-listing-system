@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
 import { StatusChips } from "@/components/status-chips";
@@ -38,6 +38,7 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
   const community = typeof sp.community === "string" ? sp.community : null;
 
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   const supabase = await createClient();
 
   const { data: communities } = await supabase.from("communities").select("id, name, builders(name)").order("name");

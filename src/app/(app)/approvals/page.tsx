@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { isStaff, type Role, type WorkflowStatus } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { StatusBadge } from "@/components/badges";
@@ -47,6 +47,7 @@ function queuesFor(role: Role): Queue[] {
 
 async function Queues() {
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   const supabase = await createClient();
   const { data: homes } = await supabase
     .from("homes")

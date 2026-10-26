@@ -21,6 +21,8 @@ import { MediaPicture } from "@/components/media-tile";
 import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { cancelOpenHouse, changeStatus, requestChange, resolveRequest, saveHome, scheduleOpenHouse } from "./actions";
 import { openHouseWhen } from "@/lib/time";
+import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
+import { canRequestMedia } from "@/lib/permissions";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -131,6 +133,9 @@ async function HomeDetail({
     .order("is_cover", { ascending: false })
     .order("sort_order");
   const gallery = ((mediaRows ?? []) as unknown as MediaRow[]).filter((m) => m.kind === "photo");
+  const { data: mediaReqRows } = await supabase.from("media_requests").select(MEDIA_REQUEST_SELECT).eq("home_id", id).order("created_at", { ascending: false });
+  const mediaRequests = (mediaReqRows ?? []) as MediaRequest[];
+  const openMediaRequests = mediaRequests.filter((r) => !["completed", "cancelled"].includes(r.status));
 
   const editable = new Set(editableFields(me.role));
   const status = home.workflow_status as WorkflowStatus;
@@ -138,6 +143,7 @@ async function HomeDetail({
   const sources = (home.field_sources ?? {}) as Record<string, string>;
   const error = typeof sp.error === "string" ? sp.error : null;
   const saved = typeof sp.saved === "string" ? sp.saved : null;
+  const savedText = saved ? (SAVED_MESSAGES[saved] ?? saved) : null;
   const steps = Object.keys(STATUS_LABELS) as WorkflowStatus[];
 
   const facts = [
@@ -165,7 +171,7 @@ async function HomeDetail({
       {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {saved && (
         <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {SAVED_MESSAGES[saved] ?? "Changes saved."}
+          {savedText}
         </p>
       )}
 
@@ -216,7 +222,7 @@ async function HomeDetail({
             ))}
           </dl>
 
-          <QuickLinks homeId={home.id} communityId={home.community_id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} />
+          <QuickLinks homeId={home.id} communityId={home.community_id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} />
 
           <section id="open-houses" className="scroll-mt-28 border-b border-line py-8">
             <h3 className="text-lg font-semibold">Open houses</h3>
@@ -268,6 +274,26 @@ async function HomeDetail({
                   <span className="text-sm text-muted">Times are Central. Our listing coordinator adds it to the MLS.</span>
                 </div>
               </form>
+            )}
+          </section>
+
+          <section id="photo-requests" className="scroll-mt-28 border-b border-line py-8">
+            <h3 className="text-lg font-semibold">
+              Photo requests {openMediaRequests.length > 0 && <span className="font-normal text-muted">{openMediaRequests.length} open</span>}
+            </h3>
+            <p className="mt-1 text-sm text-muted">Need new photos, video, drone or a floor plan? Ask here and we’ll send a photographer. Files land in this home’s media.</p>
+            <div className="mt-4 space-y-4">
+              {mediaRequests.slice(0, 4).map((r) => (
+                <RequestCard key={r.id} r={r} role={me.role} back={`/homes/${home.id}#photo-requests`} />
+              ))}
+            </div>
+            {canRequestMedia(me.role) && (
+              <details className="mt-4" open={mediaRequests.length === 0}>
+                <summary className="cursor-pointer list-none font-semibold underline">Request photos for this home</summary>
+                <div className="mt-3">
+                  <RequestForm back={`/homes/${home.id}#photo-requests`} homeId={home.id} />
+                </div>
+              </details>
             )}
           </section>
 
@@ -486,6 +512,21 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
     return `scheduled an open house for ${openHouseWhen(c.starts_at, c.ends_at)}`;
   }
   if (action === "open_house_cancelled") return "cancelled an open house";
+  if (action === "media_requested") {
+    const needs = (changes as unknown as { needs: string[] }).needs ?? [];
+    return `requested ${needs.map((n) => NEED_TEXT[n] ?? n).join(", ") || "photos"}`;
+  }
+  if (action.startsWith("media_request_")) {
+    const who = (changes as unknown as { photographer?: string }).photographer;
+    const st = action.replace("media_request_", "");
+    return st === "assigned" ? `assigned ${who ?? "a photographer"} to the photo request`
+      : st === "scheduled" ? "scheduled the photo shoot"
+      : st === "delivered" ? "delivered the photos"
+      : st === "completed" ? "marked the photo request complete"
+      : st === "cancelled" ? "cancelled the photo request"
+      : st === "requested" ? "removed the photographer from the request"
+      : "updated the photo request";
+  }
   if (action === "media_added") return `added ${(changes as unknown as { title: string }).title} to the media library`;
   if (action === "media_trashed") return `moved ${(changes as unknown as { title: string }).title} to the trash`;
   if (action === "media_restored") return `restored ${(changes as unknown as { title: string }).title}`;
@@ -514,15 +555,16 @@ const REQUEST_STYLES: Record<string, string> = {
   declined: "bg-soft text-muted",
 };
 
-function QuickLinks({ homeId, communityId, openRequests, upcomingOH }: { homeId: string; communityId: string; openRequests: number; upcomingOH: number }) {
+function QuickLinks({ homeId, communityId, openRequests, upcomingOH, openShoots }: { homeId: string; communityId: string; openRequests: number; upcomingOH: number; openShoots: number }) {
   const items = [
     { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
     { href: "#open-houses", title: "Open houses", sub: upcomingOH ? `${upcomingOH} scheduled` : "Schedule one" },
+    { href: "#photo-requests", title: "Request photos", sub: openShoots ? `${openShoots} in progress` : "Send a photographer" },
     { href: `/media?home=${homeId}`, title: "Home photos and video", sub: "Media library" },
     { href: `/media?community=${communityId}`, title: "Community media", sub: "Amenities, maps, drone" },
   ];
   return (
-    <nav className="grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-4" aria-label="On this home">
+    <nav className="grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-3 xl:grid-cols-5" aria-label="On this home">
       {items.map((i) => (
         <Link key={i.title} href={i.href} className="rounded-2xl border border-line p-4 transition-shadow hover:shadow-md">
           <div className="font-semibold">{i.title}</div>
@@ -532,3 +574,7 @@ function QuickLinks({ homeId, communityId, openRequests, upcomingOH }: { homeId:
     </nav>
   );
 }
+
+const NEED_TEXT: Record<string, string> = {
+  photos: "photos", twilight: "twilight photos", video: "a video walkthrough", drone: "drone shots", floor_plan: "a floor plan", virtual_tour: "a 3D tour",
+};

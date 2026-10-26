@@ -38,6 +38,11 @@ export async function requireProfile(): Promise<Profile> {
   };
 }
 
+// Photographers only use their jobs page; send them there from everywhere else.
+export function sendPhotographersToJobs(me: Profile) {
+  if (me.role === "photographer") redirect("/jobs");
+}
+
 // Fake logins used for demos. Only switchable when DEMO_MODE is on.
 export const DEMO_USERS = [
   { email: "admin@demo.test", label: "Dana Admin", detail: "Platform admin (our staff)" },
@@ -49,6 +54,7 @@ export const DEMO_USERS = [
   { email: "marketing.mesquite@demo.test", label: "Riley Chen", detail: "Marketing, Mesquite Creek" },
   { email: "owner.prairie@demo.test", label: "Avery Patel", detail: "Owner, Prairie Lantern" },
   { email: "marketing.prairie@demo.test", label: "Quinn Harper", detail: "Marketing, Prairie Lantern" },
+  { email: "photographer@demo.test", label: "Sky Navarro", detail: "Photographer (contractor)" },
 ] as const;
 
 // On whenever a demo password is set, unless DEMO_MODE is explicitly "false".

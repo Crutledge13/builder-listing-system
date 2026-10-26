@@ -8,7 +8,8 @@ export type Role =
   | "builder_owner"
   | "manager"
   | "sales"
-  | "marketing";
+  | "marketing"
+  | "photographer";
 
 export type WorkflowStatus =
   | "draft"
@@ -23,6 +24,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   manager: "Manager",
   sales: "Sales",
   marketing: "Marketing",
+  photographer: "Photographer",
 };
 
 export const STATUS_LABELS: Record<WorkflowStatus, string> = {
@@ -77,6 +79,10 @@ export function editableFields(role: Role): readonly HomeField[] {
   }
 }
 
+export function isPhotographer(role: Role) {
+  return role === "photographer";
+}
+
 export function isStaff(role: Role) {
   return role === "platform_admin" || role === "listing_coordinator";
 }
@@ -118,3 +124,26 @@ export function canAddHomes(role: Role) {
 export function canManageMedia(role: Role) {
   return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }
+
+// Who may ask for a photo shoot (matches the database's request rules).
+export function canRequestMedia(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "sales", "marketing"].includes(role);
+}
+
+export const NEED_LABELS: Record<string, string> = {
+  photos: "Photos",
+  twilight: "Twilight photos",
+  video: "Video walkthrough",
+  drone: "Drone or aerial",
+  floor_plan: "Floor plan",
+  virtual_tour: "3D virtual tour",
+};
+
+export const REQUEST_STATUS_LABELS: Record<string, string> = {
+  requested: "Needs a photographer",
+  assigned: "Photographer assigned",
+  scheduled: "Shoot scheduled",
+  delivered: "Delivered, ready to review",
+  completed: "Complete",
+  cancelled: "Cancelled",
+};

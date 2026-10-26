@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireProfile } from "@/lib/auth";
 
 export type UploadedFile = { path: string; name: string; size: number; type: string };
 
@@ -21,13 +22,30 @@ export async function recordUploads(input: {
   files: UploadedFile[];
 }): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
   const supabase = await createClient();
+  const me = await requireProfile();
 
-  // Reading the community (and home) as the user proves they can see them.
-  const { data: community } = await supabase.from("communities").select("id, builder_id").eq("id", input.communityId).maybeSingle();
-  if (!community) return { ok: false, error: "That community isn’t available to you." };
-  if (input.homeId) {
-    const { data: home } = await supabase.from("homes").select("id").eq("id", input.homeId).eq("community_id", community.id).maybeSingle();
-    if (!home) return { ok: false, error: "That home isn’t in this community." };
+  let community: { id: string; builder_id: string } | null = null;
+  if (me.role === "photographer") {
+    // Photographers: the upload must match one of their open jobs.
+    let q = supabase
+      .from("media_requests")
+      .select("community_id, builder_id")
+      .eq("photographer_id", me.id)
+      .eq("community_id", input.communityId)
+      .in("status", ["assigned", "scheduled", "delivered"]);
+    q = input.homeId ? q.eq("home_id", input.homeId) : q.is("home_id", null);
+    const { data: job } = await q.limit(1).maybeSingle();
+    if (!job) return { ok: false, error: "That isn’t one of your open jobs." };
+    community = { id: job.community_id, builder_id: job.builder_id };
+  } else {
+    // Reading the community (and home) as the user proves they can see them.
+    const { data } = await supabase.from("communities").select("id, builder_id").eq("id", input.communityId).maybeSingle();
+    if (!data) return { ok: false, error: "That community isn’t available to you." };
+    community = data;
+    if (input.homeId) {
+      const { data: home } = await supabase.from("homes").select("id").eq("id", input.homeId).eq("community_id", community.id).maybeSingle();
+      if (!home) return { ok: false, error: "That home isn’t in this community." };
+    }
   }
 
   const prefix = `${community.builder_id}/${community.id}/`;

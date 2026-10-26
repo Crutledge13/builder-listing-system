@@ -24,6 +24,7 @@ Private back-office system for new-construction home builders in Texas. This fil
 | Manager | Builder | Edits listings, approves them for the MLS; no billing |
 | Sales | Builder | Only their assigned communities: pricing, availability, status, open houses, change requests, view and download media. Cannot add homes or upload media. |
 | Marketing | Builder | Descriptions, photos and media; no pricing changes |
+| Photographer | Contractor (no builder) | Only their assigned jobs: set a shoot time, upload and tag media for that home or community, mark delivered. Sees no homes, prices, builders or other media. |
 
 The permission grid in `docs/` is final once it exists; this table is the starting point.
 
@@ -61,7 +62,7 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 - `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo.
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
-- `src/app/(app)/` — the signed-in screens: communities (start page) and each community's homes, all homes, home detail (edit, approvals, open houses, change requests), add a home, approvals, media library (placeholder).
+- `src/app/(app)/` — the signed-in screens: communities (start page) and each community's homes, all homes, home detail (edit, approvals, open houses, photo requests, change requests), add a home, approvals, media library, photo requests, photographer jobs, admin.
 - `src/components/home-art.tsx`, `src/components/media-art.tsx` — drawn pictures (exteriors, rooms, floor plans, community scenes) for demo media. `demo-media/videos/` holds four short demo videos.
 - `src/app/(app)/media/` — media library (builder > community > home folders, room/type/tag filters, search), item page (download, tags, cover, trash), upload.
 - `src/app/api/media/[id]/route.ts` — the only way files are served: reads the media record as the signed-in user (RLS decides), then redirects to an hour-long storage link or streams a demo video.
@@ -83,7 +84,11 @@ When `DEMO_PASSWORD` is set (and `DEMO_MODE` isn't `false`), anyone signed in as
 
 ## Sales access
 
-Salespeople see only the communities they're assigned to (`community_assignments`), enforced by RLS through `private.can_see_home`. Owners and managers see their whole builder. A screen to manage assignments doesn't exist yet; assign in the database for now.
+Salespeople see only the communities they're assigned to (`community_assignments`), enforced by RLS through `private.can_see_home`. Owners and managers see their whole builder. Assign salespeople in Admin > People, or from a community page (owners and managers).
+
+## Photo requests and photographers
+
+`media_requests`: the builder team asks for photos/video/drone/floor plan on a home or a whole community; our admins assign a photographer and shoot time; the photographer uploads and marks it delivered; the builder marks it complete or sends it back. Status rules live in the `media_requests_guard` trigger. Each request copies the address, community and builder name so photographers never need access to `homes`. Photographers can add media only to homes/communities on their open jobs (`private.photographer_can_shoot`) and edit only what they uploaded. Screens: `/media/requests` (builders, admins), `/jobs` (photographers), and the Photo requests section on each home.
 
 ## Design
 
@@ -104,4 +109,5 @@ Inviting people needs `SUPABASE_SERVICE_ROLE_KEY` set in Vercel (server only, ne
 - Thumbnails and web-size copies of uploads; whole-home zip and MLS photo pack downloads.
 - AI photo tagging (Claude API) to suggest rooms and tags on upload.
 - Approved open houses should show in the listing coordinator's queue for MLS entry.
+- Email or text notifications (new photo request, photographer assigned, delivered) once Resend is set up.
 - Field-level edit rules for homes are enforced by the `enforce_home_edit_rules` trigger; update it alongside `src/lib/permissions.ts` when the permission grid changes.

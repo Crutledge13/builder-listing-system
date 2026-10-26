@@ -22,3 +22,10 @@ export function openHouseWhen(startIso: string, endIso: string) {
   const t = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(new Date(iso));
   return `${day}, ${t(startIso)} to ${t(endIso)}`;
 }
+
+// "Wed, Oct 28, 9:00 AM" in Central time.
+export function whenCentral(iso: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  }).format(new Date(iso));
+}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { canManageMedia, isStaff, ROLE_LABELS } from "@/lib/permissions";
+import { MEDIA_REQUEST_SELECT, type MediaRequest } from "@/components/media-requests";
 import { UploadForm } from "./upload-form";
 
 export default function UploadPage(props: PageProps<"/media/upload">) {
@@ -16,7 +17,7 @@ export default function UploadPage(props: PageProps<"/media/upload">) {
 async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload">["searchParams"] }) {
   const sp = await searchParams;
   const me = await requireProfile();
-  if (!canManageMedia(me.role)) {
+  if (!canManageMedia(me.role) && me.role !== "photographer") {
     return (
       <div className="mx-auto max-w-lg py-16 text-center">
         <h1 className="text-[28px] font-bold tracking-tight">Uploading isn’t part of your role</h1>
@@ -27,6 +28,41 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
   }
 
   const supabase = await createClient();
+
+  // Photographers upload only to their open jobs; build the choices from those.
+  if (me.role === "photographer") {
+    const { data: jobRows } = await supabase
+      .from("media_requests")
+      .select(MEDIA_REQUEST_SELECT + ", builder_id")
+      .eq("photographer_id", me.id)
+      .in("status", ["assigned", "scheduled", "delivered"]);
+    const jobs = (jobRows ?? []) as unknown as (MediaRequest & { builder_id: string })[];
+    const job = jobs.find((j) => j.id === sp.request) ?? null;
+    const comms = new Map(jobs.map((j) => [j.community_id, { id: j.community_id, name: j.community_name, builder_id: j.builder_id, builderName: j.builder_name.replace(" (demo)", "") }]));
+    return (
+      <div className="mx-auto max-w-3xl">
+        <Link href="/jobs" className="text-sm font-medium text-muted hover:text-foreground">Back to your jobs</Link>
+        <h1 className="mt-3 text-[28px] font-bold leading-tight tracking-tight">Upload for {job?.address ?? "a job"}</h1>
+        <p className="mt-1 text-muted">Pick the room for each batch so the builder can find them. You can fix tags on any file after.</p>
+        <div className="mt-8">
+          {jobs.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">You have no open jobs to upload to.</p>
+          ) : (
+            <UploadForm
+              communities={[...comms.values()]}
+              homes={jobs.filter((j) => j.home_id).map((j) => ({ id: j.home_id!, community_id: j.community_id, unparsed_address: j.address }))}
+              communityWide={jobs.filter((j) => !j.home_id).map((j) => j.community_id)}
+              presetCommunity={job?.community_id ?? null}
+              presetHome={job?.home_id ?? null}
+              showBuilder
+              doneHref="/jobs"
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const [{ data: communities }, { data: homes }] = await Promise.all([
     supabase.from("communities").select("id, name, builder_id, builders(name)").order("name"),
     supabase.from("homes").select("id, community_id, unparsed_address").is("deleted_at", null).order("unparsed_address"),

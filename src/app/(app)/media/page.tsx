@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canManageMedia, isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
 import { MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
@@ -37,6 +37,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   const builderId = str(sp.builder);
 
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   const staff = isStaff(me.role);
   const supabase = await createClient();
 
@@ -147,6 +148,9 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
                   : "Every photo, video and floor plan, by community and home."}
           </p>
         </div>
+        <Link href="/media/requests" className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
+          Photo requests
+        </Link>
         {canManageMedia(me.role) && (
           <Link href={uploadHref} className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">
             <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden><path d="M8 11V3M4.5 6.5 8 3l3.5 3.5M3 13h10" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>

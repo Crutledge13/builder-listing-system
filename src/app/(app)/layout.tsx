@@ -30,7 +30,7 @@ function initials(name: string) {
 async function Header() {
   const me = await requireProfile();
   const showDemo = demoModeOn() && me.email.endsWith("@demo.test");
-  const company = isStaff(me.role) ? "Our team" : me.builder_name?.replace(" (demo)", "");
+  const company = me.role === "photographer" ? "Contractor" : isStaff(me.role) ? "Our team" : me.builder_name?.replace(" (demo)", "");
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
@@ -40,11 +40,11 @@ async function Header() {
         </div>
       )}
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-8">
-        <Link href="/communities" className="shrink-0">
+        <Link href={me.role === "photographer" ? "/jobs" : "/communities"} className="shrink-0">
           <Logo compact />
         </Link>
         <div className="flex min-w-0 flex-1 justify-start md:justify-center">
-          <NavLinks showAdmin={me.role === "platform_admin"} />
+          <NavLinks showAdmin={me.role === "platform_admin"} photographer={me.role === "photographer"} />
         </div>
 
         <details className="relative shrink-0">

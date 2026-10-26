@@ -25,7 +25,7 @@ async function People() {
   ]);
   const canInvite = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
   const groups = [
-    { id: "staff", name: "Our team", list: (people ?? []).filter((p) => !p.builder_id) },
+    { id: "staff", name: "Our team and photographers", list: (people ?? []).filter((p) => !p.builder_id) },
     ...(builders ?? []).map((b) => ({ id: b.id, name: b.name.replace(" (demo)", ""), list: (people ?? []).filter((p) => p.builder_id === b.id) })),
   ];
 

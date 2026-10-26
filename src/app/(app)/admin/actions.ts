@@ -93,7 +93,8 @@ export async function updateCommunity(formData: FormData) {
 // People
 // ---------------------------------------------------------------------------
 const BUILDER_ROLES = ["builder_owner", "manager", "sales", "marketing"];
-const STAFF_ROLES = ["platform_admin", "listing_coordinator"];
+// Roles with no builder: our staff and photographers (contractors who work across builders).
+const STAFF_ROLES = ["platform_admin", "listing_coordinator", "photographer"];
 
 export async function updatePerson(formData: FormData) {
   const me = await requireAdmin("/admin/people");

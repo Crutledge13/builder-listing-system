@@ -24,16 +24,21 @@ export function UploadForm({
   presetCommunity,
   presetHome,
   showBuilder,
+  communityWide,
+  doneHref,
 }: {
   communities: Community[];
   homes: Home[];
   presetCommunity: string | null;
   presetHome: string | null;
   showBuilder: boolean;
+  communityWide?: string[]; // communities where whole-community uploads are allowed (default: all)
+  doneHref?: string;
 }) {
   const router = useRouter();
   const [communityId, setCommunityId] = useState(presetCommunity ?? communities[0]?.id ?? "");
   const [homeId, setHomeId] = useState(presetHome ?? "");
+  const wholeCommunityOk = !communityWide || communityWide.includes(communityId);
   const [room, setRoom] = useState("");
   const [tags, setTags] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -48,6 +53,10 @@ export function UploadForm({
   async function upload(e: React.FormEvent) {
     e.preventDefault();
     if (!community || files.length === 0 || tooBig.length) return;
+    if (!homeId && !wholeCommunityOk) {
+      setMessage({ kind: "error", text: "Choose the home these files are for." });
+      return;
+    }
     setBusy(true);
     setMessage(null);
     const supabase = createBrowserSupabase();
@@ -85,7 +94,7 @@ export function UploadForm({
       setMessage({ kind: "error", text: result.error });
       return;
     }
-    router.push(homeId ? `/media?home=${homeId}` : `/media?community=${community.id}`);
+    router.push(doneHref ? `${doneHref}?saved=${encodeURIComponent(`Uploaded ${result.count} ${result.count === 1 ? "file" : "files"}. Tap any of them to add tags.`)}` : homeId ? `/media?home=${homeId}` : `/media?community=${community.id}`);
   }
 
   return (
@@ -102,7 +111,7 @@ export function UploadForm({
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">Home</span>
           <select value={homeId} onChange={(e) => setHomeId(e.target.value)} className="field-input">
-            <option value="">The whole community (amenities, aerials, site plan)</option>
+            {wholeCommunityOk ? <option value="">The whole community (amenities, aerials, site plan)</option> : <option value="" disabled>Choose the home</option>}
             {homesHere.map((h) => <option key={h.id} value={h.id}>{h.unparsed_address}</option>)}
           </select>
         </label>
