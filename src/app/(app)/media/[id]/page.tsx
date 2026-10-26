@@ -10,6 +10,7 @@ import { DownloadDrawn, DownloadWithDisclaimer, VideoPlayer } from "@/components
 import { DISCLAIMER_TEXT, DisclaimerOverlay, planFolderHref } from "@/components/media-tile";
 import { clearAiWarning, makeCover, requestTag, rerunAi, saveMedia, setTrashed } from "./actions";
 import { TagPicker } from "@/components/tag-picker";
+import { BackButton } from "@/components/back-button";
 import { loadTagList, pickedTags } from "@/lib/tags";
 import { aiTaggingAvailable } from "@/lib/ai-tagging";
 
@@ -70,10 +71,7 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
 
   return (
     <div>
-      <Link href={backHref} className="inline-flex items-center gap-1 text-sm font-medium text-muted hover:text-foreground">
-        <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden><path d="M10 3 5 8l5 5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        {backLabel}
-      </Link>
+      <BackButton href={backHref} label={me.role === "photographer" ? "Back to your jobs" : `Back to ${backLabel}`} />
 
       {m.deleted_at && (
         <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">This file is in the trash and hidden from the library.</p>

@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { canManageMedia, isStaff, ROLE_LABELS } from "@/lib/permissions";
 import { MEDIA_REQUEST_SELECT, type MediaRequest } from "@/components/media-requests";
 import { UploadForm } from "./upload-form";
+import { BackButton } from "@/components/back-button";
 import { loadTagList } from "@/lib/tags";
 
 export default function UploadPage(props: PageProps<"/media/upload">) {
@@ -41,27 +42,42 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
     const jobs = (jobRows ?? []) as unknown as (MediaRequest & { builder_id: string })[];
     const job = jobs.find((j) => j.id === sp.request) ?? null;
     const comms = new Map(jobs.map((j) => [j.community_id, { id: j.community_id, name: j.community_name, builder_id: j.builder_id, builderName: j.builder_name.replace(" (demo)", "") }]));
+    const formProps = {
+      tagList,
+      communities: [...comms.values()],
+      homes: jobs.filter((j) => j.home_id).map((j) => ({ id: j.home_id!, community_id: j.community_id, unparsed_address: j.address })),
+      communityWide: jobs.filter((j) => !j.home_id).map((j) => j.community_id),
+      presetCommunity: job?.community_id ?? null,
+      presetHome: job?.home_id ?? null,
+      showBuilder: true,
+      doneHref: "/jobs",
+      cancelHref: "/jobs",
+    };
+    const wantsVideo = !!job?.needs.some((n) => n === "video" || n === "virtual_tour");
     return (
       <div className="mx-auto max-w-3xl">
-        <Link href="/jobs" className="text-sm font-medium text-muted hover:text-foreground">Back to your jobs</Link>
-        <h1 className="mt-3 text-[28px] font-bold leading-tight tracking-tight">Upload for {job?.address ?? "a job"}</h1>
-        <p className="mt-1 text-muted">Pick the room for each batch so the builder can find them. You can fix tags on any file after.</p>
-        <div className="mt-8">
-          {jobs.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">You have no open jobs to upload to.</p>
-          ) : (
-            <UploadForm
-              tagList={tagList}
-              communities={[...comms.values()]}
-              homes={jobs.filter((j) => j.home_id).map((j) => ({ id: j.home_id!, community_id: j.community_id, unparsed_address: j.address }))}
-              communityWide={jobs.filter((j) => !j.home_id).map((j) => j.community_id)}
-              presetCommunity={job?.community_id ?? null}
-              presetHome={job?.home_id ?? null}
-              showBuilder
-              doneHref="/jobs"
-            />
-          )}
-        </div>
+        <BackButton href="/jobs" label="Back to your jobs" />
+        <h1 className="mt-4 text-[28px] font-bold leading-tight tracking-tight">Upload for {job?.address ?? "a job"}</h1>
+        <p className="mt-1 text-muted">
+          {job ? `${job.builder_name.replace(" (demo)", "")}, ${job.community_name}. ` : ""}
+          Photos and video upload separately so each batch stays tidy. You can fix tags on any file after.
+        </p>
+        {jobs.length === 0 ? (
+          <p className="mt-8 rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">You have no open jobs to upload to.</p>
+        ) : (
+          <div className="mt-8 space-y-8">
+            <section className="rounded-2xl border border-line p-5">
+              <h2 className="text-lg font-semibold">Photos</h2>
+              <p className="mb-4 text-sm text-muted">Pick the room for each batch so the builder can find them, or let AI pick it for each photo. Floor plan PDFs go here too.</p>
+              <UploadForm {...formProps} mode="photos" />
+            </section>
+            <section className="rounded-2xl border border-line p-5">
+              <h2 className="text-lg font-semibold">Video{wantsVideo ? "" : " (if this job has any)"}</h2>
+              <p className="mb-4 text-sm text-muted">Walkthroughs, drone clips and tours.</p>
+              <UploadForm {...formProps} mode="videos" />
+            </section>
+          </div>
+        )}
       </div>
     );
   }
@@ -77,8 +93,8 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link href="/media" className="text-sm font-medium text-muted hover:text-foreground">Cancel</Link>
-      <h1 className="mt-3 text-[28px] font-bold leading-tight tracking-tight">Upload photos and videos</h1>
+      <BackButton href={presetHome ? `/media?home=${presetHome}` : presetCommunity ? `/media?community=${presetCommunity}` : "/media"} label="Back to media" />
+      <h1 className="mt-4 text-[28px] font-bold leading-tight tracking-tight">Upload photos and videos</h1>
       <p className="mt-1 text-muted">
         Files go straight into private storage. Pick where they belong and the address, plan and community tags are added for you.
       </p>
@@ -95,6 +111,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
           presetCommunity={presetCommunity}
           presetHome={presetHome}
           showBuilder={isStaff(me.role)}
+          cancelHref={presetHome ? `/media?home=${presetHome}` : presetCommunity ? `/media?community=${presetCommunity}` : "/media"}
         />
       </div>
     </div>

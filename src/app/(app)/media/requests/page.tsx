@@ -3,9 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { canRequestMedia, isStaff } from "@/lib/permissions";
+import { canEditBranding, canRequestMedia, isStaff } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
+import { saveShootContact } from "./actions";
 
 export default function MediaRequestsPage(props: PageProps<"/media/requests">) {
   return (
@@ -62,6 +63,8 @@ async function Requests() {
         </details>
       )}
 
+      {!staff && canEditBranding(me.role) && me.builder_id && <ShootContact builderId={me.builder_id} />}
+
       <div className="mt-10 space-y-12">
         {groups.map((g) => (
           <section key={g.title}>
@@ -79,5 +82,32 @@ async function Requests() {
         ))}
       </div>
     </div>
+  );
+}
+
+// The contact and access notes photographers see on every job for this builder.
+async function ShootContact({ builderId }: { builderId: string }) {
+  const supabase = await createClient();
+  const { data: c } = await supabase.from("builder_photo_info").select("contact_name, contact_phone, contact_email, access_notes").eq("builder_id", builderId).maybeSingle();
+  const missing = !c?.contact_name && !c?.contact_phone;
+  return (
+    <details className="mt-6 max-w-3xl rounded-2xl border border-line" open={missing}>
+      <summary className="cursor-pointer list-none px-5 py-4">
+        <span className="font-semibold">Who photographers call</span>
+        <span className="mt-0.5 block text-sm text-muted">
+          {missing ? "Not set yet. Photographers see this on every job, so they can reach you if something’s wrong at a home." : `${c?.contact_name ?? ""}${c?.contact_phone ? `, ${c.contact_phone}` : ""}`}
+        </span>
+      </summary>
+      <form action={saveShootContact} className="grid gap-3 border-t border-line px-5 py-4 sm:grid-cols-3">
+        <label className="block"><span className="mb-1 block text-sm font-medium">Name</span><input name="contact_name" defaultValue={c?.contact_name ?? ""} maxLength={80} className="field-input" /></label>
+        <label className="block"><span className="mb-1 block text-sm font-medium">Phone</span><input name="contact_phone" type="tel" defaultValue={c?.contact_phone ?? ""} maxLength={30} className="field-input" /></label>
+        <label className="block"><span className="mb-1 block text-sm font-medium">Email</span><input name="contact_email" type="email" defaultValue={c?.contact_email ?? ""} maxLength={200} className="field-input" /></label>
+        <label className="block sm:col-span-3">
+          <span className="mb-1 block text-sm font-medium">Getting in (optional)</span>
+          <input name="access_notes" defaultValue={c?.access_notes ?? ""} maxLength={1000} placeholder="e.g. Check in at the model home first. Don’t put lockbox codes here; send those per shoot." className="field-input" />
+        </label>
+        <div className="sm:col-span-3"><button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save</button></div>
+      </form>
+    </details>
   );
 }

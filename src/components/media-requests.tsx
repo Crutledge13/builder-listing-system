@@ -3,6 +3,25 @@ import { cx } from "@/lib/format";
 import { NEED_LABELS, REQUEST_STATUS_LABELS, type Role } from "@/lib/permissions";
 import { whenCentral } from "@/lib/time";
 import { createMediaRequest, updateMediaRequest } from "@/app/(app)/media/requests/actions";
+import { AddressActions } from "@/components/address-actions";
+import { BuilderLogo } from "@/components/avatar";
+
+// What a photographer's card shows about the builder (from public.my_job_info).
+export type JobInfo = {
+  request_id: string;
+  builder_id: string;
+  builder_name: string;
+  logo_updated_at: string | null;
+  map_query: string;
+  builder_contact_name: string | null;
+  builder_contact_phone: string | null;
+  builder_contact_email: string | null;
+  access_notes: string | null;
+  requester_name: string | null;
+  requester_title: string | null;
+  requester_phone: string | null;
+  requester_email: string | null;
+};
 
 export type MediaRequest = {
   id: string;
@@ -58,7 +77,11 @@ export function RequestCard({
   photographers,
   showBuilder,
   children,
+  job,
+  team,
 }: {
+  job?: JobInfo;
+  team?: { email: string | null; phone: string | null };
   r: MediaRequest;
   role: Role;
   back: string;
@@ -74,6 +97,15 @@ export function RequestCard({
 
   return (
     <article className={cx("rounded-2xl border p-5", r.status === "delivered" && !photographer ? "border-emerald-300" : "border-line")}>
+      {photographer && (
+        <div className="mb-3 flex items-center gap-3 border-b border-line pb-3">
+          {job && <BuilderLogo builderId={job.builder_id} name={job.builder_name} version={job.logo_updated_at} className="h-9 max-w-[120px]" />}
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Builder</p>
+            <p className="truncate font-semibold">{(job?.builder_name ?? r.builder_name).replace(" (demo)", "")}</p>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           {r.home_id && !photographer ? (
@@ -83,8 +115,9 @@ export function RequestCard({
           )}
           <p className="text-sm text-muted">
             {r.community_name}
-            {showBuilder || photographer ? `, ${r.builder_name.replace(" (demo)", "")}` : ""}
+            {showBuilder && !photographer ? `, ${r.builder_name.replace(" (demo)", "")}` : ""}
           </p>
+          {photographer && <div className="mt-2"><AddressActions address={job?.map_query ?? r.address} /></div>}
         </div>
         <span className={cx("rounded-full px-2.5 py-1 text-xs font-semibold", STATUS_STYLES[r.status])}>
           {photographer && r.status === "delivered" ? "Delivered" : REQUEST_STATUS_LABELS[r.status]}
@@ -105,6 +138,7 @@ export function RequestCard({
       </dl>
       {r.notes && <p className="mt-3 rounded-xl bg-soft px-3 py-2 text-sm"><b className="font-semibold">Notes:</b> {r.notes}</p>}
       {r.photographer_note && <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm"><b className="font-semibold">From the photographer:</b> {r.photographer_note}</p>}
+      {photographer && job && <JobContacts job={job} team={team} />}
 
       {children}
 
@@ -149,7 +183,7 @@ export function RequestCard({
                 </button>
               </form>
               <Link href={`/media/upload?request=${r.id}`} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">
-                Upload photos and video
+                Upload photos or video
               </Link>
               <form action={updateMediaRequest} className="flex w-full flex-wrap items-end gap-2">
                 <Hidden r={r} op="deliver" back={back} />
@@ -188,6 +222,49 @@ export function RequestCard({
         </div>
       )}
     </article>
+  );
+}
+
+// Who to call about this job.
+function JobContacts({ job, team }: { job: JobInfo; team?: { email: string | null; phone: string | null } }) {
+  const builder = job.builder_name.replace(" (demo)", "");
+  return (
+    <div className="mt-4 rounded-xl border border-line p-3">
+      <p className="text-sm font-semibold">Questions or a problem at the home?</p>
+      {job.access_notes && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950"><b className="font-semibold">Getting in:</b> {job.access_notes}</p>}
+      <div className="mt-2 grid gap-3 text-sm sm:grid-cols-3">
+        <Contact
+          heading={`${builder} shoot contact`}
+          name={job.builder_contact_name}
+          phone={job.builder_contact_phone}
+          email={job.builder_contact_email}
+          empty="Not set yet. Call our team."
+        />
+        <Contact heading="Requested by" name={job.requester_name} detail={job.requester_title} phone={job.requester_phone} email={job.requester_email} empty="Not available" />
+        <Contact heading="Our team (scheduling, pay)" name="Builder Listings" phone={team?.phone ?? null} email={team?.email ?? null} empty="" />
+      </div>
+    </div>
+  );
+}
+
+function Contact({ heading, name, detail, phone, email, empty }: { heading: string; name: string | null; detail?: string | null; phone: string | null; email: string | null; empty: string }) {
+  const tel = phone?.replace(/[^\d+]/g, "");
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{heading}</p>
+      {name || phone || email ? (
+        <>
+          {name && <p className="font-medium">{name}{detail ? <span className="font-normal text-muted">, {detail}</span> : null}</p>}
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {phone && <a href={`tel:${tel}`} className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white">Call {phone}</a>}
+            {phone && <a href={`sms:${tel}`} className="rounded-full border border-line px-3 py-1 text-xs font-semibold">Text</a>}
+            {email && <a href={`mailto:${email}`} className="rounded-full border border-line px-3 py-1 text-xs font-semibold">Email</a>}
+          </div>
+        </>
+      ) : (
+        <p className="text-muted">{empty}</p>
+      )}
+    </div>
   );
 }
 

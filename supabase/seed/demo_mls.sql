@@ -111,3 +111,12 @@ from public.homes h
 join (values ('1230 Sycamore Trl', 10000, 9), ('1272 Willow Bend Ln', 15000, 4), ('1278 Bur Oak Ct', 5000, 16)) as d(address, drop, days_ago)
   on d.address = h.unparsed_address
 where not exists (select 1 from public.activity_log a where a.home_id = h.id and a.action = 'edited' and a.changes ? 'list_price');
+
+-- Photo shoot contacts photographers see on their job cards (fake).
+update public.builder_photo_info pi set contact_name = 'Riley Chen', contact_phone = '(214) 555-0142', contact_email = 'marketing.mesquite@demo.test',
+  access_notes = 'Lockbox on the front door; code is in the shoot email. Park on the street, not the driveway.'
+  from public.builders b where b.id = pi.builder_id and b.name ilike 'Mesquite%';
+update public.builder_photo_info pi set contact_name = 'Quinn Harper', contact_phone = '(972) 555-0187', contact_email = 'marketing.prairie@demo.test',
+  access_notes = 'Check in at the model home sales office before shooting.'
+  from public.builders b where b.id = pi.builder_id and b.name ilike 'Prairie%';
+update public.app_settings set value = '"(469) 555-0100"' where key = 'team_phone';

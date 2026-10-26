@@ -4,7 +4,7 @@ import { requireProfile } from "@/lib/auth";
 import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { Notice } from "@/components/notice";
 import { MediaGrid, MediaTile } from "@/components/media-tile";
-import { MEDIA_REQUEST_SELECT, RequestCard, type MediaRequest } from "@/components/media-requests";
+import { MEDIA_REQUEST_SELECT, RequestCard, type JobInfo, type MediaRequest } from "@/components/media-requests";
 import { cx, dateTime } from "@/lib/format";
 import { PAYMENT_STATUS, cents } from "@/lib/payments";
 
@@ -41,6 +41,18 @@ async function Jobs() {
   const forJob = (r: MediaRequest) =>
     uploads.filter((m) => (r.home_id ? m.home_id === r.home_id : m.community_id === r.community_id && !m.home_id));
 
+  // Builder name, logo, contacts and a full address for maps, for these jobs only.
+  const [{ data: infoRows }, { data: settings }] = await Promise.all([
+    supabase.rpc("my_job_info"),
+    supabase.from("app_settings").select("key, value").in("key", ["team_email", "team_phone"]),
+  ]);
+  const info = new Map(((infoRows ?? []) as JobInfo[]).map((j) => [j.request_id, j]));
+  const setting = (k: string) => {
+    const v = settings?.find((x) => x.key === k)?.value;
+    return typeof v === "string" && v.trim() ? v : null;
+  };
+  const team = { email: setting("team_email"), phone: setting("team_phone") };
+
   const [{ data: payments }, { data: rates }] = await Promise.all([
     supabase.from("photographer_payments").select("id, address, line_items, amount_cents, status, approved_at, paid_at, created_at").eq("photographer_id", me.id).order("created_at", { ascending: false }),
     supabase.from("photographer_rates").select("need, label, amount_cents").order("amount_cents", { ascending: false }),
@@ -73,7 +85,7 @@ async function Jobs() {
               {g.list.map((r) => {
                 const files = forJob(r);
                 return (
-                  <RequestCard key={r.id} r={r} role={me.role} back="/jobs">
+                  <RequestCard key={r.id} r={r} role={me.role} back="/jobs" job={info.get(r.id)} team={team}>
                     {files.length > 0 && (
                       <div className="mt-4">
                         <p className="mb-2 text-sm font-medium">Your uploads ({files.length}). Tap one to tag it.</p>

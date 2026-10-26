@@ -123,3 +123,25 @@ export async function updateMediaRequest(formData: FormData) {
   refresh();
   go(back, { saved: message });
 }
+
+// The builder's contact for photographers (shown on every job card).
+export async function saveShootContact(formData: FormData) {
+  const supabase = await createClient();
+  const { data: me } = await supabase.auth.getUser();
+  const { data: profile } = await supabase.from("profiles").select("builder_id").eq("id", me.user?.id ?? "").maybeSingle();
+  const text = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max) || null;
+  const { data, error } = await supabase
+    .from("builder_photo_info")
+    .update({
+      contact_name: text("contact_name", 80),
+      contact_phone: text("contact_phone", 30),
+      contact_email: text("contact_email", 200),
+      access_notes: text("access_notes", 1000),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("builder_id", profile?.builder_id ?? "")
+    .select("builder_id");
+  if (error || !data?.length) redirect(`/media/requests?error=${encodeURIComponent("Your role can’t change the photographer contact.")}`);
+  revalidatePath("/media/requests");
+  redirect(`/media/requests?saved=${encodeURIComponent("Saved. Photographers will see this on their jobs.")}`);
+}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { recordUploads, type UploadedFile } from "./actions";
 import { TagPicker } from "@/components/tag-picker";
@@ -20,6 +21,13 @@ const ROOMS: [string, string][] = [
 
 const MAX_MB = 50;
 
+// One box can take everything, or just photos (and floor plan PDFs), or just video.
+const MODES = {
+  all: { accept: "image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,application/pdf", title: "Choose photos or videos", types: "JPG, PNG, HEIC, MP4 or MOV" },
+  photos: { accept: "image/jpeg,image/png,image/webp,image/heic,application/pdf", title: "Choose photos", types: "JPG, PNG, WebP, HEIC, or a floor plan PDF" },
+  videos: { accept: "video/mp4,video/quicktime", title: "Choose videos", types: "MP4 or MOV" },
+} as const;
+
 export function UploadForm({
   communities,
   homes,
@@ -29,7 +37,11 @@ export function UploadForm({
   communityWide,
   doneHref,
   tagList = [],
+  mode = "all",
+  cancelHref,
 }: {
+  mode?: keyof typeof MODES;
+  cancelHref?: string;
   tagList?: ListTag[];
   communities: Community[];
   homes: Home[];
@@ -136,16 +148,17 @@ export function UploadForm({
         <input
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,application/pdf"
+          accept={MODES[mode].accept}
           className="sr-only"
           onChange={(e) => {
-            const list = Array.from(e.target.files ?? []);
+            const ok = MODES[mode].accept.split(",");
+            const list = Array.from(e.target.files ?? []).filter((f) => !f.type || ok.includes(f.type) || (mode !== "videos" && /\.heic$/i.test(f.name)));
             setFiles(list);
             setProgress(Object.fromEntries(list.map((f) => [f.name, "waiting" as const])));
           }}
         />
-        <span className="block font-semibold">Choose photos or videos</span>
-        <span className="mt-1 block text-sm text-muted">JPG, PNG, HEIC, MP4 or MOV, up to {MAX_MB} MB each</span>
+        <span className="block font-semibold">{MODES[mode].title}</span>
+        <span className="mt-1 block text-sm text-muted">{MODES[mode].types}, up to {MAX_MB} MB each</span>
       </label>
 
       {files.length > 0 && (
@@ -165,12 +178,19 @@ export function UploadForm({
         <p className={message.kind === "error" ? "rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800" : "rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800"}>{message.text}</p>
       )}
 
-      <button
-        disabled={busy || files.length === 0 || tooBig.length > 0}
-        className="rounded-xl bg-accent px-6 py-3 font-semibold text-white hover:brightness-110 disabled:opacity-50"
-      >
-        {busy ? "Uploading…" : files.length ? `Upload ${files.length} ${files.length === 1 ? "file" : "files"}` : "Upload"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          disabled={busy || files.length === 0 || tooBig.length > 0}
+          className="rounded-xl bg-accent px-6 py-3 font-semibold text-white hover:brightness-110 disabled:opacity-50"
+        >
+          {busy ? "Uploading…" : files.length ? `Upload ${files.length} ${files.length === 1 ? (mode === "videos" ? "video" : mode === "photos" ? "photo" : "file") : mode === "videos" ? "videos" : mode === "photos" ? "photos" : "files"}` : "Upload"}
+        </button>
+        {cancelHref && !busy && (
+          <Link href={cancelHref} className="rounded-xl px-4 py-3 font-semibold text-muted hover:bg-soft hover:text-foreground">
+            {files.length ? "Cancel" : "Not now, go back"}
+          </Link>
+        )}
+      </div>
     </form>
   );
 }
