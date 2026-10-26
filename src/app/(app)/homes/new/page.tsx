@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { canAddHomes, isStaff, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
 import { createHome } from "./actions";
+import { NtreisQuestions } from "@/components/ntreis-questions";
+import { NtreisToggle } from "@/components/ntreis-toggle";
 
 export default function NewHomePage(props: PageProps<"/homes/new">) {
   return (
@@ -13,19 +15,7 @@ export default function NewHomePage(props: PageProps<"/homes/new">) {
   );
 }
 
-type Input = { name: string; label: string; type?: string; step?: string; placeholder?: string; required?: boolean; wide?: boolean };
-
-const SPECS: Input[] = [
-  { name: "list_price", label: "List price ($)", type: "number", step: "1", placeholder: "389990" },
-  { name: "bedrooms_total", label: "Bedrooms", type: "number" },
-  { name: "bathrooms_full", label: "Full baths", type: "number" },
-  { name: "bathrooms_half", label: "Half baths", type: "number" },
-  { name: "living_area", label: "Living area (sq ft)", type: "number" },
-  { name: "lot_size_acres", label: "Lot size (acres)", type: "number", step: "0.001" },
-  { name: "stories", label: "Stories", type: "number" },
-  { name: "garage_spaces", label: "Garage spaces", type: "number" },
-  { name: "year_built", label: "Year built", type: "number", placeholder: "2026" },
-];
+type Input = { name: string; label: string; type?: string; step?: string; placeholder?: string; required?: boolean; wide?: boolean; help?: string };
 
 async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/new">["searchParams"] }) {
   const { error, community: preset } = await searchParams;
@@ -55,6 +45,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
   const boardName = new Map((boards ?? []).map((b) => [b.code, b.short_name]));
   const mine = (settings ?? []).find((x) => x.builder_id === me.builder_id);
   const lockedBoard = !staff && mine?.mls_locked && mine.mls_boards?.length === 1 ? mine.mls_boards[0] : null;
+  const communityBoards = Object.fromEntries((communities ?? []).map((c) => [c.id, c.mls_board ?? null]));
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -66,7 +57,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
 
       {typeof error === "string" && <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
-      <form action={createHome} className="mt-8 divide-y divide-line">
+      <form id="new-home" action={createHome} className="mt-8 divide-y divide-line">
         <section className="pb-8">
           <h2 className="text-lg font-semibold">Where is it?</h2>
           <div className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2">
@@ -85,7 +76,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
             <Text name="unparsed_address" label="Street address" placeholder="1214 Pecan Ridge Dr" required wide />
             <Text name="city" label="City" placeholder="Leave blank to use the community’s city" />
             <Text name="postal_code" label="ZIP" required />
-            <Text name="lot_number" label="Lot and block" placeholder="B3-L12" />
+            <Text name="lot_number" label="Your lot reference" placeholder="B3-L12" help="However your team refers to the lot. The plat's lot and block numbers for the MLS are asked further down." />
             <Text name="plan_name" label="Floor plan" placeholder="Brazos" />
           </div>
         </section>
@@ -127,32 +118,31 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
         </section>
 
         <section className="py-8">
-          <h2 className="text-lg font-semibold">Price and specs</h2>
-          <div className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-3">
-            {SPECS.map((f) => <Text key={f.name} {...f} />)}
-          </div>
-        </section>
-
-        <section className="py-8">
-          <h2 className="text-lg font-semibold">Construction</h2>
-          <div className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">Build stage</span>
-              <select name="build_stage" defaultValue="under_construction" className="field-input">
-                {Object.entries(STAGE_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-              </select>
-            </label>
-            <Text name="estimated_completion" label="Estimated completion" type="date" />
-          </div>
-        </section>
-
-        <section className="py-8">
-          <h2 className="text-lg font-semibold">Description</h2>
-          <label className="mt-4 block">
-            <span className="mb-1.5 block text-sm font-medium">Listing description (goes in the MLS public remarks)</span>
-            <textarea name="public_remarks" rows={5} className="field-input leading-relaxed" />
+          <h2 className="text-lg font-semibold">Build stage</h2>
+          <label className="mt-4 block max-w-sm">
+            <select name="build_stage" defaultValue="under_construction" className="field-input">
+              {Object.entries(STAGE_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+            <span className="mt-1 block text-xs leading-snug text-muted">
+              Sets NTREIS&rsquo;s construction status for you: To be built is Proposed, Under construction is New Construction - Incomplete, Move-in ready is New Construction - Complete.
+            </span>
           </label>
         </section>
+
+        <div className="pt-8">
+          <NtreisToggle formId="new-home" communityBoards={communityBoards} lockedBoard={lockedBoard} />
+        </div>
+
+        <NtreisQuestions
+          mode="new"
+          extra={{
+            Rooms: (
+              <div key="stories" data-other-mls="" hidden>
+                <Text name="stories" label="Stories" type="number" />
+              </div>
+            ),
+          }}
+        />
 
         <div className="flex items-center gap-4 pt-8">
           <button className="rounded-xl bg-accent px-6 py-3 font-semibold text-white hover:brightness-110">Save draft</button>
@@ -163,11 +153,12 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
   );
 }
 
-function Text({ name, label, type = "text", step, placeholder, required, wide }: Input) {
+function Text({ name, label, type = "text", step, placeholder, required, wide, help }: Input) {
   return (
     <label className={wide ? "block sm:col-span-2" : "block"}>
-      <span className="mb-1.5 block text-sm font-medium">{label}</span>
-      <input name={name} type={type} step={step} placeholder={placeholder} required={required} className="field-input" />
+      <span className="block text-sm font-medium">{label}</span>
+      {help && <span className="mt-0.5 block text-xs leading-snug text-muted">{help}</span>}
+      <input name={name} type={type} step={step} placeholder={placeholder} required={required} className="field-input mt-1.5" />
     </label>
   );
 }

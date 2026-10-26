@@ -99,7 +99,7 @@ function FieldRow({ f, sheet, communityName, admin }: { f: MlsField; sheet: MlsS
           <p className={cx("py-1.5 text-[15px]", missing && "text-amber-900")}>
             {missing ? "Missing" : formatMls(f, r.value)}{" "}
             <span className="text-xs text-muted">
-              {f.source === "home" ? (
+              {f.source === "home" || (f.source === "builder" && r.from !== "derived") ? (
                 <>From the builder’s home details.{admin ? <> <Link href={`/homes/${sheet.home.id}`} className="underline">Edit on the home</Link></> : missing ? " Ask the builder for it." : ""}</>
               ) : "Filled in automatically."}
             </span>

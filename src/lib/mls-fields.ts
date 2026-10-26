@@ -1,14 +1,18 @@
-// Every field our team enters on the MLS, in input-screen order (NTREIS,
-// North Texas). Keys are RESO standard names so the MLS feed lines up.
+// Every field our team enters on the MLS. Keys are RESO standard names so the
+// MLS feed lines up. NTREIS homes use NTREIS's own list, in Matrix's order
+// (src/lib/ntreis-fields.ts); other MLSs use the general list below.
 //
 // Where a value comes from:
 //   home       a column on homes (the builder's data; edit it on the home page)
+//   builder    the builder's answer in homes.mls_fields (asked on Add a home)
 //   detail     our team fills it on the MLS sheet (stored in mls_details)
 //   community  shared by every home in the community (mls_details for the community);
 //              a home can still override it
 //   derived    worked out from other data (shown, not stored)
 
-export type MlsSource = "home" | "detail" | "community" | "derived";
+import { NTREIS_SECTIONS } from "@/lib/ntreis-fields";
+
+export type MlsSource = "home" | "builder" | "detail" | "community" | "derived";
 export type MlsType = "text" | "longtext" | "number" | "money" | "date" | "yesno" | "select" | "multi";
 
 export type MlsField = {
@@ -19,8 +23,14 @@ export type MlsField = {
   type: MlsType;
   options?: string[];
   required?: boolean;     // the MLS won't accept the listing without it
-  hint?: string;
+  hint?: string;          // note for our team on the MLS sheet
+  ask?: boolean;          // asked of the builder on Add a home and the home page
+  help?: string;          // plain-English help shown to the builder under the field
+  preset?: string | string[]; // starting answer on Add a home (the builder can change it)
+  derive?: (c: DeriveContext) => unknown; // worked out when nothing is stored
 };
+
+export type DeriveContext = { home: HomeForMls; get: (key: string) => unknown };
 
 export type MlsSection = { title: string; fields: MlsField[] };
 
@@ -150,10 +160,15 @@ export type MlsBoard = {
 
 export const MLS_BOARD_SELECT = "code, name, short_name, region, counties, rules, field_rules, extra_fields";
 
+// The field list an MLS starts from, before its own rules and extra fields.
+export function baseSections(code: string | null | undefined): MlsSection[] {
+  return code === "NTREIS" ? NTREIS_SECTIONS : MLS_SECTIONS;
+}
+
 export function sectionsForBoard(board: MlsBoard | null | undefined): MlsSection[] {
   if (!board) return MLS_SECTIONS;
   const rules = board.field_rules ?? {};
-  const sections = MLS_SECTIONS.map((sec) => ({
+  const sections = baseSections(board.code).map((sec) => ({
     title: sec.title,
     fields: sec.fields
       .filter((f) => !rules[f.key]?.hidden)
@@ -174,10 +189,15 @@ export const MLS_FIELD_FOR_COLUMN: Record<string, MlsField> = Object.fromEntries
   ALL_MLS_FIELDS.filter((f) => f.column).map((f) => [f.column!, f]),
 );
 MLS_FIELD_FOR_COLUMN.build_stage = { key: "PropertyCondition", label: "Construction status", source: "derived", type: "text" };
+// The builder's NTREIS answers, as recorded on update tasks ("mls_fields.Roof").
+for (const f of NTREIS_SECTIONS.flatMap((x) => x.fields)) {
+  if (f.source === "builder") MLS_FIELD_FOR_COLUMN[`mls_fields.${f.key}`] = f;
+}
 
 export type HomeForMls = Record<string, unknown> & {
   id: string;
   build_stage: string;
+  mls_fields?: Record<string, unknown> | null;
   builders: { name: string } | null;
   communities: { name: string; county: string | null } | null;
 };
@@ -188,23 +208,31 @@ export const CONDITION: Record<string, string> = {
   move_in_ready: "New Construction - Complete",
 };
 
-export type ResolvedValue = { value: unknown; from: "home" | "this home" | "community" | "derived" | "missing" };
+export type ResolvedValue = { value: unknown; from: "home" | "builder" | "this home" | "community" | "derived" | "missing" };
 
-// Work out a field's value: the home's own value, else the community default,
-// else what we can derive.
+const present = (v: unknown) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
+
+// Work out a field's value: the home's own value (our team's entry wins over
+// the builder's answer), else the community default, else what we can derive.
 export function resolveField(
   f: MlsField,
   home: HomeForMls,
   homeDetails: Record<string, unknown>,
   communityDetails: Record<string, unknown>,
 ): ResolvedValue {
-  const present = (v: unknown) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
   if (f.source === "home") {
     const v = home[f.column!];
     return present(v) ? { value: v, from: "home" } : { value: null, from: "missing" };
   }
+  const builder = (home.mls_fields ?? {}) as Record<string, unknown>;
   if (present(homeDetails[f.key])) return { value: homeDetails[f.key], from: "this home" };
+  if (f.source === "builder" && present(builder[f.key])) return { value: builder[f.key], from: "builder" };
   if (f.source === "community" && present(communityDetails[f.key])) return { value: communityDetails[f.key], from: "community" };
+  if (f.derive) {
+    const get = (key: string) => [homeDetails[key], builder[key], communityDetails[key]].find(present) ?? null;
+    const v = f.derive({ home, get });
+    return present(v) ? { value: v, from: "derived" } : { value: null, from: "missing" };
+  }
   switch (f.key) {
     case "PropertyType": return { value: "Residential", from: "derived" };
     case "NewConstructionYN": return { value: "Yes", from: "derived" };
@@ -253,7 +281,9 @@ export function sheetRuleProblems(
   communityDetails: Record<string, unknown>,
 ): string[] {
   const problems: string[] = [];
-  const contactOk = new Set(["PrivateRemarks", "ShowingInstructions", "ShowingContactName", "ShowingContactPhone"]);
+  const contactOk = new Set(["PrivateRemarks", "ShowingInstructions", "ShowingContactName", "ShowingContactPhone", "AssociationPhone",
+    // IDs and codes that are long numbers, not phone numbers
+    "ParcelNumber", "AdditionalParcelsDescription", "LockBoxSerialNumber", "AccessCode", "Lot", "TaxBlock"]);
   for (const f of sections.flatMap((x) => x.fields)) {
     if (f.type !== "text" && f.type !== "longtext") continue;
     const v = resolveField(f, home, homeDetails, communityDetails).value;

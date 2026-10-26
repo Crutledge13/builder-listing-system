@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { canAddHomes } from "@/lib/permissions";
+import { answerSources, readMlsAnswers, storiesFromLevels } from "@/lib/ntreis-form";
 
 const TEXT = ["unparsed_address", "city", "postal_code", "lot_number", "plan_name", "public_remarks", "build_stage", "estimated_completion"] as const;
 const NUMBERS = ["list_price", "bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area", "lot_size_acres", "stories", "garage_spaces", "year_built"] as const;
@@ -51,6 +52,14 @@ export async function createHome(formData: FormData) {
     sources[f] = "staff";
   }
 
+  // The builder's NTREIS answers (only sent when the home is going to NTREIS).
+  const answers = readMlsAnswers(formData);
+  if (answers.badNumbers.length) fail(`${answers.badNumbers.join(", ")} must be a number.`);
+  if (row.stories === null && storiesFromLevels(answers.values.Levels) !== null) {
+    row.stories = storiesFromLevels(answers.values.Levels);
+    sources.stories = "staff";
+  }
+
   if (!row.unparsed_address) fail("Enter the street address.");
   if (!row.city) row.city = community.city;
   if (!row.postal_code) fail("Enter the ZIP code.");
@@ -65,7 +74,7 @@ export async function createHome(formData: FormData) {
 
   const { data, error } = await supabase
     .from("homes")
-    .insert({ ...row, field_sources: sources })
+    .insert({ ...row, mls_fields: answers.values, field_sources: { ...sources, ...answerSources(answers.changed) } })
     .select("id")
     .single();
   if (error || !data) {

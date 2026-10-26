@@ -50,6 +50,8 @@ import { MarketBadge } from "@/components/badges";
 import { DisclaimerOverlay } from "@/components/media-tile";
 import { loadMlsSheet } from "@/lib/mls-sheet";
 import { AlertCard, loadAlerts } from "@/components/alerts";
+import { NtreisQuestions } from "@/components/ntreis-questions";
+import { canEditMlsAnswers } from "@/lib/ntreis-form";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -567,8 +569,25 @@ async function HomeDetail({
                 </div>
               </section>
             ))}
+            {home.mls_board === "NTREIS" && (
+              <div id="ntreis" className="scroll-mt-28">
+                <div className="pt-8">
+                  <h3 className="text-xl font-semibold">NTREIS details</h3>
+                  <p className="mt-1 text-sm text-muted">
+                    The rest of what NTREIS asks for this home, with NTREIS&rsquo;s own labels and choices. <span className="text-red-700">*</span> marks
+                    what NTREIS requires before the listing can go live. Our team fills in the listing paperwork, schools, HOA and showing setup.
+                  </p>
+                </div>
+                <NtreisQuestions
+                  mode="edit"
+                  values={(home.mls_fields ?? {}) as Record<string, unknown>}
+                  sources={sources}
+                  canEdit={canEditMlsAnswers(me.role)}
+                />
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-4 py-8">
-              {editable.size > 0 ? (
+              {editable.size > 0 || (home.mls_board === "NTREIS" && canEditMlsAnswers(me.role)) ? (
                 <>
                   <button className="rounded-xl bg-foreground px-6 py-3 font-semibold text-white hover:bg-black">Save changes</button>
                   <span className="text-sm text-muted">As {ROLE_LABELS[me.role].toLowerCase()}, you can edit the fields that aren’t grayed out.</span>
@@ -856,7 +875,7 @@ function nextStepHint(status: WorkflowStatus) {
 const FIELD_NAMES: Record<string, string> = {
   list_price: "price", public_remarks: "description", build_stage: "build stage",
   living_area: "square feet", bedrooms_total: "bedrooms", mls_number: "MLS number",
-  estimated_completion: "completion date", unparsed_address: "address",
+  estimated_completion: "completion date", unparsed_address: "address", mls_fields: "NTREIS details",
 };
 
 function describe(action: string, changes: Record<string, { from: unknown; to: unknown }>) {

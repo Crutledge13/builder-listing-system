@@ -17,6 +17,7 @@ import {
 } from "@/lib/permissions";
 import { sendQueuedEmails } from "@/lib/email";
 import { centralToUtc } from "@/lib/time";
+import { answerSources, canEditMlsAnswers, readMlsAnswers } from "@/lib/ntreis-form";
 
 const NUMERIC: HomeField[] = [
   "list_price", "bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area",
@@ -43,7 +44,7 @@ export async function saveHome(formData: FormData) {
   const me = await requireProfile();
   const supabase = await createClient();
 
-  const patch: Record<string, string | number | null> = {};
+  const patch: Record<string, unknown> = {};
   for (const field of editableFields(me.role)) {
     if (!formData.has(field)) continue;
     const raw = String(formData.get(field) ?? "").trim();
@@ -53,6 +54,16 @@ export async function saveHome(formData: FormData) {
       patch[field] = n;
     } else {
       patch[field] = raw === "" ? null : raw;
+    }
+  }
+  // The builder's NTREIS answers, merged into what's saved.
+  if (formData.has("mls_key") && canEditMlsAnswers(me.role)) {
+    const { data: cur } = await supabase.from("homes").select("mls_fields, field_sources").eq("id", id).maybeSingle();
+    const answers = readMlsAnswers(formData, (cur?.mls_fields ?? {}) as Record<string, unknown>);
+    if (answers.badNumbers.length) back(id, { error: `${answers.badNumbers.join(", ")} must be a number`, at: "ntreis" });
+    if (answers.changed.length) {
+      patch.mls_fields = answers.values;
+      patch.field_sources = { ...((cur?.field_sources ?? {}) as Record<string, string>), ...answerSources(answers.changed) };
     }
   }
   if (Object.keys(patch).length === 0) back(id, { error: "Your role can’t edit these fields." });

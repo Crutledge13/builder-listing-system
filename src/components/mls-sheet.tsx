@@ -7,6 +7,7 @@ import { MediaPicture } from "@/components/media-tile";
 
 const FROM_TEXT: Record<string, string> = {
   home: "Builder",
+  builder: "Builder",
   "this home": "Our team",
   community: "Community",
   derived: "Automatic",

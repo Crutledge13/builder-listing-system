@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
-import { MLS_SECTIONS, type MlsBoard } from "@/lib/mls-fields";
+import { baseSections, type MlsBoard } from "@/lib/mls-fields";
 import { cx } from "@/lib/format";
 import { addBoardField, removeBoardField, saveBoardFields, saveBoardRules } from "../actions";
 
@@ -26,7 +26,7 @@ async function Boards() {
   const supabase = await createClient();
   const { data } = await supabase.from("mls_boards").select("*").order("code");
   const boards = (data ?? []) as (MlsBoard & { active: boolean; updated_at: string })[];
-  const homeFieldKeys = new Set(MLS_SECTIONS.flatMap((s) => s.fields).filter((f) => f.source === "home").map((f) => f.key));
+  const builderKeys = (code: string) => new Set(baseSections(code).flatMap((s) => s.fields).filter((f) => f.source === "home" || f.source === "builder").map((f) => f.key));
 
   return (
     <div className="space-y-10">
@@ -76,7 +76,7 @@ async function Boards() {
             <form action={saveBoardFields} className="px-5 pb-4">
               <input type="hidden" name="code" value={b.code} />
               <p className="mb-3 text-sm text-muted">Change what this MLS requires, hide fields it doesn’t use, or rename a field to match its form. “Builder” fields are checked before approval; the rest are filled in by our team.</p>
-              {MLS_SECTIONS.map((sec) => (
+              {baseSections(b.code).map((sec) => (
                 <div key={sec.title} className="mb-4">
                   <h3 className="text-sm font-semibold">{sec.title}</h3>
                   <div className="mt-1 divide-y divide-line rounded-xl border border-line">
@@ -87,7 +87,7 @@ async function Boards() {
                         <div key={f.key} className="grid items-center gap-2 px-3 py-2 text-sm sm:grid-cols-[1fr_180px_1fr]">
                           <input type="hidden" name="field" value={f.key} />
                           <span>
-                            {f.label} <span className="text-[11px] text-muted">{f.key}{homeFieldKeys.has(f.key) ? " · builder" : ""}</span>
+                            {f.label} <span className="text-[11px] text-muted">{f.key}{builderKeys(b.code).has(f.key) ? " · builder" : ""}</span>
                           </span>
                           <select name={`req_${f.key}`} defaultValue={val} className="rounded-lg border border-line bg-white px-2 py-1">
                             <option value="default">{f.required ? "Required (default)" : "Optional (default)"}</option>
@@ -123,7 +123,7 @@ async function Boards() {
               <form action={addBoardField} className="mt-3 grid gap-2 sm:grid-cols-[1fr_150px_160px_120px_auto] sm:items-center">
                 <input type="hidden" name="code" value={b.code} />
                 <input name="label" placeholder="Field name, e.g. Key Map page" className="field-input py-1.5" />
-                <select name="section" className="field-input py-1.5">{MLS_SECTIONS.map((s) => <option key={s.title}>{s.title}</option>)}</select>
+                <select name="section" className="field-input py-1.5">{baseSections(b.code).map((s) => <option key={s.title}>{s.title}</option>)}</select>
                 <select name="source" className="field-input py-1.5">
                   <option value="detail">Per home</option>
                   <option value="community">Shared by community</option>
