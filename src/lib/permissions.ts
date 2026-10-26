@@ -147,3 +147,78 @@ export const REQUEST_STATUS_LABELS: Record<string, string> = {
   completed: "Complete",
   cancelled: "Cancelled",
 };
+
+// ---------------------------------------------------------------------------
+// Builder team management (mirrors private.can_manage_person)
+// ---------------------------------------------------------------------------
+export function rolesICanGive(role: Role): Role[] {
+  if (role === "builder_owner") return ["builder_owner", "manager", "sales", "marketing"];
+  if (role === "manager") return ["sales", "marketing"];
+  return [];
+}
+
+export function canManageTeam(role: Role) {
+  return role === "builder_owner" || role === "manager";
+}
+
+export function canAddCommunities(role: Role) {
+  return role === "platform_admin" || role === "builder_owner" || role === "manager";
+}
+
+// ---------------------------------------------------------------------------
+// Listing status on the market (mirrors enforce_home_edit_rules)
+// ---------------------------------------------------------------------------
+export type MarketStatus = "active" | "paused" | "under_contract" | "sold" | "withdrawn";
+
+export const MARKET_LABELS: Record<MarketStatus, string> = {
+  active: "Active",
+  paused: "Paused",
+  under_contract: "Under contract",
+  sold: "Sold",
+  withdrawn: "Off the market",
+};
+
+export function marketChoices(role: Role): MarketStatus[] {
+  if (["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(role))
+    return ["active", "paused", "under_contract", "sold", "withdrawn"];
+  if (role === "sales") return ["active", "under_contract", "sold"];
+  return [];
+}
+
+export function canToggleDisclaimer(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
+}
+
+export function canScheduleOpenHouses(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "sales"].includes(role);
+}
+
+export function canRequestReverseProspecting(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "sales", "marketing"].includes(role);
+}
+
+export function canSeeWebsiteCheck(role: Role) {
+  return ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role);
+}
+
+// ---------------------------------------------------------------------------
+// Our team's task board
+// ---------------------------------------------------------------------------
+export const TASK_KIND_LABELS: Record<string, string> = {
+  mls_entry: "Enter in MLS",
+  mls_update: "Update MLS",
+  open_house_mls: "Open house on MLS",
+  listing_status: "Listing status",
+  change_request: "Change request",
+  photo_request: "Photographer",
+  reverse_prospecting: "Reverse prospecting",
+  issue: "Help request",
+  other: "Other",
+};
+
+export const TASK_STATUS_LABELS: Record<string, string> = {
+  todo: "To do",
+  in_progress: "In progress",
+  done: "Done",
+  cancelled: "Cancelled",
+};

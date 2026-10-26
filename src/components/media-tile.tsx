@@ -15,7 +15,18 @@ export function MediaPicture({ m, className }: { m: MediaRow; className?: string
   return <img src={`/api/media/${m.id}`} alt={m.title} loading="lazy" className={cx("object-cover", className)} />;
 }
 
-export function MediaTile({ m, showPlace }: { m: MediaRow; showPlace?: boolean }) {
+export const DISCLAIMER_TEXT = "Representative photo. Actual home, features and finishes may vary.";
+
+// The disclaimer strip laid over a photo when a home uses plan or model photos.
+export function DisclaimerOverlay({ small }: { small?: boolean }) {
+  return (
+    <span className={cx("pointer-events-none absolute inset-x-0 bottom-0 bg-black/60 text-center font-medium text-white", small ? "px-2 py-1 text-[10px] leading-tight" : "px-4 py-2 text-xs sm:text-sm")}>
+      {DISCLAIMER_TEXT}
+    </span>
+  );
+}
+
+export function MediaTile({ m, showPlace, disclaimer }: { m: MediaRow; showPlace?: boolean; disclaimer?: boolean }) {
   const place = m.homes?.unparsed_address ?? m.communities?.name;
   return (
     <Link href={`/media/${m.id}`} className="group block">
@@ -30,12 +41,14 @@ export function MediaTile({ m, showPlace }: { m: MediaRow; showPlace?: boolean }
         )}
         <div className="absolute left-2 top-2 flex gap-1">
           {m.is_cover && <span className="rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold shadow-sm">Cover</span>}
+          {m.plan_name && !m.home_id && <span className="rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold shadow-sm">{m.plan_name} plan</span>}
           {m.kind === "video" && m.duration_seconds && (
             <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
               {Math.floor(m.duration_seconds / 60)}:{String(Math.round(m.duration_seconds % 60)).padStart(2, "0")}
             </span>
           )}
         </div>
+        {disclaimer && m.kind !== "floor_plan" && <DisclaimerOverlay small />}
       </div>
       <div className="mt-2 truncate text-sm font-medium group-hover:underline">{m.title}</div>
       <div className="truncate text-xs text-muted">

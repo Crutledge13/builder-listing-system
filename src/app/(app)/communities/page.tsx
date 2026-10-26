@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
-import { isStaff } from "@/lib/permissions";
+import { canAddCommunities, isStaff } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { HomeArt } from "@/components/home-art";
 
@@ -48,9 +48,16 @@ async function CommunityList() {
           <h1 className="text-[28px] font-bold leading-tight tracking-tight">{title}</h1>
           <p className="mt-1 text-muted">{subtitle}</p>
         </div>
-        <Link href="/homes" className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
-          View all homes
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/homes" className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
+            View all homes
+          </Link>
+          {canAddCommunities(me.role) && (
+            <Link href="/communities/new" className="rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110">
+              + Add a community
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="mt-8 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">

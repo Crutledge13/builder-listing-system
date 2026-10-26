@@ -48,3 +48,26 @@ export function SourceBadge({ source }: { source?: string }) {
     </span>
   );
 }
+
+const MARKET_STYLES: Record<string, string> = {
+  paused: "bg-amber-100 text-amber-900",
+  under_contract: "bg-violet-100 text-violet-900",
+  sold: "bg-foreground text-white",
+  withdrawn: "bg-stone-200 text-stone-800",
+};
+const MARKET_TEXT: Record<string, string> = {
+  paused: "Paused",
+  under_contract: "Under contract",
+  sold: "Sold",
+  withdrawn: "Off the market",
+};
+
+// Shown only when a live listing isn't simply active.
+export function MarketBadge({ status, floating }: { status: string | null | undefined; floating?: boolean }) {
+  if (!status || status === "active") return null;
+  return (
+    <span className={cx("inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold", MARKET_STYLES[status], floating && "shadow-sm")}>
+      {MARKET_TEXT[status] ?? status}
+    </span>
+  );
+}

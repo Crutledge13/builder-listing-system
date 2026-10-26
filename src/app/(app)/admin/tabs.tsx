@@ -10,6 +10,8 @@ const TABS = [
   { href: "/admin/communities", label: "Communities" },
   { href: "/admin/people", label: "People" },
   { href: "/admin/requests", label: "Requests" },
+  { href: "/admin/payments", label: "Photographer pay" },
+  { href: "/admin/settings", label: "Settings" },
 ];
 
 export function AdminTabs() {

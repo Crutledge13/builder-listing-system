@@ -19,10 +19,33 @@ import { SourceBadge, StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
 import { MediaPicture } from "@/components/media-tile";
 import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
-import { cancelOpenHouse, changeStatus, requestChange, resolveRequest, saveHome, scheduleOpenHouse } from "./actions";
+import {
+  cancelOpenHouse,
+  changeStatus,
+  requestChange,
+  requestReverseProspecting,
+  resolveRequest,
+  saveHome,
+  scheduleOpenHouse,
+  setDisclaimer,
+  setMarketStatus,
+  stopOpenHouseSeries,
+  updateReverseProspecting,
+} from "./actions";
 import { nextSaturdayCentral, openHouseWhen } from "@/lib/time";
 import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
-import { canRequestMedia } from "@/lib/permissions";
+import {
+  canRequestMedia,
+  canRequestReverseProspecting,
+  canScheduleOpenHouses,
+  canToggleDisclaimer,
+  marketChoices,
+  MARKET_LABELS,
+  TASK_KIND_LABELS,
+  type MarketStatus,
+} from "@/lib/permissions";
+import { MarketBadge } from "@/components/badges";
+import { DisclaimerOverlay } from "@/components/media-tile";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -121,7 +144,20 @@ async function HomeDetail({
     (more ?? []).forEach((p) => actorName.set(p.id, p.full_name));
   }
   const upcomingOH = openHouses ?? [];
-  const canScheduleOH = ["platform_admin", "builder_owner", "manager", "sales"].includes(me.role);
+  const canScheduleOH = canScheduleOpenHouses(me.role);
+  const staff = isStaff(me.role);
+
+  const [{ data: series }, { data: reverse }, { data: windowSetting }, { data: homeTasks }] = await Promise.all([
+    supabase.from("open_house_series").select("id, weekday, start_time, end_time, remarks, until_date, until_under_contract, ended_at, ended_reason, created_at").eq("home_id", id).order("created_at", { ascending: false }),
+    supabase.from("reverse_prospect_requests").select("id, requester_name, notes, status, result_note, created_at, delivered_at").eq("home_id", id).order("created_at", { ascending: false }),
+    supabase.from("app_settings").select("value").eq("key", "mls_open_house_window_days").maybeSingle(),
+    staff
+      ? supabase.from("tasks").select("id, kind, title, status, due_at, priority").eq("home_id", id).in("status", ["todo", "in_progress"]).order("created_at")
+      : Promise.resolve({ data: null }),
+  ]);
+  const activeSeries = (series ?? []).filter((x) => !x.ended_at);
+  const mlsWindow = Number(windowSetting?.value ?? 28);
+  const openReverse = (reverse ?? []).filter((r) => r.status === "requested" || r.status === "in_progress");
   const canResolve = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const openRequests = (requests ?? []).filter((r) => r.status === "open");
 
@@ -132,7 +168,15 @@ async function HomeDetail({
     .is("deleted_at", null)
     .order("is_cover", { ascending: false })
     .order("sort_order");
-  const gallery = ((mediaRows ?? []) as unknown as MediaRow[]).filter((m) => m.kind === "photo");
+  const ownPhotos = ((mediaRows ?? []) as unknown as MediaRow[]).filter((m) => m.kind === "photo");
+  // Not built yet (or few photos)? Fill in from the plan's library photos automatically.
+  const { data: planRows } = ownPhotos.length < 5 && home.plan_name
+    ? await supabase.from("media").select(MEDIA_SELECT).eq("builder_id", home.builder_id).eq("plan_name", home.plan_name).is("home_id", null).is("community_id", null).eq("kind", "photo").is("deleted_at", null).order("sort_order").limit(5)
+    : { data: null };
+  const planPhotos = (planRows ?? []) as unknown as MediaRow[];
+  const gallery = [...ownPhotos, ...planPhotos].slice(0, 5);
+  const usingPlanPhotos = ownPhotos.length < 5 && planPhotos.length > 0;
+  const showDisclaimer = !!home.show_representative_disclaimer;
   const { data: mediaReqRows } = await supabase.from("media_requests").select(MEDIA_REQUEST_SELECT).eq("home_id", id).order("created_at", { ascending: false });
   const mediaRequests = (mediaReqRows ?? []) as MediaRequest[];
   const openMediaRequests = mediaRequests.filter((r) => !["completed", "cancelled"].includes(r.status));
@@ -197,6 +241,8 @@ async function HomeDetail({
               className={i === 0 ? "relative aspect-[4/3] md:col-span-2 md:row-span-2 md:aspect-auto" : "relative hidden bg-soft md:block"}
             >
               <MediaPicture m={m} className="h-full w-full" />
+              {showDisclaimer && <DisclaimerOverlay small={i > 0} />}
+              {!m.home_id && <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold shadow-sm">Plan photo</span>}
             </Link>
           ))
         )}
@@ -207,6 +253,26 @@ async function HomeDetail({
           Show all {mediaCount} photos and videos
         </Link>
       </div>
+
+      {(usingPlanPhotos || showDisclaimer || canToggleDisclaimer(me.role)) && (
+        <div id="photos-note" className="mt-3 flex scroll-mt-28 flex-wrap items-center gap-3 rounded-xl bg-soft px-4 py-3 text-sm">
+          <span className="min-w-0 flex-1">
+            {usingPlanPhotos
+              ? `Not enough photos of this home yet, so ${home.plan_name} plan photos fill in automatically. `
+              : ""}
+            {showDisclaimer ? "The representative disclaimer is on: it shows on this home’s photos and is added to downloads." : "Using model or plan photos for this listing? Turn on the disclaimer so every photo says it’s representative."}
+          </span>
+          {canToggleDisclaimer(me.role) && (
+            <form action={setDisclaimer}>
+              <input type="hidden" name="id" value={home.id} />
+              <input type="hidden" name="on" value={showDisclaimer ? "false" : "true"} />
+              <button className={cx("rounded-lg px-3 py-2 font-semibold", showDisclaimer ? "border border-foreground bg-white hover:bg-soft" : "bg-foreground text-white hover:bg-black")}>
+                {showDisclaimer ? "Turn off disclaimer" : "Add representative disclaimer"}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
 
       <div className="mt-10 grid gap-12 lg:grid-cols-[1fr_380px]">
         <div className="min-w-0">
@@ -230,7 +296,25 @@ async function HomeDetail({
             ))}
           </dl>
 
-          <QuickLinks homeId={home.id} communityId={home.community_id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} />
+          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} />
+
+          {homeTasks && homeTasks.length > 0 && (
+            <section className="border-b border-line py-6">
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-lg font-semibold">Our team’s open tasks</h3>
+                <Link href="/tasks" className="text-sm font-semibold text-accent hover:underline">Task board →</Link>
+              </div>
+              <ul className="mt-3 space-y-2">
+                {homeTasks.map((t) => (
+                  <li key={t.id} className={cx("flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-sm", t.priority === "high" ? "border-red-200" : "border-line")}>
+                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">{TASK_KIND_LABELS[t.kind]}</span>
+                    <span className="min-w-0 flex-1 font-medium">{t.title}</span>
+                    {t.status === "in_progress" && <span className="text-xs text-amber-800">In progress</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section id="open-houses" className="scroll-mt-28 border-b border-line py-8">
             <h3 className="text-lg font-semibold">Open houses</h3>
@@ -259,6 +343,33 @@ async function HomeDetail({
               ))}
               {upcomingOH.length === 0 && <li className="text-muted">No open houses scheduled.</li>}
             </ul>
+            {activeSeries.map((x) => (
+              <div key={x.id} className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-accent/30 bg-accent-soft/40 p-4">
+                <svg viewBox="0 0 20 20" className="h-6 w-6 shrink-0 text-accent" aria-hidden><path d="M4 10a6 6 0 0 1 10.3-4.2M16 10a6 6 0 0 1-10.3 4.2M14 3v3h-3M6 17v-3h3" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold">
+                    Repeats every {WEEKDAYS[x.weekday]}, {clock(x.start_time)} to {clock(x.end_time)}
+                  </div>
+                  <div className="text-sm text-muted">
+                    {x.until_under_contract ? "Until the home goes under contract" : `Through ${new Date(x.until_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+                    . Dates are added {mlsWindow} days ahead (the MLS limit), and our team gets a reminder to enter each batch.
+                    {status !== "live_on_mls" && " Dates start once the listing is live."}
+                  </div>
+                </div>
+                {canScheduleOH && (
+                  <form action={stopOpenHouseSeries}>
+                    <input type="hidden" name="id" value={home.id} />
+                    <input type="hidden" name="series_id" value={x.id} />
+                    <button className="rounded-lg border border-foreground bg-white px-3 py-1.5 text-sm font-semibold hover:bg-soft">Stop repeating</button>
+                  </form>
+                )}
+              </div>
+            ))}
+            {(series ?? []).filter((x) => x.ended_at).slice(0, 2).map((x) => (
+              <p key={x.id} className="mt-2 text-sm text-muted">
+                A repeating {WEEKDAYS[x.weekday]} open house ended {dateTime(x.ended_at!)}{x.ended_reason ? `: ${x.ended_reason.toLowerCase()}` : ""}.
+              </p>
+            ))}
             {canScheduleOH && (
               <form action={scheduleOpenHouse} className="mt-5 grid gap-3 rounded-2xl bg-soft p-4 sm:grid-cols-[1.3fr_1fr_1fr]">
                 <input type="hidden" name="id" value={home.id} />
@@ -278,10 +389,74 @@ async function HomeDetail({
                   <span className="mb-1 block text-sm font-medium">Note for buyers’ agents (optional)</span>
                   <input name="remarks" placeholder="Refreshments, model home tours" className="field-input" />
                 </label>
+                <fieldset className="sm:col-span-3">
+                  <legend className="mb-2 text-sm font-medium">Repeat this?</legend>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <label className="flex items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-sm has-[:checked]:border-accent">
+                      <input type="radio" name="repeat" value="once" defaultChecked className="h-4 w-4 accent-[#3452c7]" /> Just this date
+                    </label>
+                    <label className="flex items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-sm has-[:checked]:border-accent">
+                      <input type="radio" name="repeat" value="until_contract" className="h-4 w-4 accent-[#3452c7]" /> Every week until under contract
+                    </label>
+                    <label className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-sm has-[:checked]:border-accent">
+                      <input type="radio" name="repeat" value="until_date" className="h-4 w-4 accent-[#3452c7]" /> Every week through
+                      <input name="until_date" type="date" className="rounded-md border border-line px-2 py-1 text-sm" aria-label="Last date" />
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-muted">
+                    The MLS only takes open houses {mlsWindow} days ahead, so we add dates as the window moves and remind our team to enter them.
+                    Repeats stop on their own if the home goes under contract, sells, is paused or comes off the market.
+                  </p>
+                </fieldset>
                 <div className="flex flex-wrap items-center gap-3 sm:col-span-3">
                   <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Schedule open house</button>
                   <span className="text-sm text-muted">Times are Central. Our listing coordinator adds it to the MLS.</span>
                 </div>
+              </form>
+            )}
+          </section>
+
+          <section id="reverse-prospecting" className="scroll-mt-28 border-b border-line py-8">
+            <h3 className="text-lg font-semibold">
+              Reverse prospecting {openReverse.length > 0 && <span className="font-normal text-muted">{openReverse.length} in progress</span>}
+            </h3>
+            <p className="mt-1 text-sm text-muted">
+              A list of buyers’ agents whose clients are searching for a home like this one. Our team pulls it from the MLS by hand and sends it to you.
+            </p>
+            {sectionNotice("reverse-prospecting")}
+            <ul className="mt-4 space-y-3">
+              {(reverse ?? []).slice(0, 4).map((r) => (
+                <li key={r.id} className={cx("rounded-2xl border p-4", r.status === "delivered" ? "border-line" : r.status === "cancelled" ? "border-line opacity-70" : "border-rose-200 bg-rose-50/40")}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold">{REVERSE_LABELS[r.status]}</span>
+                    <span className="text-sm text-muted">Asked by {r.requester_name ?? "someone"}, {dateTime(r.created_at)}</span>
+                  </div>
+                  {r.notes && <p className="mt-1 text-sm">“{r.notes}”</p>}
+                  {r.result_note && <p className="mt-2 rounded-lg bg-white px-3 py-2 text-sm"><b>From our team:</b> {r.result_note}</p>}
+                  {staff && (r.status === "requested" || r.status === "in_progress") && (
+                    <form action={updateReverseProspecting} className="mt-3 flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="id" value={home.id} />
+                      <input type="hidden" name="request_id" value={r.id} />
+                      <input name="result_note" placeholder="Note for the builder, e.g. 14 agents, emailed to Dana" className="field-input min-w-0 flex-1 py-2 text-sm" />
+                      {r.status === "requested" && <button name="status" value="in_progress" className="rounded-lg border border-foreground px-3 py-2 text-sm font-semibold hover:bg-white">Start</button>}
+                      <button name="status" value="delivered" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Mark delivered</button>
+                    </form>
+                  )}
+                  {!staff && r.status === "requested" && (
+                    <form action={updateReverseProspecting} className="mt-2">
+                      <input type="hidden" name="id" value={home.id} />
+                      <input type="hidden" name="request_id" value={r.id} />
+                      <button name="status" value="cancelled" className="text-sm font-semibold underline">Cancel request</button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {canRequestReverseProspecting(me.role) && openReverse.length === 0 && (
+              <form action={requestReverseProspecting} className="mt-4 space-y-3">
+                <input type="hidden" name="id" value={home.id} />
+                <input name="notes" placeholder="Anything we should know? (optional) e.g. include the 1290 next door" className="field-input" />
+                <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Request a reverse prospecting list</button>
               </form>
             )}
           </section>
@@ -403,7 +578,10 @@ async function HomeDetail({
                   <div className="mt-1 text-sm text-muted">{money(Number(home.list_price) / home.living_area)} per sq ft</div>
                 )}
               </div>
-              <StatusBadge status={status} />
+              <div className="flex flex-col items-end gap-1.5">
+                <StatusBadge status={status} />
+                <MarketBadge status={home.market_status} />
+              </div>
             </div>
 
             <ol className="mt-6">
@@ -464,6 +642,29 @@ async function HomeDetail({
             ) : (
               <p className="mt-6 rounded-xl bg-soft px-4 py-3 text-sm text-muted">{nextStepHint(status)}</p>
             )}
+
+            {status === "live_on_mls" && marketChoices(me.role).length > 0 && (
+              <div className="mt-6 border-t border-line pt-5">
+                <h4 className="text-sm font-semibold">On the market</h4>
+                <p className="mt-0.5 text-sm text-muted">
+                  {MARKET_HINTS[(home.market_status ?? "active") as MarketStatus]}
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {marketChoices(me.role)
+                    .filter((m) => m !== (home.market_status ?? "active"))
+                    .map((m) => (
+                      <form key={m} action={setMarketStatus}>
+                        <input type="hidden" name="id" value={home.id} />
+                        <input type="hidden" name="market_status" value={m} />
+                        <button className={cx("w-full rounded-lg px-3 py-2 text-sm font-semibold", m === "active" ? "bg-accent text-white hover:brightness-110" : "border border-line hover:border-foreground")}>
+                          {MARKET_ACTIONS[m]}
+                        </button>
+                      </form>
+                    ))}
+                </div>
+                <p className="mt-3 text-xs text-muted">Our team gets a task to update the MLS. Pausing or ending a listing also stops its open houses.</p>
+              </div>
+            )}
           </div>
         </aside>
       </div>
@@ -523,6 +724,10 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
     return `scheduled an open house for ${openHouseWhen(c.starts_at, c.ends_at)}`;
   }
   if (action === "open_house_cancelled") return "cancelled an open house";
+  if (action === "open_house_series_started") return `set a repeating ${WEEKDAYS[(changes as unknown as { weekday: number }).weekday] ?? ""} open house`;
+  if (action === "open_house_series_ended") return `ended a repeating open house${(changes as unknown as { reason?: string }).reason ? ` (${(changes as unknown as { reason: string }).reason.toLowerCase()})` : ""}`;
+  if (action === "reverse_prospect_requested") return "requested a reverse prospecting list";
+  if (action.startsWith("reverse_prospect_")) return `marked the reverse prospecting list ${action.replace("reverse_prospect_", "").replace("_", " ")}`;
   if (action === "media_requested") {
     const needs = (changes as unknown as { needs: string[] }).needs ?? [];
     return `requested ${needs.map((n) => NEED_TEXT[n] ?? n).join(", ") || "photos"}`;
@@ -557,22 +762,64 @@ const SAVED_MESSAGES: Record<string, string> = {
   resolved: "Request updated.",
   "open-house": "Open house scheduled.",
   "open-house-cancelled": "Open house cancelled.",
+  "open-house-series": "Repeating open house set. Dates show above as the MLS window allows, and our team has a task to enter them.",
+  "open-house-series-stopped": "Stopped repeating. Future dates are cancelled and our team will remove them from the MLS.",
+  "market-active": "Listing is active again. Our team will update the MLS.",
+  "market-paused": "Listing paused. Our team will update the MLS, and its open houses have stopped.",
+  "market-under_contract": "Marked under contract. Our team will update the MLS, and its open houses have stopped.",
+  "market-sold": "Marked sold. Our team will update the MLS.",
+  "market-withdrawn": "Taken off the market. Our team will update the MLS, and its open houses have stopped.",
+  "disclaimer-on": "Disclaimer on. Every photo for this home now says it’s representative.",
+  "disclaimer-off": "Disclaimer off.",
+  "reverse-requested": "Requested. Our team has a task and an email, and will send the list when it’s ready.",
+  "reverse-in_progress": "Marked in progress.",
+  "reverse-delivered": "Marked delivered. The builder can see your note.",
+  "reverse-cancelled": "Request cancelled.",
 };
 
 const REQUEST_LABELS: Record<string, string> = { open: "Open", done: "Done", declined: "Declined" };
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function clock(t: string) {
+  const [h, m] = t.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+const REVERSE_LABELS: Record<string, string> = {
+  requested: "Requested. On our team’s task list",
+  in_progress: "Our team is pulling the list",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
+
+const MARKET_ACTIONS: Record<MarketStatus, string> = {
+  active: "Make active again",
+  paused: "Pause listing",
+  under_contract: "Under contract",
+  sold: "Mark sold",
+  withdrawn: "Take off market",
+};
+const MARKET_HINTS: Record<MarketStatus, string> = {
+  active: "Active on the MLS and showing to buyers.",
+  paused: "Paused: temporarily off the MLS. Make it active again any time.",
+  under_contract: "Under contract. Open houses have stopped.",
+  sold: "Sold and closed.",
+  withdrawn: "Taken off the market without selling.",
+};
+void MARKET_LABELS;
 const REQUEST_STYLES: Record<string, string> = {
   open: "bg-amber-100 text-amber-900",
   done: "bg-emerald-100 text-emerald-800",
   declined: "bg-soft text-muted",
 };
 
-function QuickLinks({ homeId, communityId, openRequests, upcomingOH, openShoots }: { homeId: string; communityId: string; openRequests: number; upcomingOH: number; openShoots: number }) {
+function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number }) {
   const items = [
     { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
     { href: "#open-houses", title: "Open houses", sub: upcomingOH ? `${upcomingOH} scheduled` : "Schedule one" },
+    { href: "#reverse-prospecting", title: "Reverse prospecting", sub: openReverse ? "In progress" : "Request a list" },
     { href: "#photo-requests", title: "Request photos", sub: openShoots ? `${openShoots} in progress` : "Send a photographer" },
-    { href: `/media?home=${homeId}`, title: "Home photos and video", sub: "Media library" },
-    { href: `/media?community=${communityId}`, title: "Community media", sub: "Amenities, maps, drone" },
+    { href: `/media?home=${homeId}`, title: "Media", sub: "Home, community, plan" },
   ];
   return (
     <nav className="grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-3 xl:grid-cols-5" aria-label="On this home">

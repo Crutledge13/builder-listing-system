@@ -62,7 +62,8 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 - `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo.
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
-- `src/app/(app)/` — the signed-in screens: communities (start page) and each community's homes, all homes, home detail (edit, approvals, open houses, photo requests, change requests), add a home, approvals, media library, photo requests, photographer jobs, admin.
+- `src/app/(app)/` — the signed-in screens: communities (start page, add a community) and each community's homes, all homes, home detail (edit, approvals, listing status, open houses incl. repeating, reverse prospecting, photo requests, change requests), add a home, approvals, media library, photo requests, photographer jobs and earnings, tasks (our team), team (builder owners/managers), website check, help, admin.
+- `src/lib/menu.ts` — which tabs show on top for each role; everything else is in the menu.
 - `src/components/home-art.tsx`, `src/components/media-art.tsx` — drawn pictures (exteriors, rooms, floor plans, community scenes) for demo media. `demo-media/videos/` holds four short demo videos.
 - `src/app/(app)/media/` — media library (builder > community > home folders, room/type/tag filters, search), item page (download, tags, cover, trash), upload.
 - `src/app/api/media/[id]/route.ts` — the only way files are served: reads the media record as the signed-in user (RLS decides), then redirects to an hour-long storage link or streams a demo video.
@@ -106,11 +107,41 @@ After an upload, `src/lib/ai-tagging.ts` sends each JPG/PNG/WebP photo (by a 10-
 
 Inviting people needs `SUPABASE_SERVICE_ROLE_KEY` set in Vercel (server only, never in code or the browser). Without it the invite form is off; everything else in Admin works.
 
+## Our team's task board
+
+`tasks` (staff only) is our to-do list at `/tasks`. Database triggers add tasks on their own: approved homes (enter in MLS), edits to live listings (update MLS), listing status changes, open houses (add/remove on MLS), change requests, photo requests, reverse prospecting, and help reports. Finishing the source (e.g. delivering a reverse prospecting list) closes its task. `task_notes` holds comments.
+
+## Listing status and open houses
+
+`homes.market_status` (active, paused, under_contract, sold, withdrawn) only applies once a home is live on the MLS. Pausing, going under contract, selling or withdrawing ends repeating open houses, cancels future ones, and adds a task to update the MLS. Repeating open houses (`open_house_series`) create dates only as far ahead as the MLS allows (`app_settings.mls_open_house_window_days`, default 28); a daily pg_cron job adds the next dates and a task for each batch.
+
+## Plan photos and the disclaimer
+
+Media with `plan_name` and no home or community is the floor plan library (model home photos). Home pages fill in from it when a home has fewer than 5 photos, and the home media page shows three sections: this home, its community, its plan. `homes.show_representative_disclaimer` puts a "representative" strip on the home's photos and on downloads.
+
+## Website check
+
+`builder_settings` turns a builder's website feed on (owners/managers). `website_listings` are homes as the website shows them; `mls_listings` come from the MLS's read-only feed (never written by us). `/website-check` compares website, Builder Listings and MLS field by field. "Use website value" copies one field over (marked source `website`); homes only on the website can be added as a draft or "pushed live" (added and approved, so our team enters them into the MLS). In the demo both feeds are fake rows in `supabase/seed/demo_round3.sql`.
+
+## Emails
+
+`email_outbox` logs every email the system means to send (reverse prospecting, help reports) to `app_settings.team_email`. `src/lib/email.ts` sends them through Resend when `RESEND_API_KEY` and `EMAIL_FROM` are set; otherwise they're marked not sent and visible in Admin > Settings.
+
+## Photographer pay (demo)
+
+`photographer_rates` is the rate card; when a builder marks a photo request complete, `photographer_payments` gets a row priced from it. Admins approve and mark paid (Admin > Photographer pay); photographers see Earnings on `/jobs`. No money moves.
+
+## Builder teams
+
+Builder owners add/change anyone at their company; managers add sales and marketing (`private.can_manage_person`). Turning someone off sets `profiles.is_active = false`: their history stays and they can't sign in (role helpers return nothing for inactive people).
+
 ## Known follow-ups
 
 - Turn on leaked-password protection in Supabase Auth before the live project goes out.
 - Move media storage to Cloudflare R2/Stream before launch, and add a 30-day job that purges trashed files.
 - Thumbnails and web-size copies of uploads; whole-home zip and MLS photo pack downloads.
 - Approved open houses should show in the listing coordinator's queue for MLS entry.
-- Email or text notifications (new photo request, photographer assigned, delivered) once Resend is set up.
+- Email or text notifications (new photo request, photographer assigned, delivered) once Resend is set up. Reverse prospecting and help emails are already wired (they log until Resend is set).
+- Real website feed and MLS read-only feed connectors (through the shared import door); the demo uses seeded rows.
+- Real photographer payouts (e.g. Stripe Connect); today it's tracking only.
 - Field-level edit rules for homes are enforced by the `enforce_home_edit_rules` trigger; update it alongside `src/lib/permissions.ts` when the permission grid changes.

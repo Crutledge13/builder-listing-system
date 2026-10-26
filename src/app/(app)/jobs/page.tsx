@@ -5,6 +5,8 @@ import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { Notice } from "@/components/notice";
 import { MediaGrid, MediaTile } from "@/components/media-tile";
 import { MEDIA_REQUEST_SELECT, RequestCard, type MediaRequest } from "@/components/media-requests";
+import { cx, dateTime } from "@/lib/format";
+import { PAYMENT_STATUS, cents } from "@/lib/payments";
 
 export default function JobsPage(props: PageProps<"/jobs">) {
   return (
@@ -38,6 +40,13 @@ async function Jobs() {
   const uploads = (mine ?? []) as unknown as MediaRow[];
   const forJob = (r: MediaRequest) =>
     uploads.filter((m) => (r.home_id ? m.home_id === r.home_id : m.community_id === r.community_id && !m.home_id));
+
+  const [{ data: payments }, { data: rates }] = await Promise.all([
+    supabase.from("photographer_payments").select("id, address, line_items, amount_cents, status, approved_at, paid_at, created_at").eq("photographer_id", me.id).order("created_at", { ascending: false }),
+    supabase.from("photographer_rates").select("need, label, amount_cents").order("amount_cents", { ascending: false }),
+  ]);
+  const pay = payments ?? [];
+  const total = (st: string) => pay.filter((p) => p.status === st).reduce((n, p) => n + p.amount_cents, 0);
 
   const groups = [
     { title: "Upcoming shoots", list: jobs.filter((r) => r.status === "assigned" || r.status === "scheduled") },
@@ -78,6 +87,47 @@ async function Jobs() {
             </div>
           </section>
         ))}
+
+        <section id="earnings" className="scroll-mt-28">
+          <h2 className="text-[22px] font-semibold">Earnings</h2>
+          <p className="mt-1 text-sm text-muted">Each job is priced from our rate card when the builder marks it complete. Our team approves it, then it’s paid.</p>
+          <p className="mt-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900">Demo only: payments aren’t sent from here yet.</p>
+          <dl className="mt-4 grid grid-cols-3 gap-3">
+            {[
+              { label: "Waiting for approval", value: total("pending") },
+              { label: "Approved, to be paid", value: total("approved") },
+              { label: "Paid", value: total("paid") },
+            ].map((t) => (
+              <div key={t.label} className="rounded-2xl border border-line p-4">
+                <dt className="text-sm text-muted">{t.label}</dt>
+                <dd className="text-2xl font-bold tabular-nums">{cents(t.value)}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-4 divide-y divide-line rounded-2xl border border-line">
+            {pay.map((p) => (
+              <div key={p.id} className="flex flex-wrap items-center gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold">{p.address}</div>
+                  <div className="text-sm text-muted">
+                    {(p.line_items as { label: string }[]).map((l) => l.label).join(", ")}. {p.paid_at ? `Paid ${dateTime(p.paid_at)}` : p.approved_at ? `Approved ${dateTime(p.approved_at)}` : `Added ${dateTime(p.created_at)}`}
+                  </div>
+                </div>
+                <span className={cx("rounded-full px-2.5 py-1 text-xs font-semibold", PAYMENT_STATUS[p.status].style)}>{PAYMENT_STATUS[p.status].label}</span>
+                <span className="w-24 text-right font-semibold tabular-nums">{cents(p.amount_cents)}</span>
+              </div>
+            ))}
+            {pay.length === 0 && <p className="p-4 text-sm text-muted">No completed jobs yet.</p>}
+          </div>
+          <details className="mt-4">
+            <summary className="cursor-pointer text-sm font-semibold underline">Rate card</summary>
+            <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+              {(rates ?? []).map((r) => (
+                <li key={r.need} className="flex justify-between rounded-lg bg-soft px-3 py-2"><span>{r.label}</span><b>{cents(r.amount_cents)}</b></li>
+              ))}
+            </ul>
+          </details>
+        </section>
       </div>
     </div>
   );

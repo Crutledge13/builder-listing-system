@@ -190,3 +190,61 @@ export async function resolveFromInbox(formData: FormData) {
   revalidatePath("/", "layout");
   go(back, { saved: status === "done" ? "Marked done." : "Declined." });
 }
+
+// ---------------------------------------------------------------------------
+// Photographer payments (demo: marks status only, no money moves)
+// ---------------------------------------------------------------------------
+export async function setPaymentStatus(formData: FormData) {
+  await requireAdmin("/admin/payments");
+  const id = String(formData.get("id"));
+  const status = String(formData.get("status"));
+  if (!["pending", "approved", "paid"].includes(status)) go("/admin/payments", { error: "Unknown status." });
+  const supabase = await createClient();
+  const { error } = await supabase.from("photographer_payments").update({ status }).eq("id", id);
+  if (error) go("/admin/payments", { error: friendly(error.message) });
+  revalidatePath("/admin/payments");
+  go("/admin/payments", { saved: status === "paid" ? "Marked paid." : status === "approved" ? "Approved." : "Moved back to waiting." });
+}
+
+export async function saveRates(formData: FormData) {
+  await requireAdmin("/admin/payments");
+  const supabase = await createClient();
+  const needs = formData.getAll("need").map(String);
+  for (const need of needs) {
+    const dollars = Number(String(formData.get(`rate_${need}`) ?? "").replace(/[$,]/g, ""));
+    if (Number.isNaN(dollars) || dollars < 0) go("/admin/payments", { error: "Rates must be dollar amounts." });
+    const { error } = await supabase.from("photographer_rates").update({ amount_cents: Math.round(dollars * 100) }).eq("need", need);
+    if (error) go("/admin/payments", { error: friendly(error.message) });
+  }
+  revalidatePath("/admin/payments");
+  go("/admin/payments", { saved: "Rates saved. New completed jobs use them." });
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+export async function saveSettings(formData: FormData) {
+  await requireAdmin("/admin/settings");
+  const days = Number(formData.get("mls_open_house_window_days"));
+  const email = String(formData.get("team_email") ?? "").trim().toLowerCase();
+  if (!Number.isInteger(days) || days < 7 || days > 120) go("/admin/settings", { error: "The open house window should be 7 to 120 days." });
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) go("/admin/settings", { error: "Enter a valid team email." });
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("app_settings").upsert([
+    { key: "mls_open_house_window_days", value: days, updated_at: now },
+    { key: "team_email", value: email, updated_at: now },
+  ]);
+  if (error) go("/admin/settings", { error: friendly(error.message) });
+  revalidatePath("/", "layout");
+  go("/admin/settings", { saved: "Settings saved." });
+}
+
+export async function closeIssue(formData: FormData) {
+  await requireAdmin("/admin/requests");
+  const supabase = await createClient();
+  const { error } = await supabase.from("issue_reports").update({ status: "closed" }).eq("id", String(formData.get("id")));
+  if (error) go("/admin/requests", { error: friendly(error.message) });
+  revalidatePath("/", "layout");
+  go("/admin/requests", { saved: "Help request closed." });
+}

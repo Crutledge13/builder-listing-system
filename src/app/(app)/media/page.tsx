@@ -43,7 +43,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
 
   // Where are we in builder > community > home? (Access rules apply to every lookup.)
   const { data: home } = homeId
-    ? await supabase.from("homes").select("id, unparsed_address, city, plan_name, community_id, communities(id, name), builders(id, name)").eq("id", homeId).maybeSingle()
+    ? await supabase.from("homes").select("id, unparsed_address, city, plan_name, builder_id, community_id, show_representative_disclaimer, communities(id, name), builders(id, name)").eq("id", homeId).maybeSingle()
     : { data: null };
   const effectiveCommunity = home?.community_id ?? communityId;
   const { data: community } = effectiveCommunity
@@ -78,6 +78,29 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     if (q) query = query.ilike("search_text", `%${q.toLowerCase().replace(/[%_]/g, "")}%`);
     const { data } = await query;
     results = (data ?? []) as unknown as MediaRow[];
+  }
+
+  // On a home: also its community's media and its floor plan's library media,
+  // in case the builder team needs them (or the home isn't built yet).
+  let homeCommunityMedia: MediaRow[] = [];
+  let planMedia: MediaRow[] = [];
+  if (home) {
+    const scoped = (qb: ReturnType<typeof supabase.from>) => {
+      let x = qb.select(MEDIA_SELECT).is("deleted_at", null).is("home_id", null).order("sort_order").order("created_at").limit(80);
+      if (room) x = x.eq("room", room);
+      if (kind) x = x.eq("kind", kind);
+      if (tag) x = x.contains("tags", [tag]);
+      if (q) x = x.ilike("search_text", `%${q.toLowerCase().replace(/[%_]/g, "")}%`);
+      return x;
+    };
+    const [c, p] = await Promise.all([
+      scoped(supabase.from("media")).eq("community_id", home.community_id),
+      home.plan_name
+        ? scoped(supabase.from("media")).eq("builder_id", home.builder_id).eq("plan_name", home.plan_name).is("community_id", null)
+        : Promise.resolve({ data: [] }),
+    ]);
+    homeCommunityMedia = (c.data ?? []) as unknown as MediaRow[];
+    planMedia = (p.data ?? []) as unknown as MediaRow[];
   }
 
   // Folders at the top level: one card per community you can see.
@@ -278,8 +301,44 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
         </>
       )}
 
-      {/* Home level, or any search/filter: the results */}
-      {(home || filtering || (builder && filtering)) && (
+      {/* Home level: three sections */}
+      {home && (
+        <div className="mt-8 space-y-12">
+          {home.show_representative_disclaimer && (
+            <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              The representative disclaimer is on for this home, so it’s shown on these photos and added to downloads.{" "}
+              <Link href={`/homes/${home.id}#photos-note`} className="font-semibold underline">Change</Link>
+            </p>
+          )}
+          <section>
+            <h2 className="text-[22px] font-semibold">This home</h2>
+            <p className="mt-1 text-sm text-muted">{results.length} {results.length === 1 ? "file" : "files"} taken at {home.unparsed_address}.</p>
+            <div className="mt-4">
+              <MediaGrid>{results.map((m) => <MediaTile key={m.id} m={m} disclaimer={home.show_representative_disclaimer} />)}</MediaGrid>
+              {results.length === 0 && <Empty text={filtering ? "Nothing here matches." : "No photos of this home yet. The plan photos below can stand in until it’s built."} />}
+            </div>
+          </section>
+          <section>
+            <h2 className="text-[22px] font-semibold">{(home.communities as unknown as { name: string } | null)?.name ?? "Community"} photos and video</h2>
+            <p className="mt-1 text-sm text-muted">Entrance, amenities and aerials from the community this home is in.</p>
+            <div className="mt-4">
+              <MediaGrid>{homeCommunityMedia.map((m) => <MediaTile key={m.id} m={m} />)}</MediaGrid>
+              {homeCommunityMedia.length === 0 && <Empty text="No community media yet." />}
+            </div>
+          </section>
+          <section>
+            <h2 className="text-[22px] font-semibold">{home.plan_name ? `${home.plan_name} floor plan` : "Floor plan"} photos and video</h2>
+            <p className="mt-1 text-sm text-muted">Model home and past builds of this plan. Use them while the home is being built; turn on the representative disclaimer on the home if you list with them.</p>
+            <div className="mt-4">
+              <MediaGrid>{planMedia.map((m) => <MediaTile key={m.id} m={m} disclaimer={home.show_representative_disclaimer} />)}</MediaGrid>
+              {planMedia.length === 0 && <Empty text="No plan photos in the library yet." />}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Any search or filter outside a home: the results */}
+      {!home && (filtering || (builder && filtering)) && (
         <div className="mt-8">
           <p className="mb-4 text-sm text-muted">{results.length === 160 ? "Showing the first 160 results" : `${results.length} ${results.length === 1 ? "file" : "files"}`}</p>
           <MediaGrid>{results.map((m) => <MediaTile key={m.id} m={m} showPlace={!home} />)}</MediaGrid>

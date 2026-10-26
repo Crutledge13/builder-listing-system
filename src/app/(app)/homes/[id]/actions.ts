@@ -4,7 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { allowedTransitions, editableFields, type HomeField, type WorkflowStatus } from "@/lib/permissions";
+import { after } from "next/server";
+import {
+  allowedTransitions,
+  canToggleDisclaimer,
+  editableFields,
+  isStaff,
+  marketChoices,
+  type HomeField,
+  type MarketStatus,
+  type WorkflowStatus,
+} from "@/lib/permissions";
+import { sendQueuedEmails } from "@/lib/email";
 import { centralToUtc } from "@/lib/time";
 
 const NUMERIC: HomeField[] = [
@@ -134,6 +145,32 @@ export async function scheduleOpenHouse(formData: FormData) {
 
   const supabase = await createClient();
   const { data: me } = await supabase.auth.getUser();
+
+  // "Repeat this": a weekly series. The database creates the dates the MLS
+  // allows (28 days out by default), adds more each day, and gives our team a
+  // task each time new dates need entering on the MLS.
+  const repeat = String(formData.get("repeat") ?? "once");
+  if (repeat !== "once") {
+    const untilDate = String(formData.get("until_date") ?? "");
+    if (repeat === "until_date" && !/^\d{4}-\d{2}-\d{2}$/.test(untilDate)) back(id, { error: "Pick the last date for the repeating open house.", at: "open-houses" });
+    if (repeat === "until_date" && untilDate < date) back(id, { error: "The last date needs to be after the first one.", at: "open-houses" });
+    const weekday = new Date(date + "T12:00:00Z").getUTCDay();
+    const { error } = await supabase.from("open_house_series").insert({
+      home_id: id,
+      builder_id: id, // replaced by the database with the home's builder
+      created_by: me.user?.id,
+      weekday,
+      start_time: String(formData.get("start")).slice(0, 5),
+      end_time: String(formData.get("end")).slice(0, 5),
+      remarks: remarks || null,
+      until_date: repeat === "until_date" ? untilDate : null,
+      until_under_contract: repeat === "until_contract",
+    });
+    if (error) back(id, { error: friendly(error.message), at: "open-houses" });
+    revalidatePath(`/homes/${id}`);
+    back(id, { saved: "open-house-series", at: "open-houses" });
+  }
+
   const { error } = await supabase.from("open_houses").insert({
     home_id: id,
     builder_id: id,
@@ -163,3 +200,90 @@ export async function cancelOpenHouse(formData: FormData) {
   revalidatePath(`/homes/${id}`);
   back(id, { saved: "open-house-cancelled", at: "open-houses" });
 }
+
+export async function stopOpenHouseSeries(formData: FormData) {
+  const id = String(formData.get("id"));
+  const seriesId = String(formData.get("series_id"));
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("open_house_series")
+    .update({ ended_at: new Date().toISOString(), ended_reason: "Stopped by the builder" })
+    .eq("id", seriesId)
+    .is("ended_at", null)
+    .select("id");
+  if (error) back(id, { error: friendly(error.message), at: "open-houses" });
+  if (!data?.length) back(id, { error: "Your role can’t change open houses.", at: "open-houses" });
+  revalidatePath(`/homes/${id}`);
+  back(id, { saved: "open-house-series-stopped", at: "open-houses" });
+}
+
+// ---------------------------------------------------------------------------
+// Listing status on the market: pause, off the market, under contract, sold
+// ---------------------------------------------------------------------------
+export async function setMarketStatus(formData: FormData) {
+  const id = String(formData.get("id"));
+  const to = String(formData.get("market_status")) as MarketStatus;
+  const me = await requireProfile();
+  if (!marketChoices(me.role).includes(to)) back(id, { error: "Your role can’t make that change." });
+  const supabase = await createClient();
+  // The database ends repeating open houses, cancels future ones, and adds a
+  // task for our team to update the MLS.
+  const { data, error } = await supabase.from("homes").update({ market_status: to }).eq("id", id).select("id");
+  if (error) back(id, { error: friendly(error.message) });
+  if (!data?.length) back(id, { error: "You don’t have permission to change this listing." });
+  revalidatePath("/", "layout");
+  back(id, { saved: `market-${to}` });
+}
+
+export async function setDisclaimer(formData: FormData) {
+  const id = String(formData.get("id"));
+  const on = formData.get("on") === "true";
+  const me = await requireProfile();
+  if (!canToggleDisclaimer(me.role)) back(id, { error: "Your role can’t change that." });
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("homes").update({ show_representative_disclaimer: on }).eq("id", id).select("id");
+  if (error) back(id, { error: friendly(error.message) });
+  if (!data?.length) back(id, { error: "You don’t have permission to change this home." });
+  revalidatePath(`/homes/${id}`);
+  revalidatePath("/media");
+  back(id, { saved: on ? "disclaimer-on" : "disclaimer-off" });
+}
+
+// ---------------------------------------------------------------------------
+// Reverse prospecting: a manual pull by our team
+// ---------------------------------------------------------------------------
+export async function requestReverseProspecting(formData: FormData) {
+  const id = String(formData.get("id"));
+  const notes = String(formData.get("notes") ?? "").trim();
+  const supabase = await createClient();
+  const { data: me } = await supabase.auth.getUser();
+  // The database fills in the address and builder, adds a task, and queues an email to our team.
+  const { data, error } = await supabase
+    .from("reverse_prospect_requests")
+    .insert({ home_id: id, builder_id: id, requested_by: me.user?.id, notes: notes || null })
+    .select("id")
+    .single();
+  if (error || !data) back(id, { error: friendly(error?.message ?? "unknown"), at: "reverse-prospecting" });
+  after(() => sendQueuedEmails(supabase, "reverse_prospect_requests", data.id));
+  revalidatePath(`/homes/${id}`);
+  back(id, { saved: "reverse-requested", at: "reverse-prospecting" });
+}
+
+export async function updateReverseProspecting(formData: FormData) {
+  const id = String(formData.get("id"));
+  const requestId = String(formData.get("request_id"));
+  const status = String(formData.get("status"));
+  const note = String(formData.get("result_note") ?? "").trim();
+  const me = await requireProfile();
+  if (!["in_progress", "delivered", "cancelled"].includes(status)) back(id, { error: "Unknown status.", at: "reverse-prospecting" });
+  if (status !== "cancelled" && !isStaff(me.role)) back(id, { error: "Our team updates these requests.", at: "reverse-prospecting" });
+  const patch: Record<string, string> = { status };
+  if (note) patch.result_note = note;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("reverse_prospect_requests").update(patch).eq("id", requestId).select("id");
+  if (error) back(id, { error: friendly(error.message), at: "reverse-prospecting" });
+  if (!data?.length) back(id, { error: "You can’t change that request.", at: "reverse-prospecting" });
+  revalidatePath("/", "layout");
+  back(id, { saved: `reverse-${status}`, at: "reverse-prospecting" });
+}
+

@@ -48,7 +48,9 @@ async function LoginError({ searchParams }: { searchParams: PageProps<"/login">[
     <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">
       {error === "no-profile"
         ? "Your login works, but no account is set up for it yet. Ask your account owner to add you."
-        : "That email and password don’t match. Check the password’s capital letters and try again."}
+        : error === "inactive"
+          ? "Your access has been turned off. Ask your account owner if that’s a mistake."
+          : "That email and password don’t match. Check the password’s capital letters and try again."}
     </p>
   );
 }

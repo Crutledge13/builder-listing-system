@@ -6,7 +6,8 @@ import { requireProfile } from "@/lib/auth";
 import { canManageMedia, isStaff } from "@/lib/permissions";
 import { dateTime } from "@/lib/format";
 import { DemoArt, MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
-import { DownloadDrawn, VideoPlayer } from "@/components/media-client";
+import { DownloadDrawn, DownloadWithDisclaimer, VideoPlayer } from "@/components/media-client";
+import { DISCLAIMER_TEXT, DisclaimerOverlay } from "@/components/media-tile";
 import { makeCover, rerunAi, saveMedia, setTrashed } from "./actions";
 import { aiTaggingAvailable } from "@/lib/ai-tagging";
 
@@ -44,6 +45,14 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
   const error = typeof sp.error === "string" ? sp.error : null;
   const saved = typeof sp.saved === "string" ? MESSAGES[sp.saved] : null;
 
+  // Plan library photos are always representative; a home's own photos are when the builder turned the disclaimer on.
+  const { data: homeFlag } = m.home_id
+    ? await supabase.from("homes").select("show_representative_disclaimer").eq("id", m.home_id).maybeSingle()
+    : { data: null };
+  const isPlanItem = !!m.plan_name && !m.home_id;
+  const disclaimer = m.kind === "photo" && !!homeFlag?.show_representative_disclaimer;
+  const offerDisclaimer = m.kind === "photo" && isPlanItem && !disclaimer;
+
   const { data: uploader } = m.uploaded_by
     ? await supabase.from("profiles").select("full_name").eq("id", m.uploaded_by).maybeSingle()
     : { data: null };
@@ -64,7 +73,8 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
       <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_340px]">
         <div>
           <div id="media-view" className="overflow-hidden rounded-2xl bg-soft ring-1 ring-line">
-            <div className="aspect-[3/2]">
+            <div className="relative aspect-[3/2]">
+              {disclaimer && <DisclaimerOverlay />}
               {m.kind === "video" ? (
                 <VideoPlayer src={`/api/media/${m.id}`}>
                   {m.source === "demo" ? <DemoArt m={m} className="h-full w-full" /> : <span className="block h-full w-full bg-black" />}
@@ -98,15 +108,26 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
         <aside className="space-y-6">
           <div className="card-lift rounded-2xl border border-line bg-white p-5">
             {m.source === "demo" && m.kind !== "video" ? (
-              <DownloadDrawn targetId="media-view" fileName={fileName} />
+              <DownloadDrawn targetId="media-view" fileName={fileName} disclaimer={disclaimer ? DISCLAIMER_TEXT : undefined} />
+            ) : disclaimer ? (
+              <DownloadWithDisclaimer src={`/api/media/${m.id}`} fileName={fileName} disclaimer={DISCLAIMER_TEXT} />
             ) : (
               <a href={`/api/media/${m.id}?download=1`} className="block w-full rounded-xl bg-accent px-4 py-3 text-center font-semibold text-white hover:brightness-110">
                 Download
               </a>
             )}
+            {offerDisclaimer && (
+              <div className="mt-2 [&_button]:border [&_button]:border-foreground [&_button]:bg-white [&_button]:text-foreground">
+                {m.source === "demo"
+                  ? <DownloadDrawn targetId="media-view" fileName={`${fileName}-representative`} disclaimer={DISCLAIMER_TEXT} label="Download with disclaimer" />
+                  : <DownloadWithDisclaimer src={`/api/media/${m.id}`} fileName={fileName} disclaimer={DISCLAIMER_TEXT} />}
+                <p className="mt-1 text-xs text-muted">This is a plan library photo. The second button adds the “representative” disclaimer to the file.</p>
+              </div>
+            )}
             <dl className="mt-5 space-y-2 text-sm">
               <Row label="Type" value={m.kind === "floor_plan" ? "Floor plan" : m.kind === "video" ? "Video" : "Photo"} />
               <Row label="Ready for MLS" value={m.mls_ready ? "Yes" : "No"} />
+              {isPlanItem && <Row label="Plan library" value={`${m.plan_name} plan (representative)`} />}
               {m.is_cover && <Row label="Cover photo" value="Yes" />}
               <Row label="Added" value={`${dateTime(m.created_at)}${uploader ? ` by ${uploader.full_name}` : m.source === "demo" ? " (demo file)" : ""}`} />
               {m.size_bytes ? <Row label="Size" value={`${(m.size_bytes / 1_048_576).toFixed(1)} MB`} /> : null}

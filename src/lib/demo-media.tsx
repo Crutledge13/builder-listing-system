@@ -25,6 +25,7 @@ export type MediaRow = {
   ai_status: "pending" | "done" | "skipped" | "failed" | null;
   ai_suggestion: { room: string; confidence: number; tags: string[]; caption: string; flags: string[] } | null;
   caption: string | null;
+  plan_name: string | null;
   homes: {
     unparsed_address: string;
     stories: number | null;
@@ -39,7 +40,7 @@ export type MediaRow = {
 };
 
 export const MEDIA_SELECT =
-  "id, title, kind, room, tags, source, demo_key, mime_type, home_id, community_id, builder_id, is_cover, mls_ready, sort_order, created_at, duration_seconds, room_source, ai_status, ai_suggestion, caption, homes(unparsed_address, stories, plan_name, bedrooms_total, bathrooms_full, bathrooms_half, living_area), communities(name), builders(name)";
+  "id, title, kind, room, tags, source, demo_key, mime_type, home_id, community_id, builder_id, is_cover, mls_ready, sort_order, created_at, duration_seconds, room_source, ai_status, ai_suggestion, caption, plan_name, homes(unparsed_address, stories, plan_name, bedrooms_total, bathrooms_full, bathrooms_half, living_area), communities(name), builders(name)";
 
 const DEMO_VIDEOS = new Set(["video:home1", "video:home2", "video:home3", "video:community"]);
 
@@ -50,8 +51,9 @@ export function demoVideoFile(key: string) {
 // The drawn picture for a demo item (or a video's still frame).
 export function DemoArt({ m, className }: { m: MediaRow; className?: string }) {
   const [group, a, b] = (m.demo_key ?? "").split(":");
-  const seed = m.home_id ?? m.community_id ?? m.id;
-  const h = m.homes;
+  // Plan library items (no home) share one look per plan, so a plan's photos match each other.
+  const seed = m.home_id ?? m.community_id ?? (m.plan_name ? `${m.builder_id}:${m.plan_name}` : m.id);
+  const h = m.homes ?? (m.plan_name ? planSpecs(m.plan_name, m.caption) : null);
   if (group === "home") return <HomeArt seed={seed} stories={h?.stories} scene={b === "twilight" ? "twilight" : "day"} className={className} />;
   if (group === "room") return <RoomArt room={a as Parameters<typeof RoomArt>[0]["room"]} seed={seed} className={className} />;
   if (group === "floor_plan") {
@@ -65,6 +67,24 @@ export function DemoArt({ m, className }: { m: MediaRow; className?: string }) {
       : <HomeArt seed={seed} stories={h?.stories} scene="golden" className={className} />;
   }
   return <HomeArt seed={seed} className={className} />;
+}
+
+// "4 bed, 3.5 bath, 2,480 sq ft" -> numbers for drawing a plan's pictures.
+function planSpecs(plan: string, caption: string | null): NonNullable<MediaRow["homes"]> {
+  const n = (re: RegExp) => Number(caption?.match(re)?.[1]?.replace(/,/g, "") ?? NaN);
+  const beds = n(/(\d+)\s*bed/);
+  const bathsTotal = n(/([\d.]+)\s*bath/);
+  const sqft = n(/([\d,]+)\s*sq/);
+  const full = Number.isNaN(bathsTotal) ? 2 : Math.floor(bathsTotal);
+  return {
+    unparsed_address: `${plan} plan`,
+    stories: !Number.isNaN(sqft) && sqft > 2300 ? 2 : 1,
+    plan_name: plan,
+    bedrooms_total: Number.isNaN(beds) ? 3 : beds,
+    bathrooms_full: full,
+    bathrooms_half: !Number.isNaN(bathsTotal) && bathsTotal % 1 ? 1 : 0,
+    living_area: Number.isNaN(sqft) ? null : sqft,
+  };
 }
 
 export const ROOM_LABELS: Record<string, string> = {

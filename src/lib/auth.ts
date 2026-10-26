@@ -21,11 +21,13 @@ export async function requireProfile(): Promise<Profile> {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, builder_id, builders(name)")
+    .select("id, email, full_name, role, builder_id, is_active, builders(name)")
     .eq("id", user.id)
     .single();
 
   if (!data) redirect("/login?error=no-profile");
+  // Deactivated people keep their history but can't use the system.
+  if (!data.is_active) redirect("/signed-out?reason=inactive");
 
   const builder = data.builders as unknown as { name: string } | null;
   return {

@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { requireProfile, DEMO_USERS, demoModeOn } from "@/lib/auth";
 import { ROLE_LABELS, isStaff } from "@/lib/permissions";
+import { createClient } from "@/lib/supabase/server";
+import { menuLinks, primaryTabs } from "@/lib/menu";
 import { signOut } from "../login/actions";
 import { switchDemoUser } from "./demo-actions";
 import { NavLinks } from "./nav-links";
@@ -32,6 +34,14 @@ async function Header() {
   const showDemo = demoModeOn() && me.email.endsWith("@demo.test");
   const company = me.role === "photographer" ? "Contractor" : isStaff(me.role) ? "Our team" : me.builder_name?.replace(" (demo)", "");
 
+  // Open task count on the Tasks tab for our team.
+  let badges: Record<string, number> | undefined;
+  if (isStaff(me.role)) {
+    const supabase = await createClient();
+    const { count } = await supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]);
+    badges = { "/tasks": count ?? 0 };
+  }
+
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
       {showDemo && (
@@ -40,11 +50,11 @@ async function Header() {
         </div>
       )}
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-8">
-        <Link href={me.role === "photographer" ? "/jobs" : "/communities"} className="shrink-0">
+        <Link href={me.role === "photographer" ? "/jobs" : isStaff(me.role) ? "/tasks" : "/communities"} className="shrink-0">
           <Logo compact />
         </Link>
         <div className="flex min-w-0 flex-1 justify-start md:justify-center">
-          <NavLinks showAdmin={me.role === "platform_admin"} photographer={me.role === "photographer"} />
+          <NavLinks links={primaryTabs(me.role)} badges={badges} />
         </div>
 
         <details className="relative shrink-0">
@@ -55,9 +65,9 @@ async function Header() {
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-white">
               {initials(me.full_name)}
             </span>
-            <span className="sr-only">Account menu</span>
+            <span className="sr-only">Menu</span>
           </summary>
-          <div className="card-lift absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-2xl border border-line bg-white">
+          <div className="card-lift absolute right-0 z-40 mt-2 max-h-[80vh] w-80 overflow-y-auto rounded-2xl border border-line bg-white">
             <div className="border-b border-line px-4 py-3">
               <div className="font-semibold">{me.full_name}</div>
               <div className="text-sm text-muted">
@@ -65,31 +75,46 @@ async function Header() {
               </div>
             </div>
 
+            <nav className="border-b border-line p-2" aria-label="More">
+              {menuLinks(me.role).map((l) => (
+                <Link key={l.href} href={l.href} className="block rounded-xl px-3 py-2 hover:bg-soft">
+                  <span className="block text-[15px] font-medium">{l.label}</span>
+                  {l.hint && <span className="block text-xs text-muted">{l.hint}</span>}
+                </Link>
+              ))}
+              <Link href="/help" className="block rounded-xl px-3 py-2 hover:bg-soft">
+                <span className="block text-[15px] font-medium">Help and report an issue</span>
+                <span className="block text-xs text-muted">Something broken or confusing? Tell us.</span>
+              </Link>
+            </nav>
+
             {showDemo && (
-              <div className="max-h-[60vh] overflow-y-auto border-b border-line p-2">
-                <p className="px-2 pb-1 pt-1 text-sm font-semibold">See the system as…</p>
-                {DEMO_USERS.map((u) => (
-                  <form key={u.email} action={switchDemoUser}>
-                    <input type="hidden" name="email" value={u.email} />
-                    <button
-                      disabled={u.email === me.email}
-                      className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-soft disabled:bg-accent-soft"
-                    >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-soft text-[11px] font-semibold">
-                        {initials(u.label)}
-                      </span>
-                      <span>
-                        <span className="block text-sm font-medium">{u.label}</span>
-                        <span className="block text-xs text-muted">{u.detail}</span>
-                      </span>
-                    </button>
-                  </form>
-                ))}
-              </div>
+              <details className="border-b border-line">
+                <summary className="cursor-pointer list-none px-5 py-3 text-sm font-semibold hover:bg-soft">See the demo as someone else…</summary>
+                <div className="p-2 pt-0">
+                  {DEMO_USERS.map((u) => (
+                    <form key={u.email} action={switchDemoUser}>
+                      <input type="hidden" name="email" value={u.email} />
+                      <button
+                        disabled={u.email === me.email}
+                        className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-soft disabled:bg-accent-soft"
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-soft text-[11px] font-semibold">
+                          {initials(u.label)}
+                        </span>
+                        <span>
+                          <span className="block text-sm font-medium">{u.label}</span>
+                          <span className="block text-xs text-muted">{u.detail}</span>
+                        </span>
+                      </button>
+                    </form>
+                  ))}
+                </div>
+              </details>
             )}
 
             <form action={signOut} className="p-2">
-              <button className="w-full rounded-xl px-2 py-2 text-left text-sm hover:bg-soft">Sign out</button>
+              <button className="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-soft">Sign out</button>
             </form>
           </div>
         </details>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { baths, money, num } from "@/lib/format";
 import type { WorkflowStatus } from "@/lib/permissions";
-import { StageText, StatusBadge } from "@/components/badges";
+import { MarketBadge, StageText, StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
 
 export type HomeCardData = {
@@ -18,20 +18,22 @@ export type HomeCardData = {
   build_stage: string;
   workflow_status: WorkflowStatus;
   mls_number: string | null;
+  market_status?: string | null;
   communities: { name: string } | null;
   builders: { name: string } | null;
 };
 
 export const HOME_CARD_SELECT =
-  "id, unparsed_address, city, plan_name, lot_number, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, stories, build_stage, workflow_status, mls_number, community_id, communities(name), builders(name)";
+  "id, unparsed_address, city, plan_name, lot_number, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, stories, build_stage, workflow_status, mls_number, market_status, community_id, communities(name), builders(name)";
 
 export function HomeCard({ h, showBuilder, showCommunity = true }: { h: HomeCardData; showBuilder?: boolean; showCommunity?: boolean }) {
   return (
     <Link href={`/homes/${h.id}`} className="group block">
       <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-soft">
         <HomeArt seed={h.id} stories={h.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
-        <div className="absolute left-3 top-3">
+        <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
           <StatusBadge status={h.workflow_status} floating />
+          <MarketBadge status={h.market_status} floating />
         </div>
         {h.mls_number && (
           <span className="absolute bottom-3 right-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur">
