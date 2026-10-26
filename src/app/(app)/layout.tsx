@@ -17,7 +17,9 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         <Header />
       </Suspense>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 pt-6 sm:px-8">{children}</main>
-      <PopoverCloser />
+      <Suspense>
+        <PopoverCloser />
+      </Suspense>
     </>
   );
 }
