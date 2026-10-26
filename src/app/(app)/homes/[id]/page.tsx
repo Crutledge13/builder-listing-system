@@ -20,7 +20,7 @@ import { HomeArt } from "@/components/home-art";
 import { MediaPicture } from "@/components/media-tile";
 import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { cancelOpenHouse, changeStatus, requestChange, resolveRequest, saveHome, scheduleOpenHouse } from "./actions";
-import { openHouseWhen } from "@/lib/time";
+import { nextSaturdayCentral, openHouseWhen } from "@/lib/time";
 import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
 import { canRequestMedia } from "@/lib/permissions";
 
@@ -144,6 +144,14 @@ async function HomeDetail({
   const error = typeof sp.error === "string" ? sp.error : null;
   const saved = typeof sp.saved === "string" ? sp.saved : null;
   const savedText = saved ? (SAVED_MESSAGES[saved] ?? saved) : null;
+  const at = typeof sp.at === "string" ? sp.at : null;
+  // A message for one section shows inside that section; others show at the top.
+  const sectionNotice = (name: string) =>
+    at === name && (error || savedText) ? (
+      <p role="status" className={`mt-4 rounded-xl px-4 py-3 text-sm ${error ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>
+        {error ?? savedText}
+      </p>
+    ) : null;
   const steps = Object.keys(STATUS_LABELS) as WorkflowStatus[];
 
   const facts = [
@@ -168,8 +176,8 @@ async function HomeDetail({
         {isStaff(me.role) ? `. Built by ${home.builders?.name.replace(" (demo)", "")}` : ""}
       </p>
 
-      {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
-      {saved && (
+      {error && !at && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
+      {saved && !at && (
         <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           {savedText}
         </p>
@@ -226,6 +234,7 @@ async function HomeDetail({
 
           <section id="open-houses" className="scroll-mt-28 border-b border-line py-8">
             <h3 className="text-lg font-semibold">Open houses</h3>
+            {sectionNotice("open-houses")}
             <ul className="mt-4 space-y-3">
               {upcomingOH.map((o) => (
                 <li key={o.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-line p-4">
@@ -255,7 +264,7 @@ async function HomeDetail({
                 <input type="hidden" name="id" value={home.id} />
                 <label className="block">
                   <span className="mb-1 block text-sm font-medium">Date</span>
-                  <input name="date" type="date" required className="field-input" />
+                  <input name="date" type="date" required defaultValue={nextSaturdayCentral(new Date())} className="field-input" />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-sm font-medium">Starts</span>
@@ -282,6 +291,7 @@ async function HomeDetail({
               Photo requests {openMediaRequests.length > 0 && <span className="font-normal text-muted">{openMediaRequests.length} open</span>}
             </h3>
             <p className="mt-1 text-sm text-muted">Need new photos, video, drone or a floor plan? Ask here and we’ll send a photographer. Files land in this home’s media.</p>
+            {sectionNotice("photo-requests")}
             <div className="mt-4 space-y-4">
               {mediaRequests.slice(0, 4).map((r) => (
                 <RequestCard key={r.id} r={r} role={me.role} back={`/homes/${home.id}#photo-requests`} />
@@ -301,6 +311,7 @@ async function HomeDetail({
             <h3 className="text-lg font-semibold">
               Change requests {openRequests.length > 0 && <span className="font-normal text-muted">{openRequests.length} open</span>}
             </h3>
+            {sectionNotice("requests")}
             <p className="mt-1 text-sm text-muted">
               Spot something wrong or missing? Ask for it here. Managers, owners and marketing see and resolve requests.
             </p>

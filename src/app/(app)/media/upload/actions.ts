@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { after } from "next/server";
+import { aiTaggingAvailable, tagMedia } from "@/lib/ai-tagging";
 
 export type UploadedFile = { path: string; name: string; size: number; type: string };
 
@@ -65,10 +67,11 @@ export async function recordUploads(input: {
       size_bytes: f.size,
       mls_ready: false,
       sort_order: 100 + i,
+      ai_status: aiTaggingAvailable() && f.type.startsWith("image/") ? "pending" : null,
     }));
   if (rows.length === 0) return { ok: false, error: "No files to record." };
 
-  const { error } = await supabase.from("media").insert(rows);
+  const { data: inserted, error } = await supabase.from("media").insert(rows).select("id");
   if (error) {
     return {
       ok: false,
@@ -76,5 +79,8 @@ export async function recordUploads(input: {
     };
   }
   revalidatePath("/media");
+  // AI looks at the photos after we've answered, so nobody waits on it.
+  const ids = (inserted ?? []).map((r) => r.id as string);
+  after(() => tagMedia(supabase, ids));
   return { ok: true, count: rows.length };
 }

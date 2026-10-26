@@ -13,8 +13,8 @@ const NUMERIC: HomeField[] = [
 ];
 
 function back(id: string, params: Record<string, string>): never {
-  const { at, ...rest } = params;
-  redirect(`/homes/${id}?${new URLSearchParams(rest).toString()}${at ? `#${at}` : ""}`);
+  // "at" names the section the form was in; the page shows the message there.
+  redirect(`/homes/${id}?${new URLSearchParams(params).toString()}${params.at ? `#${params.at}` : ""}`);
 }
 
 // Turn a database refusal into a plain-English message.

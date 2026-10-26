@@ -15,7 +15,8 @@ function safeBack(raw: FormDataEntryValue | null, fallback: string) {
 function go(back: string, params: Record<string, string>): never {
   const [path, hash] = back.split("#");
   const sep = path.includes("?") ? "&" : "?";
-  redirect(`${path}${sep}${new URLSearchParams(params).toString()}${hash ? `#${hash}` : ""}`);
+  const q = new URLSearchParams(hash ? { ...params, at: hash } : params);
+  redirect(`${path}${sep}${q.toString()}${hash ? `#${hash}` : ""}`);
 }
 
 function friendly(msg: string) {

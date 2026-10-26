@@ -39,7 +39,8 @@ export function MediaTile({ m, showPlace }: { m: MediaRow; showPlace?: boolean }
       </div>
       <div className="mt-2 truncate text-sm font-medium group-hover:underline">{m.title}</div>
       <div className="truncate text-xs text-muted">
-        {m.room ? ROOM_LABELS[m.room] : m.kind === "video" ? "Video" : "Photo"}
+        {m.room_source === "ai" && <span className="mr-1 rounded bg-violet-50 px-1 py-px text-[10px] font-semibold text-violet-700" title="Room picked by AI">AI</span>}
+        {m.ai_status === "pending" && !m.room ? "AI is sorting…" : m.room ? ROOM_LABELS[m.room] : m.kind === "video" ? "Video" : "Photo"}
         {showPlace && place ? `, ${place}` : ""}
       </div>
     </Link>

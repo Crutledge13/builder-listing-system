@@ -98,6 +98,10 @@ White canvas, Figtree type, "bluebonnet" blue (#3452c7) as the single accent. Im
 
 `media` rows belong to a builder, optionally a community, optionally a home (a home's builder and community are filled in automatically). Each has a room label and tags; the address, plan, community and room are added as tags automatically, and `search_text` powers search. Who sees media follows homes: staff all, builders their own, sales only their communities (plus builder-wide items). Owners, managers, marketing and our admins upload and edit. Nothing is hard-deleted; `deleted_at` is the trash.
 
+## AI photo labeling
+
+After an upload, `src/lib/ai-tagging.ts` sends each JPG/PNG/WebP photo (by a 10-minute private link) to Claude Haiku 5.5 (`claude-haiku-5-5`), which suggests the room, up to 6 tags, a short caption and MLS warnings (blurry, dark, people, signs/logos, text). It runs after the response via `after()`, with the uploader's own database access. AI fills only what a person hasn't set; `room_source` / `caption_source` say `ai` or `staff`, and a person's edit flips them to `staff` (trigger `media_track_sources`). Flagged photos are not marked MLS-ready. HEIC photos skip AI. Needs `ANTHROPIC_API_KEY` in Vercel.
+
 ## Admin and invites
 
 Inviting people needs `SUPABASE_SERVICE_ROLE_KEY` set in Vercel (server only, never in code or the browser). Without it the invite form is off; everything else in Admin works.
@@ -107,7 +111,6 @@ Inviting people needs `SUPABASE_SERVICE_ROLE_KEY` set in Vercel (server only, ne
 - Turn on leaked-password protection in Supabase Auth before the live project goes out.
 - Move media storage to Cloudflare R2/Stream before launch, and add a 30-day job that purges trashed files.
 - Thumbnails and web-size copies of uploads; whole-home zip and MLS photo pack downloads.
-- AI photo tagging (Claude API) to suggest rooms and tags on upload.
 - Approved open houses should show in the listing coordinator's queue for MLS entry.
 - Email or text notifications (new photo request, photographer assigned, delivered) once Resend is set up.
 - Field-level edit rules for homes are enforced by the `enforce_home_edit_rules` trigger; update it alongside `src/lib/permissions.ts` when the permission grid changes.

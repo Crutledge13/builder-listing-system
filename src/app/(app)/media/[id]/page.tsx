@@ -7,7 +7,8 @@ import { canManageMedia, isStaff } from "@/lib/permissions";
 import { dateTime } from "@/lib/format";
 import { DemoArt, MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
 import { DownloadDrawn, VideoPlayer } from "@/components/media-client";
-import { makeCover, saveMedia, setTrashed } from "./actions";
+import { makeCover, rerunAi, saveMedia, setTrashed } from "./actions";
+import { aiTaggingAvailable } from "@/lib/ai-tagging";
 
 export default function MediaItemPage(props: PageProps<"/media/[id]">) {
   return (
@@ -22,6 +23,7 @@ const MESSAGES: Record<string, string> = {
   cover: "This is now the cover photo for the home.",
   trashed: "Moved to the trash. It’s kept for 30 days and can be restored until then.",
   restored: "Restored from the trash.",
+  ai: "AI took another look.",
 };
 
 async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">["params"]; searchParams: PageProps<"/media/[id]">["searchParams"] }) {
@@ -30,9 +32,10 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
   const me = await requireProfile();
   const supabase = await createClient();
 
-  const { data } = await supabase.from("media").select(MEDIA_SELECT + ", deleted_at, uploaded_by, size_bytes").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("media").select(MEDIA_SELECT + ", deleted_at, uploaded_by, size_bytes, caption_source").eq("id", id).maybeSingle();
   if (!data) notFound();
-  const m = data as unknown as MediaRow & { deleted_at: string | null; uploaded_by: string | null; size_bytes: number | null };
+  const raw = data as unknown as MediaRow & { deleted_at: string | null; uploaded_by: string | null; size_bytes: number | null; caption_source: string | null };
+  const m = { ...raw, caption_source_is_ai: raw.caption_source === "ai" };
   const manage = canManageMedia(me.role) || (me.role === "photographer" && m.uploaded_by === me.id);
   const photographer = me.role === "photographer";
   const fileName = m.title.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase();
@@ -81,6 +84,8 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
             {m.communities && !photographer ? <>, <Link href={`/communities/${m.community_id}`} className="text-foreground underline">{m.communities.name}</Link></> : null}
             {isStaff(me.role) && m.builders ? `, ${m.builders.name.replace(" (demo)", "")}` : ""}
           </p>
+          {m.caption && <p className="mt-3 text-[15px]">{m.caption}{m.caption_source_is_ai ? <span className="ml-2 text-xs text-violet-700">written by AI</span> : null}</p>}
+          <AiPanel m={m} canRerun={manage && m.source === "upload" && m.kind === "photo"} />
           <div className="mt-4 flex flex-wrap gap-2">
             {m.tags.map((t) => (
               photographer ? <span key={t} className="rounded-full bg-soft px-3 py-1 text-sm">{t}</span> : <Link key={t} href={`/media?tag=${encodeURIComponent(t)}`} className="rounded-full bg-soft px-3 py-1 text-sm hover:bg-line">
@@ -118,7 +123,10 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
                 <input name="title" defaultValue={m.title} required className="field-input" />
               </label>
               <label className="mt-3 block">
-                <span className="mb-1 block text-sm font-medium">Room or type</span>
+                <span className="mb-1 flex items-center gap-2 text-sm font-medium">
+                  Room or type
+                  {m.room_source === "ai" && <span className="rounded bg-violet-50 px-1.5 py-px text-[11px] font-semibold text-violet-700">Picked by AI</span>}
+                </span>
                 <select name="room" defaultValue={m.room ?? ""} className="field-input">
                   <option value="">None</option>
                   {Object.entries(ROOM_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -166,6 +174,49 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between gap-4">
       <dt className="text-muted">{label}</dt>
       <dd className="text-right font-medium">{value}</dd>
+    </div>
+  );
+}
+
+const FLAG_TEXT: Record<string, string> = {
+  blurry: "looks blurry",
+  dark: "looks dark",
+  people: "has people in it",
+  signage_or_logo: "shows a sign or logo",
+  text_overlay: "has text on it",
+  not_a_home_photo: "may not be a home photo",
+};
+
+function AiPanel({ m, canRerun }: { m: MediaRow; canRerun: boolean }) {
+  const s = m.ai_suggestion;
+  if (!m.ai_status && !canRerun) return null;
+  return (
+    <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 text-sm">
+      {m.ai_status === "pending" && <p>AI is looking at this photo. Refresh in a moment.</p>}
+      {m.ai_status === "skipped" && <p className="text-muted">AI didn’t look at this file{m.mime_type === "image/heic" ? " (iPhone HEIC photos can’t be read; pick the room yourself)" : ""}.</p>}
+      {m.ai_status === "failed" && <p className="text-muted">AI couldn’t read this photo. Pick the room yourself, or try again.</p>}
+      {m.ai_status === "done" && s && (
+        <>
+          <p>
+            <b className="font-semibold">AI thinks this is the {ROOM_LABELS[s.room]?.toLowerCase() ?? s.room}</b>{" "}
+            <span className="text-muted">({Math.round(s.confidence * 100)}% sure)</span>.
+            {m.room_source === "staff" && m.room !== s.room ? " A person changed it, so their choice is kept." : " Change it below if it’s wrong."}
+          </p>
+          {s.flags.length > 0 && (
+            <p className="mt-2 text-amber-900">
+              Check before using on the MLS: this photo {s.flags.map((f) => FLAG_TEXT[f] ?? f).join(", ")}.
+            </p>
+          )}
+        </>
+      )}
+      {canRerun && aiTaggingAvailable() && m.ai_status !== "pending" && (
+        <form action={rerunAi} className="mt-3">
+          <input type="hidden" name="id" value={m.id} />
+          <button className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-violet-50">
+            {m.ai_status === "done" ? "Ask AI again" : "Let AI label this photo"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { aiTaggingAvailable, tagMedia } from "@/lib/ai-tagging";
 
 function back(id: string, params: Record<string, string>): never {
   redirect(`/media/${id}?${new URLSearchParams(params).toString()}`);
@@ -58,4 +59,16 @@ export async function setTrashed(formData: FormData) {
   if (!data?.length) back(id, { error: "Your role can’t remove media." });
   revalidatePath("/media");
   back(id, { saved: trash ? "trashed" : "restored" });
+}
+
+export async function rerunAi(formData: FormData) {
+  const id = String(formData.get("id"));
+  if (!aiTaggingAvailable()) back(id, { error: "AI tagging is off until the ANTHROPIC_API_KEY setting is added in Vercel." });
+  const supabase = await createClient();
+  // Let AI replace its own earlier room pick (a person's pick is never touched).
+  const { data } = await supabase.from("media").update({ ai_status: "pending" }).eq("id", id).select("id");
+  if (!data?.length) back(id, { error: "You can’t change this file." });
+  await tagMedia(supabase, [id]);
+  revalidatePath("/media");
+  back(id, { saved: "ai" });
 }

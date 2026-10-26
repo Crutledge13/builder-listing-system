@@ -9,7 +9,7 @@ type Community = { id: string; name: string; builder_id: string; builderName: st
 type Home = { id: string; community_id: string; unparsed_address: string };
 
 const ROOMS: [string, string][] = [
-  ["", "Mixed, I’ll tag them after"],
+  ["", "Let AI pick the room for each photo"],
   ["exterior", "Exterior"], ["kitchen", "Kitchen"], ["living", "Living room"], ["dining", "Dining"],
   ["primary_bedroom", "Primary bedroom"], ["bedroom", "Bedroom"], ["primary_bath", "Primary bath"], ["bath", "Bath"],
   ["backyard", "Backyard"], ["floor_plan", "Floor plan"], ["entrance", "Entrance"], ["amenity", "Amenity"],
