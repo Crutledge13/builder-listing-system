@@ -56,6 +56,13 @@ export async function createHome(formData: FormData) {
   if (!row.postal_code) fail("Enter the ZIP code.");
   if (!row.build_stage) row.build_stage = "under_construction";
 
+  // Which MLS: blank means the database picks the community's MLS (by county).
+  const board = String(formData.get("mls_board") ?? "");
+  if (board && ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(me.role)) {
+    const { data: ok } = await supabase.from("mls_boards").select("code").eq("code", board).eq("active", true).maybeSingle();
+    if (ok) row.mls_board = board;
+  }
+
   const { data, error } = await supabase
     .from("homes")
     .insert({ ...row, field_sources: sources })

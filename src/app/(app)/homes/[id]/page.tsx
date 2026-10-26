@@ -27,6 +27,7 @@ import {
   resolveRequest,
   saveHome,
   scheduleOpenHouse,
+  setBuildStage,
   setDisclaimer,
   setHomeMls,
   setMarketStatus,
@@ -175,6 +176,10 @@ async function HomeDetail({
   const myBoards: string[] = bset?.mls_boards ?? [];
   const board = (boards ?? []).find((b) => b.code === home.mls_board);
   const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(me.role) && home.workflow_status !== "live_on_mls";
+  const live = home.workflow_status === "live_on_mls";
+  const canEditStage = (editableFields(me.role) as readonly string[]).includes("build_stage");
+  const currentSale = (home.market_status ?? "active") as MarketStatus;
+  const saleChoices = marketChoices(me.role).filter((m) => m !== currentSale);
   const lockedToOne = !!bset?.mls_locked && myBoards.length === 1 && home.mls_board === myBoards[0];
   const activeSeries = (series ?? []).filter((x) => !x.ended_at);
   const mlsWindow = Number(windowSetting?.value ?? 28);
@@ -613,6 +618,81 @@ async function HomeDetail({
               </div>
             </div>
 
+            {/* Home status: construction and sale, changeable any time */}
+            <div id="home-status" className="mt-5 scroll-mt-28 rounded-xl border border-line p-4">
+              <h4 className="text-sm font-semibold">Home status</h4>
+              {sectionNotice("home-status")}
+              <p className="mt-3 text-xs font-medium uppercase tracking-wide text-muted">Construction</p>
+              <div className="mt-1.5 grid grid-cols-3 gap-1 rounded-lg bg-soft p-1">
+                {(["to_be_built", "under_construction", "move_in_ready"] as const).map((st) => {
+                  const on = home.build_stage === st;
+                  return canEditStage && !on ? (
+                    <form key={st} action={setBuildStage}>
+                      <input type="hidden" name="id" value={home.id} />
+                      <input type="hidden" name="build_stage" value={st} />
+                      <button className="w-full rounded-md px-1 py-2 text-xs font-semibold text-muted hover:bg-white hover:text-foreground">{STAGE_SHORT[st]}</button>
+                    </form>
+                  ) : (
+                    <span key={st} className={cx("rounded-md px-1 py-2 text-center text-xs font-semibold", on ? "bg-white text-foreground shadow-sm" : "text-muted")}>{STAGE_SHORT[st]}</span>
+                  );
+                })}
+              </div>
+
+              <p className="mt-4 text-xs font-medium uppercase tracking-wide text-muted">Sale</p>
+              <p className="mt-1 text-sm">
+                <b>{SALE_LABELS[(home.market_status ?? "active") as MarketStatus]}</b>
+                {home.market_status === "under_contract" && home.purchase_contract_date ? `, since ${new Date(home.purchase_contract_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                {home.market_status === "sold" && home.close_price ? `, ${money(home.close_price)}` : ""}
+              </p>
+              {saleChoices.length > 0 && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {saleChoices.map((m) =>
+                    m === "under_contract" || m === "sold" ? (
+                      <details key={m} className="col-span-2 rounded-lg border border-line open:border-foreground">
+                        <summary className="cursor-pointer list-none px-3 py-2 text-center text-sm font-semibold">{MARKET_ACTIONS[m]}</summary>
+                        <form action={setMarketStatus} className="space-y-2 border-t border-line p-3">
+                          <input type="hidden" name="id" value={home.id} />
+                          <input type="hidden" name="market_status" value={m} />
+                          {m === "under_contract" ? (
+                            <label className="block text-sm">
+                              <span className="mb-1 block font-medium">Contract date</span>
+                              <input type="date" name="purchase_contract_date" required className="field-input py-2" />
+                            </label>
+                          ) : (
+                            <>
+                              <label className="block text-sm">
+                                <span className="mb-1 block font-medium">Close date</span>
+                                <input type="date" name="close_date" required className="field-input py-2" />
+                              </label>
+                              <label className="block text-sm">
+                                <span className="mb-1 block font-medium">Close price ($)</span>
+                                <input name="close_price" inputMode="decimal" required defaultValue={home.list_price ?? ""} className="field-input py-2" />
+                              </label>
+                            </>
+                          )}
+                          {live && <p className="text-xs text-muted">The MLS requires this to change the status.</p>}
+                          <button className="w-full rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Save {MARKET_ACTIONS[m].toLowerCase()}</button>
+                        </form>
+                      </details>
+                    ) : (
+                      <form key={m} action={setMarketStatus}>
+                        <input type="hidden" name="id" value={home.id} />
+                        <input type="hidden" name="market_status" value={m} />
+                        <button className={cx("w-full rounded-lg px-3 py-2 text-sm font-semibold", m === "active" ? "bg-accent text-white hover:brightness-110" : "border border-line hover:border-foreground")}>
+                          {m === "active" && home.market_status === "under_contract" ? "Contract canceled" : MARKET_ACTIONS[m]}
+                        </button>
+                      </form>
+                    ),
+                  )}
+                </div>
+              )}
+              <p className="mt-3 text-xs text-muted">
+                {live
+                  ? "Changes reach our team right away with the MLS deadline. Pausing, contracts and closings also stop open houses."
+                  : "Not on the MLS yet, so nothing needs updating there."}
+              </p>
+            </div>
+
             <ol className="mt-6">
               {steps.map((s, i) => {
                 const reached = steps.indexOf(status) >= i;
@@ -734,57 +814,6 @@ async function HomeDetail({
               </Link>
             )}
 
-            {status === "live_on_mls" && marketChoices(me.role).length > 0 && (
-              <div className="mt-6 border-t border-line pt-5">
-                <h4 className="text-sm font-semibold">On the market</h4>
-                <p className="mt-0.5 text-sm text-muted">
-                  {MARKET_HINTS[(home.market_status ?? "active") as MarketStatus]}
-                </p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {marketChoices(me.role)
-                    .filter((m) => m !== (home.market_status ?? "active"))
-                    .map((m) =>
-                      m === "under_contract" || m === "sold" ? (
-                        <details key={m} className="col-span-2 rounded-lg border border-line open:border-foreground">
-                          <summary className="cursor-pointer list-none px-3 py-2 text-center text-sm font-semibold">{MARKET_ACTIONS[m]}</summary>
-                          <form action={setMarketStatus} className="space-y-2 border-t border-line p-3">
-                            <input type="hidden" name="id" value={home.id} />
-                            <input type="hidden" name="market_status" value={m} />
-                            {m === "under_contract" ? (
-                              <label className="block text-sm">
-                                <span className="mb-1 block font-medium">Contract date</span>
-                                <input type="date" name="purchase_contract_date" required className="field-input py-2" />
-                              </label>
-                            ) : (
-                              <>
-                                <label className="block text-sm">
-                                  <span className="mb-1 block font-medium">Close date</span>
-                                  <input type="date" name="close_date" required className="field-input py-2" />
-                                </label>
-                                <label className="block text-sm">
-                                  <span className="mb-1 block font-medium">Close price ($)</span>
-                                  <input name="close_price" inputMode="decimal" required defaultValue={home.list_price ?? ""} className="field-input py-2" />
-                                </label>
-                              </>
-                            )}
-                            <p className="text-xs text-muted">The MLS requires this to change the status.</p>
-                            <button className="w-full rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Save {MARKET_ACTIONS[m].toLowerCase()}</button>
-                          </form>
-                        </details>
-                      ) : (
-                        <form key={m} action={setMarketStatus}>
-                          <input type="hidden" name="id" value={home.id} />
-                          <input type="hidden" name="market_status" value={m} />
-                          <button className={cx("w-full rounded-lg px-3 py-2 text-sm font-semibold", m === "active" ? "bg-accent text-white hover:brightness-110" : "border border-line hover:border-foreground")}>
-                            {MARKET_ACTIONS[m]}
-                          </button>
-                        </form>
-                      ),
-                    )}
-                </div>
-                <p className="mt-3 text-xs text-muted">Our team gets a task to update the MLS. Pausing or ending a listing also stops its open houses.</p>
-              </div>
-            )}
           </div>
         </aside>
       </div>
@@ -885,6 +914,9 @@ const SAVED_MESSAGES: Record<string, string> = {
   "open-house-series": "Repeating open house set. Dates show above as the MLS window allows, and our team has a task to enter them.",
   "open-house-series-stopped": "Stopped repeating. Future dates are cancelled and our team will remove them from the MLS.",
   "market-active": "Listing is active again. Our team will update the MLS.",
+  "stage": "Construction status saved.",
+  "stage-ready": "Marked completed. We’ll get real photos: a photo request was added (unless one was already open).",
+  "status-saved": "Sale status saved.",
   "market-paused": "Listing paused. Our team will update the MLS, and its open houses have stopped.",
   "market-under_contract": "Marked under contract. Our team will update the MLS, and its open houses have stopped.",
   "market-sold": "Marked sold. Our team will update the MLS.",
@@ -914,11 +946,23 @@ const REVERSE_LABELS: Record<string, string> = {
 };
 
 const MARKET_ACTIONS: Record<MarketStatus, string> = {
-  active: "Make active again",
-  paused: "Pause listing",
+  active: "Available again",
+  paused: "Pause",
   under_contract: "Under contract",
-  sold: "Mark sold",
-  withdrawn: "Take off market",
+  sold: "Closed (sold)",
+  withdrawn: "Off the market",
+};
+const SALE_LABELS: Record<MarketStatus, string> = {
+  active: "Available",
+  paused: "Paused",
+  under_contract: "Under contract",
+  sold: "Closed (sold)",
+  withdrawn: "Off the market",
+};
+const STAGE_SHORT: Record<string, string> = {
+  to_be_built: "To be built",
+  under_construction: "Under construction",
+  move_in_ready: "Completed",
 };
 const MARKET_HINTS: Record<MarketStatus, string> = {
   active: "Active on the MLS and showing to buyers.",

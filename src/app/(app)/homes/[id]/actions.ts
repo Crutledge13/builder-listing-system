@@ -226,7 +226,7 @@ export async function setMarketStatus(formData: FormData) {
   const id = String(formData.get("id"));
   const to = String(formData.get("market_status")) as MarketStatus;
   const me = await requireProfile();
-  if (!marketChoices(me.role).includes(to)) back(id, { error: "Your role can’t make that change." });
+  if (!marketChoices(me.role).includes(to)) back(id, { error: "Your role can’t make that change.", at: "home-status" });
   const supabase = await createClient();
   // The database ends repeating open houses, cancels future ones, and adds a
   // task for our team to update the MLS.
@@ -245,11 +245,11 @@ export async function setMarketStatus(formData: FormData) {
     patch.close_date = d;
     patch.close_price = price;
   }
-  const { data, error } = await supabase.from("homes").update(patch).eq("id", id).select("id");
-  if (error) back(id, { error: friendly(error.message) });
-  if (!data?.length) back(id, { error: "You don’t have permission to change this listing." });
+  const { data, error } = await supabase.from("homes").update(patch).eq("id", id).select("id, workflow_status");
+  if (error) back(id, { error: friendly(error.message), at: "home-status" });
+  if (!data?.length) back(id, { error: "You don’t have permission to change this home.", at: "home-status" });
   revalidatePath("/", "layout");
-  back(id, { saved: `market-${to}` });
+  back(id, { saved: data[0].workflow_status === "live_on_mls" ? `market-${to}` : "status-saved", at: "home-status" });
 }
 
 export async function setDisclaimer(formData: FormData) {
@@ -315,4 +315,17 @@ export async function setHomeMls(formData: FormData) {
   if (!data?.length) back(id, { error: "Your role can’t change the MLS for this home." });
   revalidatePath(`/homes/${id}`, "layout");
   back(id, { saved: "mls-board" });
+}
+
+// Construction stage: to be built, under construction, completed (move-in ready).
+export async function setBuildStage(formData: FormData) {
+  const id = String(formData.get("id"));
+  const stage = String(formData.get("build_stage"));
+  if (!["to_be_built", "under_construction", "move_in_ready"].includes(stage)) back(id, { error: "Unknown stage.", at: "home-status" });
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("homes").update({ build_stage: stage }).eq("id", id).select("id");
+  if (error) back(id, { error: friendly(error.message), at: "home-status" });
+  if (!data?.length) back(id, { error: "Your role can’t change the construction status.", at: "home-status" });
+  revalidatePath("/", "layout");
+  back(id, { saved: stage === "move_in_ready" ? "stage-ready" : "stage", at: "home-status" });
 }

@@ -139,7 +139,7 @@ Stage triggers: a home going move-in ready automatically requests real photos; w
 
 ## Listing status and open houses
 
-`homes.market_status` (active, paused, under_contract, sold, withdrawn) only applies once a home is live on the MLS. Pausing, going under contract, selling or withdrawing ends repeating open houses, cancels future ones, and adds a task to update the MLS. Repeating open houses (`open_house_series`) create dates only as far ahead as the MLS allows (`app_settings.mls_open_house_window_days`, default 28); a daily pg_cron job adds the next dates and a task for each batch.
+`homes.market_status` (active, paused, under_contract, sold, withdrawn) can be set any time after a home is created (the "Home status" panel on each home, next to construction stage: To be built / Under construction / Completed); MLS tasks and deadlines only apply once it's live. Pausing, going under contract, selling or withdrawing ends repeating open houses, cancels future ones, and adds a task to update the MLS. Repeating open houses (`open_house_series`) create dates only as far ahead as the MLS allows (`app_settings.mls_open_house_window_days`, default 28); a daily pg_cron job adds the next dates and a task for each batch.
 
 ## Plan photos and the disclaimer
 

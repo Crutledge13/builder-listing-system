@@ -45,8 +45,16 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
   }
 
   const supabase = await createClient();
-  const { data: communities } = await supabase.from("communities").select("id, name, city, builders(name)").order("name");
+  const [{ data: communities }, { data: boards }, { data: settings }] = await Promise.all([
+    supabase.from("communities").select("id, name, city, builder_id, mls_board, builders(name)").order("name"),
+    supabase.from("mls_boards").select("code, short_name, region").eq("active", true).order("code"),
+    supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked"),
+  ]);
   const staff = isStaff(me.role);
+  const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(me.role);
+  const boardName = new Map((boards ?? []).map((b) => [b.code, b.short_name]));
+  const mine = (settings ?? []).find((x) => x.builder_id === me.builder_id);
+  const lockedBoard = !staff && mine?.mls_locked && mine.mls_boards?.length === 1 ? mine.mls_boards[0] : null;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -80,6 +88,42 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
             <Text name="lot_number" label="Lot and block" placeholder="B3-L12" />
             <Text name="plan_name" label="Floor plan" placeholder="Brazos" />
           </div>
+        </section>
+
+        <section className="py-8">
+          <h2 className="text-lg font-semibold">Which MLS?</h2>
+          <p className="mt-1 text-sm text-muted">Each MLS asks for slightly different fields, so this decides what the home needs before it can go live.</p>
+          {lockedBoard ? (
+            <div className="mt-4 rounded-xl bg-soft px-4 py-3 text-sm">
+              <b>{boardName.get(lockedBoard) ?? lockedBoard}</b>: every home for your company goes to this MLS.
+              {canPickMls && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs font-semibold underline">Override for this home</summary>
+                  <select name="mls_board" defaultValue="" className="field-input mt-2">
+                    <option value="">Keep {boardName.get(lockedBoard) ?? lockedBoard}</option>
+                    {(boards ?? []).filter((b) => b.code !== lockedBoard).map((b) => <option key={b.code} value={b.code}>{b.short_name} ({b.region})</option>)}
+                  </select>
+                </details>
+              )}
+            </div>
+          ) : canPickMls ? (
+            <label className="mt-4 block">
+              <span className="mb-1.5 block text-sm font-medium">MLS</span>
+              <select name="mls_board" defaultValue="" className="field-input">
+                <option value="">Suggested: the community’s MLS (by county)</option>
+                {(boards ?? []).map((b) => <option key={b.code} value={b.code}>{b.short_name} ({b.region})</option>)}
+              </select>
+            </label>
+          ) : (
+            <p className="mt-4 rounded-xl bg-soft px-4 py-3 text-sm">The MLS is picked from the community. A manager or owner can change it on the home.</p>
+          )}
+          {!lockedBoard && (
+            <ul className="mt-3 grid gap-1 text-xs text-muted sm:grid-cols-2">
+              {(communities ?? []).map((c) => (
+                <li key={c.id}>{c.name}: {c.mls_board ? boardName.get(c.mls_board) ?? c.mls_board : "not set"}</li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="py-8">
