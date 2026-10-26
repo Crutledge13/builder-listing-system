@@ -139,7 +139,7 @@ async function HomeDetail({
       {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {saved && (
         <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {saved === "status" ? "Status updated." : "Changes saved."}
+          {saved === "status" ? "Status updated." : saved === "created" ? "Home added as a draft. Finish any details below, then submit it for review." : "Changes saved."}
         </p>
       )}
 

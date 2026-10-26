@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
+import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { baths, cx, money, num } from "@/lib/format";
 import { StageText, StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
@@ -87,8 +87,8 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="mr-auto">
           <h1 className="text-[28px] font-bold leading-tight tracking-tight">
             {communityName ?? (staff ? "All homes" : "Your homes")}
           </h1>
@@ -115,8 +115,14 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
               </option>
             ))}
           </select>
-          <button className="rounded-full bg-foreground px-4 py-2.5 text-sm font-semibold text-white hover:bg-black">Show</button>
+          <button className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">Show</button>
         </form>
+        {canAddHomes(me.role) && (
+          <Link href="/homes/new" className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">
+            <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            Add a home
+          </Link>
+        )}
       </div>
 
       <div className="-mx-4 mt-6 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">

@@ -108,3 +108,8 @@ export const TRANSITION_LABELS: Record<WorkflowStatus, string> = {
   approved_for_mls: "Approve for MLS",
   live_on_mls: "Mark live on MLS",
 };
+
+// Who may add a new home (matches the database's insert rule).
+export function canAddHomes(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "sales"].includes(role);
+}
