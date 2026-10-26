@@ -7,7 +7,7 @@ import { canManageMedia, isStaff } from "@/lib/permissions";
 import { dateTime } from "@/lib/format";
 import { DemoArt, MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
 import { DownloadDrawn, DownloadWithDisclaimer, VideoPlayer } from "@/components/media-client";
-import { DISCLAIMER_TEXT, DisclaimerOverlay } from "@/components/media-tile";
+import { DISCLAIMER_TEXT, DisclaimerOverlay, planFolderHref } from "@/components/media-tile";
 import { makeCover, rerunAi, saveMedia, setTrashed } from "./actions";
 import { aiTaggingAvailable } from "@/lib/ai-tagging";
 
@@ -94,6 +94,11 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
             {m.communities && !photographer ? <>, <Link href={`/communities/${m.community_id}`} className="text-foreground underline">{m.communities.name}</Link></> : null}
             {isStaff(me.role) && m.builders ? `, ${m.builders.name.replace(" (demo)", "")}` : ""}
           </p>
+          {(m.plan_name ?? m.homes?.plan_name) && !photographer && (
+            <Link href={planFolderHref(m.builder_id, (m.plan_name ?? m.homes?.plan_name)!)} className="mt-3 inline-flex rounded-full bg-accent-soft px-3 py-1.5 text-sm font-semibold text-accent hover:underline">
+              See every photo of the {m.plan_name ?? m.homes?.plan_name} plan →
+            </Link>
+          )}
           {m.caption && <p className="mt-3 text-[15px]">{m.caption}{m.caption_source_is_ai ? <span className="ml-2 text-xs text-violet-700">written by AI</span> : null}</p>}
           <AiPanel m={m} canRerun={manage && m.source === "upload" && m.kind === "photo"} />
           <div className="mt-4 flex flex-wrap gap-2">

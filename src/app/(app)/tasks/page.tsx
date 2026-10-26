@@ -144,7 +144,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
             Everything our team needs to do. New requests, approvals and open houses add tasks here on their own.
           </p>
         </div>
-        <details className="relative">
+        <details data-popover className="relative">
           <summary className="cursor-pointer list-none rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110">+ New task</summary>
           <form action={createTask} className="card-lift absolute right-0 z-20 mt-2 w-[min(92vw,380px)] space-y-3 rounded-2xl border border-line bg-white p-4">
             <input type="hidden" name="back" value={backTo} />

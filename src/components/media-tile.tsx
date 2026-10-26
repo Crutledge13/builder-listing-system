@@ -26,10 +26,17 @@ export function DisclaimerOverlay({ small }: { small?: boolean }) {
   );
 }
 
-export function MediaTile({ m, showPlace, disclaimer }: { m: MediaRow; showPlace?: boolean; disclaimer?: boolean }) {
+// A floor plan opens its plan's folder (every photo of that plan); pass direct to open the file itself.
+export function planFolderHref(builderId: string, plan: string) {
+  return `/media/plan?builder=${builderId}&name=${encodeURIComponent(plan)}`;
+}
+
+export function MediaTile({ m, showPlace, disclaimer, direct }: { m: MediaRow; showPlace?: boolean; disclaimer?: boolean; direct?: boolean }) {
   const place = m.homes?.unparsed_address ?? m.communities?.name;
+  const plan = m.plan_name ?? m.homes?.plan_name;
+  const href = m.kind === "floor_plan" && plan && !direct ? planFolderHref(m.builder_id, plan) : `/media/${m.id}`;
   return (
-    <Link href={`/media/${m.id}`} className="group block">
+    <Link href={href} className="group block">
       <div className={cx("relative aspect-[3/2] overflow-hidden rounded-xl bg-soft", m.kind === "floor_plan" && "ring-1 ring-line")}>
         <MediaPicture m={m} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
         {m.kind === "video" && (

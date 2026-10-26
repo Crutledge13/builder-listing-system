@@ -8,6 +8,7 @@ import { signOut } from "../login/actions";
 import { switchDemoUser } from "./demo-actions";
 import { NavLinks } from "./nav-links";
 import { Logo } from "@/components/logo";
+import { PopoverCloser } from "@/components/popover-closer";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
@@ -16,6 +17,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         <Header />
       </Suspense>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 pt-6 sm:px-8">{children}</main>
+      <PopoverCloser />
     </>
   );
 }
@@ -57,7 +59,7 @@ async function Header() {
           <NavLinks links={primaryTabs(me.role)} badges={badges} />
         </div>
 
-        <details className="relative shrink-0">
+        <details data-popover className="relative shrink-0">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-line py-1 pl-3 pr-1 transition-shadow hover:shadow-md">
             <svg viewBox="0 0 16 16" className="h-4 w-4 text-foreground" aria-hidden>
               <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />

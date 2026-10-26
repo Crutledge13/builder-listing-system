@@ -5,7 +5,7 @@ import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canManageMedia, isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
 import { MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
-import { MediaGrid, MediaPicture, MediaTile } from "@/components/media-tile";
+import { MediaGrid, MediaPicture, MediaTile, planFolderHref } from "@/components/media-tile";
 
 export default function MediaPage(props: PageProps<"/media">) {
   return (
@@ -329,7 +329,10 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
             </div>
           </section>
           <section>
-            <h2 className="text-[22px] font-semibold">{home.plan_name ? `${home.plan_name} floor plan` : "Floor plan"} photos and video</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-[22px] font-semibold">{home.plan_name ? `${home.plan_name} floor plan` : "Floor plan"} photos and video</h2>
+              {home.plan_name && <Link href={planFolderHref(home.builder_id, home.plan_name)} className="text-sm font-semibold underline">Open the whole {home.plan_name} plan folder</Link>}
+            </div>
             <p className="mt-1 text-sm text-muted">Model home and past builds of this plan. Use them while the home is being built; turn on the representative disclaimer on the home if you list with them.</p>
             <div className="mt-4">
               <MediaGrid>{planMedia.map((m) => <MediaTile key={m.id} m={m} disclaimer={home.show_representative_disclaimer} />)}</MediaGrid>
