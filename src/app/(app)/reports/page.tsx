@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { BuilderLogo } from "@/components/avatar";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
@@ -42,6 +43,7 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
   if (!builderId) return <p className="text-muted">No builders yet.</p>;
   const builderName = (staff ? builders?.find((b) => b.id === builderId)?.name : me.builder_name)?.replace(" (demo)", "") ?? "";
 
+  const { data: brand } = await supabase.from("builder_branding").select("logo_updated_at").eq("builder_id", builderId).maybeSingle();
   const range = parseRange(sp);
   const [r, alerts] = await Promise.all([buildReport(supabase, builderId, range), loadAlerts({ builderId })]);
   const stale = r.stale.filter((s) => staff || !s.staffOnly);
@@ -66,7 +68,10 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">Listing health report</p>
-          <h1 className="mt-1 text-[28px] font-bold leading-tight tracking-tight">{builderName}</h1>
+          <h1 className="mt-1 flex items-center gap-3 text-[28px] font-bold leading-tight tracking-tight">
+            {brand?.logo_updated_at && <BuilderLogo builderId={builderId} name={builderName} version={brand.logo_updated_at} className="h-10 max-w-[140px]" />}
+            {builderName}
+          </h1>
           <p className="mt-1 text-muted">{range.label}</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">

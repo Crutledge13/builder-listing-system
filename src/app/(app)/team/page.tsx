@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { Avatar } from "@/components/avatar";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
@@ -30,7 +32,7 @@ async function Team() {
   if (!canManageTeam(me.role)) redirect("/communities");
   const supabase = await createClient();
   const [{ data: people }, { data: communities }, { data: assignments }] = await Promise.all([
-    supabase.from("profiles").select("id, email, full_name, role, is_active").eq("builder_id", me.builder_id!).order("full_name"),
+    supabase.from("profiles").select("id, email, full_name, role, is_active, phone, job_title, avatar_updated_at").eq("builder_id", me.builder_id!).order("full_name"),
     supabase.from("communities").select("id, name").eq("builder_id", me.builder_id!).order("name"),
     supabase.from("community_assignments").select("profile_id, community_id"),
   ]);
@@ -57,11 +59,12 @@ async function Team() {
               return (
                 <div key={p.id} className="p-4">
                   <div className="flex flex-wrap items-center gap-3">
+                    <Avatar id={p.id} name={p.full_name} version={p.avatar_updated_at} className="h-10 w-10 text-sm" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-semibold">
-                        {p.full_name} {p.id === me.id && <span className="font-normal text-muted">(you)</span>}
+                        {p.full_name} {p.id === me.id && <span className="font-normal text-muted">(you, <Link href="/account" className="underline">edit your profile</Link>)</span>}
                       </div>
-                      <div className="truncate text-sm text-muted">{p.email}</div>
+                      <div className="truncate text-sm text-muted">{[p.job_title, p.email, p.phone].filter(Boolean).join(" · ")}</div>
                     </div>
                     {editable ? (
                       <form action={updateTeammate} className="flex items-center gap-2">

@@ -9,6 +9,10 @@ export type Profile = {
   role: Role;
   builder_id: string | null;
   builder_name: string | null;
+  phone: string | null;
+  job_title: string | null;
+  avatar_updated_at: string | null;
+  builder_logo_at: string | null;
 };
 
 // The signed-in user's profile, or a redirect to /login.
@@ -21,7 +25,7 @@ export async function requireProfile(): Promise<Profile> {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, builder_id, is_active, builders(name)")
+    .select("id, email, full_name, role, builder_id, is_active, phone, job_title, avatar_updated_at, builders(name, builder_branding(logo_updated_at))")
     .eq("id", user.id)
     .single();
 
@@ -29,7 +33,7 @@ export async function requireProfile(): Promise<Profile> {
   // Deactivated people keep their history but can't use the system.
   if (!data.is_active) redirect("/signed-out?reason=inactive");
 
-  const builder = data.builders as unknown as { name: string } | null;
+  const builder = data.builders as unknown as { name: string; builder_branding: { logo_updated_at: string | null } | null } | null;
   return {
     id: data.id,
     email: data.email,
@@ -37,6 +41,10 @@ export async function requireProfile(): Promise<Profile> {
     role: data.role as Role,
     builder_id: data.builder_id,
     builder_name: builder?.name ?? null,
+    phone: data.phone,
+    job_title: data.job_title,
+    avatar_updated_at: data.avatar_updated_at,
+    builder_logo_at: builder?.builder_branding?.logo_updated_at ?? null,
   };
 }
 

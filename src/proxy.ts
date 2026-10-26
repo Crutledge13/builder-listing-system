@@ -33,8 +33,10 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isLogin = request.nextUrl.pathname.startsWith("/login");
+  // Email confirmation links land here and sign the person in themselves.
+  const isConfirm = request.nextUrl.pathname === "/auth/confirm";
 
-  if (!user && !isLogin) {
+  if (!user && !isLogin && !isConfirm) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

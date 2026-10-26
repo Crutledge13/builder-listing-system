@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddCommunities, isStaff } from "@/lib/permissions";
@@ -24,7 +25,7 @@ async function CommunityList() {
   const staff = isStaff(me.role);
 
   const [{ data: communities }, { data: homes }, { data: openHouses }] = await Promise.all([
-    supabase.from("communities").select("id, name, city, county, builders(name)").order("name"),
+    supabase.from("communities").select("id, name, city, county, builder_id, builders(name, builder_branding(logo_updated_at))").order("name"),
     supabase.from("homes").select("id, community_id, stories, list_price, workflow_status").is("deleted_at", null),
     supabase.from("open_houses").select("home_id").is("cancelled_at", null).gte("ends_at", new Date().toISOString()),
   ]);
@@ -75,9 +76,16 @@ async function CommunityList() {
           const waiting = list.filter((h) => h.workflow_status === "in_review" || h.workflow_status === "approved_for_mls").length;
           const oh = upcoming.get(c.id) ?? 0;
           const picks = list.slice(0, 3);
+          const brand = c.builders as unknown as { name: string; builder_branding: { logo_updated_at: string | null } | null } | null;
+          const logoAt = brand?.builder_branding?.logo_updated_at;
           return (
             <Link key={c.id} href={`/communities/${c.id}`} className="group block">
-              <div className="grid aspect-[4/3] grid-cols-3 grid-rows-2 gap-1 overflow-hidden rounded-2xl bg-soft">
+              <div className="relative grid aspect-[4/3] grid-cols-3 grid-rows-2 gap-1 overflow-hidden rounded-2xl bg-soft">
+                {logoAt && (
+                  <span className="absolute left-3 top-3 z-10 rounded-xl bg-white/95 px-2.5 py-1.5 shadow-sm">
+                    <BuilderLogo builderId={c.builder_id} name={brand?.name ?? ""} version={logoAt} className="h-6 max-w-[110px]" />
+                  </span>
+                )}
                 <div className="col-span-2 row-span-2 overflow-hidden">
                   <HomeArt seed={picks[0]?.id ?? c.id} stories={picks[0]?.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
                 </div>

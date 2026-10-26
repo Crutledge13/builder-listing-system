@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
 import { addBuilder, renameBuilder, setBuilderMarkets } from "../actions";
@@ -16,7 +17,7 @@ export default function BuildersAdmin(props: PageProps<"/admin/builders">) {
 async function Builders() {
   const supabase = await createClient();
   const [{ data: builders }, { data: communities }, { data: homes }, { data: people }, { data: boards }, { data: settings }] = await Promise.all([
-    supabase.from("builders").select("id, name, created_at").order("name"),
+    supabase.from("builders").select("id, name, created_at, builder_branding(logo_updated_at)").order("name"),
     supabase.from("communities").select("id, builder_id"),
     supabase.from("homes").select("builder_id").is("deleted_at", null),
     supabase.from("profiles").select("builder_id"),
@@ -31,6 +32,9 @@ async function Builders() {
       <div className="divide-y divide-line rounded-2xl border border-line">
         {(builders ?? []).map((b) => (
           <div key={b.id} className="flex flex-wrap items-center gap-4 p-4">
+            <Link href={`/branding?builder=${b.id}`} title="Logo, colors and website" className="shrink-0">
+              <BuilderLogo builderId={b.id} name={b.name} version={(b.builder_branding as unknown as { logo_updated_at: string | null } | null)?.logo_updated_at} className="h-10 max-w-[100px]" />
+            </Link>
             <form action={renameBuilder} className="flex min-w-0 flex-1 items-center gap-2">
               <input type="hidden" name="id" value={b.id} />
               <label className="sr-only" htmlFor={`b-${b.id}`}>Builder name</label>
@@ -41,6 +45,7 @@ async function Builders() {
               <Link href={`/admin/communities#${b.id}`} className="hover:text-foreground"><b className="text-foreground">{tally(communities, b.id)}</b> communities</Link>
               <span><b className="text-foreground">{tally(homes, b.id)}</b> homes</span>
               <Link href={`/admin/people#${b.id}`} className="hover:text-foreground"><b className="text-foreground">{tally(people, b.id)}</b> people</Link>
+              <Link href={`/branding?builder=${b.id}`} className="hover:text-foreground">Branding</Link>
             </div>
             <form action={setBuilderMarkets} className="w-full rounded-xl bg-soft p-3">
               <input type="hidden" name="builder_id" value={b.id} />

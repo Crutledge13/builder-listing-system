@@ -19,6 +19,9 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Add people | ✅ any role | ➖ | own: owner, mgr, sales, mktg | own: sales, mktg | ➖ | ➖ | ➖ |
 | Change roles / turn off access | ✅ | ➖ | own (not self) | own sales, mktg (not self) | ➖ | ➖ | ➖ |
 | Assign salespeople to communities | ✅ | ➖ | own | own | ➖ | ➖ | ➖ |
+| Edit own profile, headshot, email, password | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| See builder branding (logo, colors, notes) | all | all | own | own | own | own | ➖ |
+| Edit builder branding | ✅ any builder | ➖ | own | own | ➖ | own | ➖ |
 | See access history (who gave whom access) | all | all | own | own | ➖ | ➖ | ➖ |
 
 ## Homes and listings

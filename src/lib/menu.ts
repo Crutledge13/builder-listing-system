@@ -42,6 +42,14 @@ export function menuLinks(role: Role): MenuLink[] {
   if (role === "builder_owner" || role === "manager") {
     links.push({ href: "/team", label: "Your team", hint: "Add people and set their access" });
   }
+  if (["builder_owner", "manager", "marketing"].includes(role)) {
+    links.push({ href: "/branding", label: "Company branding", hint: "Logo, colors and website" });
+  } else if (role === "sales") {
+    links.push({ href: "/branding", label: "Company branding", hint: "Logo and brand colors" });
+  }
+  if (role === "platform_admin" || role === "listing_coordinator") {
+    links.push({ href: "/branding", label: "Builder branding", hint: "Each builder’s logo, colors and notes" });
+  }
   if (role === "platform_admin") {
     links.push({ href: "/admin", label: "Admin", hint: "Builders, communities, people, payments, settings" });
   }

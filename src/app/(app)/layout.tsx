@@ -9,6 +9,7 @@ import { switchDemoUser } from "./demo-actions";
 import { NavLinks } from "./nav-links";
 import { Logo } from "@/components/logo";
 import { PopoverCloser } from "@/components/popover-closer";
+import { Avatar, BuilderLogo, initials } from "@/components/avatar";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
@@ -22,15 +23,6 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
       </Suspense>
     </>
   );
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 async function Header() {
@@ -57,6 +49,12 @@ async function Header() {
         <Link href={me.role === "photographer" ? "/jobs" : isStaff(me.role) ? "/tasks" : "/communities"} className="shrink-0">
           <Logo compact />
         </Link>
+        {me.builder_id && me.builder_logo_at && (
+          <span className="hidden shrink-0 items-center gap-3 lg:flex">
+            <span className="h-6 w-px bg-line" aria-hidden />
+            <BuilderLogo builderId={me.builder_id} name={me.builder_name ?? ""} version={me.builder_logo_at} className="h-7 max-w-[120px]" />
+          </span>
+        )}
         <div className="flex min-w-0 flex-1 justify-start md:justify-center">
           <NavLinks links={primaryTabs(me.role)} badges={badges} />
         </div>
@@ -66,18 +64,18 @@ async function Header() {
             <svg viewBox="0 0 16 16" className="h-4 w-4 text-foreground" aria-hidden>
               <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             </svg>
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-white">
-              {initials(me.full_name)}
-            </span>
+            <Avatar id={me.id} name={me.full_name} version={me.avatar_updated_at} />
             <span className="sr-only">Menu</span>
           </summary>
           <div className="card-lift absolute right-0 z-40 mt-2 max-h-[80vh] w-80 overflow-y-auto rounded-2xl border border-line bg-white">
-            <div className="border-b border-line px-4 py-3">
-              <div className="font-semibold">{me.full_name}</div>
-              <div className="text-sm text-muted">
-                {ROLE_LABELS[me.role]}, {company}
-              </div>
-            </div>
+            <Link href="/account" className="flex items-center gap-3 border-b border-line px-4 py-3 hover:bg-soft">
+              <Avatar id={me.id} name={me.full_name} version={me.avatar_updated_at} className="h-10 w-10 text-sm" />
+              <span className="min-w-0">
+                <span className="block font-semibold">{me.full_name}</span>
+                <span className="block text-sm text-muted">{ROLE_LABELS[me.role]}, {company}</span>
+                <span className="block text-xs font-semibold text-accent">My profile and sign-in</span>
+              </span>
+            </Link>
 
             <nav className="border-b border-line p-2" aria-label="More">
               {menuLinks(me.role).map((l) => (
