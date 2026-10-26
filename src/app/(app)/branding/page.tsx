@@ -54,7 +54,7 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
     <>
       <h1 className="text-[28px] font-bold leading-tight tracking-tight">{name} branding</h1>
       <p className="mt-1 text-muted">
-        The logo shows on your team’s screens, community pages and reports. Colors, website and notes guide our team and photographers.
+        The logo shows on your team’s screens, community pages and reports. Colors, website and notes guide our team.
       </p>
       {staff && all.length > 1 && (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -108,7 +108,7 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
             <input name="tagline" defaultValue={b.tagline ?? ""} maxLength={120} placeholder="e.g. Homes built for Texas living" className="field-input" />
           </label>
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium">Brand notes for our team and photographers (optional)</span>
+            <span className="mb-1 block text-sm font-medium">Brand notes for our team (optional)</span>
             <textarea name="brand_notes" defaultValue={b.brand_notes ?? ""} rows={4} maxLength={2000} placeholder="Fonts, how to use the logo, photo style (bright and airy, twilight exteriors), things to avoid…" className="field-input leading-relaxed" />
           </label>
         </fieldset>
