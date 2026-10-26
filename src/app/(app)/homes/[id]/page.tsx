@@ -17,6 +17,8 @@ import {
 import { baths, cx, dateTime, money, num } from "@/lib/format";
 import { SourceBadge, StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
+import { MediaPicture } from "@/components/media-tile";
+import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { cancelOpenHouse, changeStatus, requestChange, resolveRequest, saveHome, scheduleOpenHouse } from "./actions";
 import { openHouseWhen } from "@/lib/time";
 
@@ -121,6 +123,15 @@ async function HomeDetail({
   const canResolve = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const openRequests = (requests ?? []).filter((r) => r.status === "open");
 
+  const { data: mediaRows, count: mediaCount } = await supabase
+    .from("media")
+    .select(MEDIA_SELECT, { count: "exact" })
+    .eq("home_id", id)
+    .is("deleted_at", null)
+    .order("is_cover", { ascending: false })
+    .order("sort_order");
+  const gallery = ((mediaRows ?? []) as unknown as MediaRow[]).filter((m) => m.kind === "photo");
+
   const editable = new Set(editableFields(me.role));
   const status = home.workflow_status as WorkflowStatus;
   const transitions = allowedTransitions(me.role, status);
@@ -158,18 +169,28 @@ async function HomeDetail({
         </p>
       )}
 
-      {/* Gallery: one large picture and four smaller tiles, like a listing page. */}
-      <div className="mt-6 grid gap-2 overflow-hidden rounded-2xl md:grid-cols-4 md:grid-rows-2 md:[height:440px]">
-        <div className="relative aspect-[4/3] md:col-span-2 md:row-span-2 md:aspect-auto">
-          <HomeArt seed={home.id} stories={home.stories} scene="day" className="h-full w-full" />
-        </div>
-        <div className="hidden md:block"><HomeArt seed={home.id} stories={home.stories} scene="golden" className="h-full w-full" /></div>
-        <div className="hidden md:block"><HomeArt seed={home.id} stories={home.stories} scene="twilight" className="h-full w-full" /></div>
-        <Link href={`/media?home=${home.id}`} className="hidden items-center justify-center bg-soft p-4 text-center text-sm text-muted hover:bg-line/60 md:flex">
-          Interior photos will show here once the media library is on
-        </Link>
-        <Link href={`/media?home=${home.id}`} className="hidden items-center justify-center bg-soft p-4 text-center text-sm text-muted hover:bg-line/60 md:flex">
-          Floor plan
+      {/* Gallery: the cover photo large, then four more, like a listing page. */}
+      <div className="relative mt-6 grid gap-2 overflow-hidden rounded-2xl md:grid-cols-4 md:grid-rows-2 md:[height:440px]">
+        {gallery.length === 0 ? (
+          <div className="relative aspect-[4/3] md:col-span-4 md:row-span-2 md:aspect-auto">
+            <HomeArt seed={home.id} stories={home.stories} scene="day" className="h-full w-full" />
+          </div>
+        ) : (
+          gallery.slice(0, 5).map((m, i) => (
+            <Link
+              key={m.id}
+              href={`/media/${m.id}`}
+              className={i === 0 ? "relative aspect-[4/3] md:col-span-2 md:row-span-2 md:aspect-auto" : "relative hidden bg-soft md:block"}
+            >
+              <MediaPicture m={m} className="h-full w-full" />
+            </Link>
+          ))
+        )}
+        <Link
+          href={`/media?home=${home.id}`}
+          className="absolute bottom-4 right-4 rounded-xl border border-foreground bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-soft"
+        >
+          Show all {mediaCount} photos and videos
         </Link>
       </div>
 
@@ -465,6 +486,9 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
     return `scheduled an open house for ${openHouseWhen(c.starts_at, c.ends_at)}`;
   }
   if (action === "open_house_cancelled") return "cancelled an open house";
+  if (action === "media_added") return `added ${(changes as unknown as { title: string }).title} to the media library`;
+  if (action === "media_trashed") return `moved ${(changes as unknown as { title: string }).title} to the trash`;
+  if (action === "media_restored") return `restored ${(changes as unknown as { title: string }).title}`;
   if (action === "moved_to_trash") return "moved it to the trash";
   if (action === "restored") return "restored it from the trash";
   const keys = Object.keys(changes ?? {});

@@ -111,5 +111,10 @@ export const TRANSITION_LABELS: Record<WorkflowStatus, string> = {
 
 // Who may add a new home (matches the database's insert rule).
 export function canAddHomes(role: Role) {
-  return ["platform_admin", "builder_owner", "manager", "sales"].includes(role);
+  return ["platform_admin", "builder_owner", "manager"].includes(role);
+}
+
+// Who may upload media and edit tags (matches the database's media rules).
+export function canManageMedia(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }
