@@ -37,8 +37,10 @@ export async function addBuilder(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) go("/admin/builders", { error: "Enter the builder’s name." });
   const supabase = await createClient();
-  const { error } = await supabase.from("builders").insert({ name, slug: `${slugify(name)}-${Date.now().toString(36).slice(-4)}` });
-  if (error) go("/admin/builders", { error: friendly(error.message) });
+  const { data: created, error } = await supabase.from("builders").insert({ name, slug: `${slugify(name)}-${Date.now().toString(36).slice(-4)}` }).select("id").single();
+  if (error || !created) go("/admin/builders", { error: friendly(error?.message ?? "unknown") });
+  const markets = formData.getAll("mls").map(String);
+  await supabase.from("builder_settings").upsert({ builder_id: created.id, mls_boards: markets, mls_locked: true });
   revalidatePath("/admin", "layout");
   go("/admin/builders", { saved: `Added ${name}.` });
 }
@@ -247,4 +249,103 @@ export async function closeIssue(formData: FormData) {
   if (error) go("/admin/requests", { error: friendly(error.message) });
   revalidatePath("/", "layout");
   go("/admin/requests", { saved: "Help request closed." });
+}
+
+// Which MLS markets a builder lists in (set at onboarding, editable later).
+export async function setBuilderMarkets(formData: FormData) {
+  await requireAdmin("/admin/builders");
+  const builderId = String(formData.get("builder_id"));
+  const markets = formData.getAll("mls").map(String);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("builder_settings")
+    .upsert({ builder_id: builderId, mls_boards: markets, mls_locked: formData.get("locked") === "on", updated_at: new Date().toISOString() });
+  if (error) go("/admin/builders", { error: friendly(error.message) });
+  revalidatePath("/", "layout");
+  go("/admin/builders", { saved: markets.length ? `Markets saved: ${markets.join(", ")}. New communities and homes use them.` : "Markets cleared." });
+}
+
+// ---------------------------------------------------------------------------
+// MLS rules (per MLS board)
+// ---------------------------------------------------------------------------
+export async function saveBoardRules(formData: FormData) {
+  await requireAdmin("/admin/mls");
+  const code = String(formData.get("code"));
+  const num = (k: string, d: number) => {
+    const n = Number(formData.get(k));
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : d;
+  };
+  const rules = {
+    status_change_hours: num("status_change_hours", 48),
+    new_listing_hours: num("new_listing_hours", 48),
+    min_photos: num("min_photos", 1),
+    min_photo_long_edge: num("min_photo_long_edge", 1024),
+    remarks_max_chars: num("remarks_max_chars", 1000),
+    verified: formData.get("verified") === "on",
+    source: String(formData.get("source") ?? "").trim(),
+  };
+  const counties = String(formData.get("counties") ?? "").split(",").map((c) => c.trim()).filter(Boolean);
+  const supabase = await createClient();
+  const { error } = await supabase.from("mls_boards").update({ rules, counties, updated_at: new Date().toISOString() }).eq("code", code);
+  if (error) go("/admin/mls", { error: friendly(error.message) });
+  revalidatePath("/", "layout");
+  go("/admin/mls", { saved: `${code} rules saved.` });
+}
+
+export async function saveBoardFields(formData: FormData) {
+  await requireAdmin("/admin/mls");
+  const code = String(formData.get("code"));
+  const keys = formData.getAll("field").map(String);
+  const fieldRules: Record<string, { required?: boolean; hidden?: boolean; label?: string }> = {};
+  for (const k of keys) {
+    const req = String(formData.get(`req_${k}`) ?? "default");
+    const label = String(formData.get(`label_${k}`) ?? "").trim();
+    const r: { required?: boolean; hidden?: boolean; label?: string } = {};
+    if (req === "yes") r.required = true;
+    if (req === "no") r.required = false;
+    if (req === "hide") r.hidden = true;
+    if (label) r.label = label;
+    if (Object.keys(r).length) fieldRules[k] = r;
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("mls_boards").update({ field_rules: fieldRules, updated_at: new Date().toISOString() }).eq("code", code);
+  if (error) go("/admin/mls", { error: friendly(error.message) });
+  revalidatePath("/", "layout");
+  go("/admin/mls", { saved: `${code} fields saved.` });
+}
+
+export async function addBoardField(formData: FormData) {
+  await requireAdmin("/admin/mls");
+  const code = String(formData.get("code"));
+  const label = String(formData.get("label") ?? "").trim();
+  if (!label) go("/admin/mls", { error: "Give the field a name." });
+  const key = String(formData.get("key") ?? "").trim() || label.replace(/[^A-Za-z0-9]+/g, " ").trim().split(" ").map((w) => w[0].toUpperCase() + w.slice(1)).join("");
+  const field = {
+    key,
+    label,
+    section: String(formData.get("section") ?? "Listing"),
+    source: formData.get("source") === "community" ? "community" : "detail",
+    type: ["text", "longtext", "number", "money", "date", "yesno"].includes(String(formData.get("type"))) ? String(formData.get("type")) : "text",
+    required: formData.get("required") === "on",
+  };
+  const supabase = await createClient();
+  const { data: b } = await supabase.from("mls_boards").select("extra_fields").eq("code", code).single();
+  const extras = ((b?.extra_fields ?? []) as { key: string }[]).filter((f) => f.key !== key);
+  const { error } = await supabase.from("mls_boards").update({ extra_fields: [...extras, field] }).eq("code", code);
+  if (error) go("/admin/mls", { error: friendly(error.message) });
+  revalidatePath("/", "layout");
+  go("/admin/mls", { saved: `Added “${label}” to ${code}.` });
+}
+
+export async function removeBoardField(formData: FormData) {
+  await requireAdmin("/admin/mls");
+  const code = String(formData.get("code"));
+  const key = String(formData.get("key"));
+  const supabase = await createClient();
+  const { data: b } = await supabase.from("mls_boards").select("extra_fields").eq("code", code).single();
+  const extras = ((b?.extra_fields ?? []) as { key: string }[]).filter((f) => f.key !== key);
+  const { error } = await supabase.from("mls_boards").update({ extra_fields: extras }).eq("code", code);
+  if (error) go("/admin/mls", { error: friendly(error.message) });
+  revalidatePath("/", "layout");
+  go("/admin/mls", { saved: "Field removed." });
 }

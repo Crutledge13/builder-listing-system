@@ -8,7 +8,7 @@ import { dateTime } from "@/lib/format";
 import { DemoArt, MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
 import { DownloadDrawn, DownloadWithDisclaimer, VideoPlayer } from "@/components/media-client";
 import { DISCLAIMER_TEXT, DisclaimerOverlay, planFolderHref } from "@/components/media-tile";
-import { makeCover, rerunAi, saveMedia, setTrashed } from "./actions";
+import { clearAiWarning, makeCover, rerunAi, saveMedia, setTrashed } from "./actions";
 import { aiTaggingAvailable } from "@/lib/ai-tagging";
 
 export default function MediaItemPage(props: PageProps<"/media/[id]">) {
@@ -25,6 +25,7 @@ const MESSAGES: Record<string, string> = {
   trashed: "Moved to the trash. It’s kept for 30 days and can be restored until then.",
   restored: "Restored from the trash.",
   ai: "AI took another look.",
+  cleared: "Marked OK for the MLS. The warning no longer holds up the listing.",
 };
 
 async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">["params"]; searchParams: PageProps<"/media/[id]">["searchParams"] }) {
@@ -100,7 +101,7 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
             </Link>
           )}
           {m.caption && <p className="mt-3 text-[15px]">{m.caption}{m.caption_source_is_ai ? <span className="ml-2 text-xs text-violet-700">written by AI</span> : null}</p>}
-          <AiPanel m={m} canRerun={manage && m.source === "upload" && m.kind === "photo"} />
+          <AiPanel m={m} canRerun={manage && m.source === "upload" && m.kind === "photo"} canClear={manage} />
           <div className="mt-4 flex flex-wrap gap-2">
             {m.tags.map((t) => (
               photographer ? <span key={t} className="rounded-full bg-soft px-3 py-1 text-sm">{t}</span> : <Link key={t} href={`/media?tag=${encodeURIComponent(t)}`} className="rounded-full bg-soft px-3 py-1 text-sm hover:bg-line">
@@ -213,7 +214,7 @@ const FLAG_TEXT: Record<string, string> = {
   not_a_home_photo: "may not be a home photo",
 };
 
-function AiPanel({ m, canRerun }: { m: MediaRow; canRerun: boolean }) {
+function AiPanel({ m, canRerun, canClear }: { m: MediaRow; canRerun: boolean; canClear: boolean }) {
   const s = m.ai_suggestion;
   if (!m.ai_status && !canRerun) return null;
   return (
@@ -229,9 +230,17 @@ function AiPanel({ m, canRerun }: { m: MediaRow; canRerun: boolean }) {
             {m.room_source === "staff" && m.room !== s.room ? " A person changed it, so their choice is kept." : " Change it below if it’s wrong."}
           </p>
           {s.flags.length > 0 && (
-            <p className="mt-2 text-amber-900">
-              Check before using on the MLS: this photo {s.flags.map((f) => FLAG_TEXT[f] ?? f).join(", ")}.
-            </p>
+            <div className="mt-2 text-amber-900">
+              <p>Check before using on the MLS: this photo {s.flags.map((f) => FLAG_TEXT[f] ?? f).join(", ")}.</p>
+              {canClear && !m.mls_ready && (
+                <form action={clearAiWarning} className="mt-2">
+                  <input type="hidden" name="id" value={m.id} />
+                  <button className="rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">I checked it: OK for the MLS</button>
+                  <span className="ml-2 text-xs text-muted">Or move it to the trash.</span>
+                </form>
+              )}
+              {m.mls_ready && <p className="mt-1 text-xs text-emerald-800">A person marked this OK for the MLS.</p>}
+            </div>
           )}
         </>
       )}

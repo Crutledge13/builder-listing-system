@@ -6,7 +6,7 @@ import { requireProfile } from "@/lib/auth";
 import { isStaff, TASK_KIND_LABELS, TASK_STATUS_LABELS } from "@/lib/permissions";
 import { cx, dateTime, money } from "@/lib/format";
 import { openHouseWhen, whenCentral } from "@/lib/time";
-import { ALL_MLS_FIELDS, CONDITION, formatMls, MLS_FIELD_FOR_COLUMN } from "@/lib/mls-fields";
+import { CONDITION, formatMls, MLS_FIELD_FOR_COLUMN } from "@/lib/mls-fields";
 import { loadMlsSheet, type MlsSheet } from "@/lib/mls-sheet";
 import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { Notice } from "@/components/notice";
@@ -154,7 +154,7 @@ function EntryWork({ t, sheet, check, closed }: { t: Task; sheet: MlsSheet; chec
       <div className="min-w-0 space-y-6">
         <Steps
           items={[
-            "Start a new listing in the MLS (Residential, For Sale).",
+            `Start a new listing in ${sheet.board?.short_name ?? "the MLS"} (Residential, For Sale).`,
             "Copy each field below into the MLS, in order. Tick each line as you go.",
             "Upload the photos in the order shown.",
             "Submit the listing, then enter the MLS number on the right.",
@@ -165,7 +165,7 @@ function EntryWork({ t, sheet, check, closed }: { t: Task; sheet: MlsSheet; chec
       </div>
       <aside>
         <div className="sticky top-28 space-y-4">
-          <Progress checked={check.checked.length} total={ENTRY_LINES} />
+          <Progress checked={check.checked.length} total={entryLines(sheet)} />
           {sheet.home.workflow_status === "approved_for_mls" && !closed ? (
             <form action={markListingLive} className="rounded-2xl border border-line p-4">
               <input type="hidden" name="back" value={`/tasks/${t.id}`} />
@@ -187,8 +187,8 @@ function EntryWork({ t, sheet, check, closed }: { t: Task; sheet: MlsSheet; chec
   );
 }
 
-// Every MLS field plus the photos line.
-const ENTRY_LINES = ALL_MLS_FIELDS.length + 1;
+// Every field this MLS asks for, plus the photos line.
+const entryLines = (sheet: MlsSheet) => sheet.sections.reduce((n, s) => n + s.fields.length, 0) + 1;
 
 function Progress({ checked, total }: { checked: number; total: number }) {
   const pct = total ? Math.min(100, Math.round((checked / total) * 100)) : 0;

@@ -30,6 +30,8 @@ function back(id: string, params: Record<string, string>): never {
 
 // Turn a database refusal into a plain-English message.
 function friendly(message: string) {
+  if (message.includes("Not ready for the MLS")) return message;
+  if (message.includes("already live on")) return message;
   if (message.includes("cannot change") || message.includes("cannot move")) return message;
   if (message.includes("MLS number is required")) return message;
   if (message.includes("row-level security")) return "You don’t have permission to do that.";
@@ -302,3 +304,15 @@ export async function updateReverseProspecting(formData: FormData) {
   back(id, { saved: `reverse-${status}`, at: "reverse-prospecting" });
 }
 
+
+// Which MLS this home goes to (owners, managers and our team; not once it's live).
+export async function setHomeMls(formData: FormData) {
+  const id = String(formData.get("id"));
+  const board = String(formData.get("mls_board") ?? "");
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("homes").update({ mls_board: board || null }).eq("id", id).select("id");
+  if (error) back(id, { error: friendly(error.message) });
+  if (!data?.length) back(id, { error: "Your role can’t change the MLS for this home." });
+  revalidatePath(`/homes/${id}`, "layout");
+  back(id, { saved: "mls-board" });
+}

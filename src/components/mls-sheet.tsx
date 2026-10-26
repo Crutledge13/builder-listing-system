@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cx } from "@/lib/format";
-import { formatMls, MLS_SECTIONS, resolveField, type MlsField } from "@/lib/mls-fields";
+import { formatMls, resolveField, type MlsField } from "@/lib/mls-fields";
 import type { MlsSheet } from "@/lib/mls-sheet";
 import { CheckOff, CopyButton } from "@/components/mls-client";
 import { MediaPicture } from "@/components/media-tile";
@@ -45,7 +45,7 @@ export function MlsSheetView({
 }) {
   return (
     <div className="space-y-6">
-      {MLS_SECTIONS.map((section) => {
+      {sheet.sections.map((section) => {
         const done = check ? section.fields.filter((f) => check.checked.includes(f.key)).length : 0;
         return (
           <section key={section.title} className="overflow-hidden rounded-2xl border border-line">

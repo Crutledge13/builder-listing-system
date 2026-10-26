@@ -80,3 +80,14 @@ select h.builder_id, h.id, '1236 Pecan Ridge Dr: upgraded kitchen island', 'phot
 from public.homes h
 where h.unparsed_address = '1236 Pecan Ridge Dr'
   and not exists (select 1 from public.media m where m.home_id = h.id and m.title like '%upgraded kitchen island%');
+
+-- Readiness check examples: one description breaks the MLS contact-info rule,
+-- and one photo has an AI warning that hasn't been cleared.
+update public.homes set public_remarks = public_remarks || ' Call Taylor at (214) 555-0199 to tour today!'
+where unparsed_address = '1212 Pecan Ridge Dr' and public_remarks not like '%555-0199%';
+update public.media m set mls_ready = false, ai_status = 'done', ai_at = now(),
+  ai_suggestion = jsonb_build_object('room', 'living', 'confidence', 0.91, 'tags', jsonb_build_array('living room'),
+    'caption', 'Family room with a person standing near the window', 'flags', jsonb_build_array('people'))
+where m.id = (select m2.id from public.media m2 join public.homes h on h.id = m2.home_id
+              where h.unparsed_address = '1260 Willow Bend Ln' and m2.kind = 'photo' and m2.room = 'living' and m2.deleted_at is null
+              order by m2.sort_order limit 1);

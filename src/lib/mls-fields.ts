@@ -51,6 +51,7 @@ export const MLS_SECTIONS: MlsSection[] = [
       { key: "PostalCode", label: "ZIP", source: "home", column: "postal_code", type: "text", required: true },
       { key: "CountyOrParish", label: "County", source: "derived", type: "text", required: true },
       { key: "SubdivisionName", label: "Subdivision", source: "community", type: "text", required: true, hint: "Usually the legal plat name, which can differ from the marketing name." },
+      { key: "MLSAreaMajor", label: "MLS area", source: "community", type: "text", hint: "The MLS's own area code for this location." },
       { key: "LotBlock", label: "Lot and block", source: "home", column: "lot_number", type: "text" },
       { key: "LegalDescription", label: "Legal description", source: "detail", type: "longtext", required: true },
       { key: "ParcelNumber", label: "Tax ID (parcel)", source: "detail", type: "text", hint: "Often not assigned yet for new lots." },
@@ -132,6 +133,42 @@ export const MLS_SECTIONS: MlsSection[] = [
 
 export const ALL_MLS_FIELDS = MLS_SECTIONS.flatMap((s) => s.fields);
 
+// ---------------------------------------------------------------------------
+// Each MLS asks for slightly different things. A board can relabel a field,
+// make it required or not, hide it, or add fields of its own (mls_boards).
+// ---------------------------------------------------------------------------
+export type MlsBoard = {
+  code: string;
+  name: string;
+  short_name: string;
+  region: string;
+  counties: string[];
+  rules: { status_change_hours?: number; new_listing_hours?: number; min_photos?: number; min_photo_long_edge?: number; remarks_max_chars?: number; verified?: boolean; source?: string };
+  field_rules: Record<string, { required?: boolean; hidden?: boolean; label?: string }>;
+  extra_fields: (MlsField & { section?: string })[];
+};
+
+export const MLS_BOARD_SELECT = "code, name, short_name, region, counties, rules, field_rules, extra_fields";
+
+export function sectionsForBoard(board: MlsBoard | null | undefined): MlsSection[] {
+  if (!board) return MLS_SECTIONS;
+  const rules = board.field_rules ?? {};
+  const sections = MLS_SECTIONS.map((sec) => ({
+    title: sec.title,
+    fields: sec.fields
+      .filter((f) => !rules[f.key]?.hidden)
+      .map((f) => {
+        const r = rules[f.key];
+        return r ? { ...f, label: r.label ?? f.label, required: r.required ?? f.required } : f;
+      }),
+  }));
+  for (const extra of board.extra_fields ?? []) {
+    const target = sections.find((s) => s.title === extra.section) ?? sections[sections.length - 1];
+    if (!target.fields.some((f) => f.key === extra.key)) target.fields.push({ ...extra, source: extra.source ?? "detail" });
+  }
+  return sections;
+}
+
 // Which MLS field a homes column feeds (for "what changed" on update tasks).
 export const MLS_FIELD_FOR_COLUMN: Record<string, MlsField> = Object.fromEntries(
   ALL_MLS_FIELDS.filter((f) => f.column).map((f) => [f.column!, f]),
@@ -192,8 +229,13 @@ export function formatMls(f: Pick<MlsField, "type">, v: unknown): string {
   return String(v);
 }
 
-export function completeness(home: HomeForMls, homeDetails: Record<string, unknown>, communityDetails: Record<string, unknown>) {
-  const required = ALL_MLS_FIELDS.filter((f) => f.required);
+export function completeness(
+  home: HomeForMls,
+  homeDetails: Record<string, unknown>,
+  communityDetails: Record<string, unknown>,
+  sections: MlsSection[] = MLS_SECTIONS,
+) {
+  const required = sections.flatMap((s) => s.fields).filter((f) => f.required);
   const missing = required.filter((f) => resolveField(f, home, homeDetails, communityDetails).from === "missing");
   return { required: required.length, filled: required.length - missing.length, missing };
 }

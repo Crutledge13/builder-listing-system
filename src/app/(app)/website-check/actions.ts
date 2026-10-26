@@ -97,18 +97,24 @@ export async function addFromWebsite(formData: FormData) {
   // "Push it live": submit and approve in one go, which puts it on our team's
   // list to enter into the MLS. (Our team still enters it into the MLS by hand.)
   let reached = "draft";
+  let blockedBy = "";
   if (send) {
     for (const [from, to] of [["draft", "in_review"], ["in_review", "approved_for_mls"]] as const) {
       if (!allowedTransitions(me.role, from).includes(to)) break;
       const { error: e } = await supabase.from("homes").update({ workflow_status: to }).eq("id", home.id);
-      if (e) break;
+      if (e) {
+        if (e.message.includes("Not ready for the MLS")) blockedBy = e.message.replace(/^.*Not ready for the MLS yet:\s*/, "");
+        break;
+      }
       reached = to;
     }
   }
   const message =
     reached === "approved_for_mls"
       ? "Added from your website and sent to our team to enter into the MLS. Add photos and any MLS-only details below."
-      : reached === "in_review"
+      : reached === "in_review" && blockedBy
+        ? `Added from your website and submitted. Before it can be approved for the MLS: ${blockedBy}`
+        : reached === "in_review"
         ? "Added from your website and sent to a manager or owner to approve."
         : "Added from your website as a draft. Fill in the MLS-only details, then submit it.";
   revalidatePath("/", "layout");

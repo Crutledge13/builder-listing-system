@@ -28,6 +28,7 @@ import {
   saveHome,
   scheduleOpenHouse,
   setDisclaimer,
+  setHomeMls,
   setMarketStatus,
   stopOpenHouseSeries,
   updateReverseProspecting,
@@ -157,6 +158,21 @@ async function HomeDetail({
       : Promise.resolve({ data: null }),
   ]);
   const mlsScore = staff ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
+
+  // Which MLS, and is the listing ready for it?
+  const [{ data: boards }, { data: bset }, { data: readinessRaw }] = await Promise.all([
+    supabase.from("mls_boards").select("code, short_name, region, counties").eq("active", true).order("code"),
+    supabase.from("builder_settings").select("mls_boards, mls_locked").eq("builder_id", home.builder_id).maybeSingle(),
+    ["draft", "in_review", "approved_for_mls"].includes(home.workflow_status)
+      ? supabase.rpc("mls_readiness", { p_home: id })
+      : Promise.resolve({ data: null }),
+  ]);
+  const readiness = (readinessRaw ?? []) as { level: "block" | "warn" | "team"; code: string; message: string }[];
+  const blockers = readiness.filter((r) => r.level === "block");
+  const myBoards: string[] = bset?.mls_boards ?? [];
+  const board = (boards ?? []).find((b) => b.code === home.mls_board);
+  const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(me.role) && home.workflow_status !== "live_on_mls";
+  const lockedToOne = !!bset?.mls_locked && myBoards.length === 1 && home.mls_board === myBoards[0];
   const activeSeries = (series ?? []).filter((x) => !x.ended_at);
   const mlsWindow = Number(windowSetting?.value ?? 28);
   const openReverse = (reverse ?? []).filter((r) => r.status === "requested" || r.status === "in_progress");
@@ -616,6 +632,53 @@ async function HomeDetail({
               })}
             </ol>
 
+            {/* MLS this home goes to */}
+            <div className="mt-6 rounded-xl bg-soft px-4 py-3 text-sm">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-semibold">MLS: {board?.short_name ?? "not set"}</span>
+                {lockedToOne && <span className="text-xs text-muted">Set for {home.builders?.name.replace(" (demo)", "")}</span>}
+              </div>
+              {board && <p className="text-xs text-muted">{board.region}. Fields and rules follow this MLS.</p>}
+              {canPickMls && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs font-semibold underline">{lockedToOne ? "Override for this home" : "Change MLS"}</summary>
+                  <form action={setHomeMls} className="mt-2 flex gap-2">
+                    <input type="hidden" name="id" value={home.id} />
+                    <select name="mls_board" defaultValue={home.mls_board ?? ""} className="field-input py-1.5 text-sm" aria-label="MLS">
+                      {(boards ?? [])
+                        .slice()
+                        .sort((a, b) => Number(myBoards.includes(b.code)) - Number(myBoards.includes(a.code)))
+                        .map((b) => (
+                          <option key={b.code} value={b.code}>
+                            {b.short_name}{myBoards.includes(b.code) ? "" : " (not one of this builder’s markets)"}
+                          </option>
+                        ))}
+                    </select>
+                    <button className="rounded-lg bg-foreground px-3 text-sm font-semibold text-white">Save</button>
+                  </form>
+                  <p className="mt-1 text-xs text-muted">Changing the MLS changes which fields are required.</p>
+                </details>
+              )}
+            </div>
+
+            {/* Readiness: what would get it bounced back or fined */}
+            {readiness.length > 0 || ["draft", "in_review"].includes(status) ? (
+              <div id="readiness" className="mt-4 scroll-mt-28">
+                <h4 className="text-sm font-semibold">{blockers.length ? `${blockers.length} thing${blockers.length > 1 ? "s" : ""} to fix before the MLS` : "Ready for the MLS"}</h4>
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  {readiness.map((r) => (
+                    <li key={r.code} className={cx("flex gap-2 rounded-lg px-2.5 py-1.5", r.level === "block" ? "bg-red-50 text-red-900" : r.level === "warn" ? "bg-amber-50 text-amber-900" : "bg-soft text-muted")}>
+                      <span aria-hidden>{r.level === "block" ? "✕" : r.level === "warn" ? "!" : "•"}</span>
+                      <span>{r.message}</span>
+                    </li>
+                  ))}
+                  {blockers.length === 0 && (
+                    <li className="flex gap-2 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-emerald-900"><span aria-hidden>✓</span> Required fields, photos and description pass {board?.short_name ?? "the MLS"}’s rules.</li>
+                  )}
+                </ul>
+              </div>
+            ) : null}
+
             {transitions.length > 0 ? (
               <div className="mt-6 space-y-3">
                 {transitions.map((to) => {
@@ -632,8 +695,10 @@ async function HomeDetail({
                         </label>
                       )}
                       <button
+                        disabled={to === "approved_for_mls" && blockers.length > 0}
+                        title={to === "approved_for_mls" && blockers.length > 0 ? "Fix the items above first" : undefined}
                         className={cx(
-                          "w-full rounded-xl px-4 py-3 font-semibold",
+                          "w-full rounded-xl px-4 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50",
                           backward ? "border border-foreground hover:bg-soft" : "bg-accent text-white hover:brightness-110",
                         )}
                       >
@@ -815,6 +880,7 @@ const SAVED_MESSAGES: Record<string, string> = {
   "market-under_contract": "Marked under contract. Our team will update the MLS, and its open houses have stopped.",
   "market-sold": "Marked sold. Our team will update the MLS.",
   "market-withdrawn": "Taken off the market. Our team will update the MLS, and its open houses have stopped.",
+  "mls-board": "MLS updated. The required fields now follow that MLS.",
   "disclaimer-on": "Disclaimer on. Every photo for this home now says it’s representative.",
   "disclaimer-off": "Disclaimer off.",
   "reverse-requested": "Requested. Our team has a task and an email, and will send the list when it’s ready.",

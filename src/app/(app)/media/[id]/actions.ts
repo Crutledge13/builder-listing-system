@@ -72,3 +72,16 @@ export async function rerunAi(formData: FormData) {
   revalidatePath("/media");
   back(id, { saved: "ai" });
 }
+
+// A person looked at an AI warning (people, signs, text, blur) and says the
+// photo is fine for the MLS. Clears it from the listing's readiness check.
+export async function clearAiWarning(formData: FormData) {
+  const id = String(formData.get("id"));
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("media").update({ mls_ready: true }).eq("id", id).select("home_id");
+  if (error) back(id, { error: `Couldn’t save: ${error.message}` });
+  if (!data?.length) back(id, { error: "Your role can’t edit media." });
+  revalidatePath("/media");
+  if (data[0].home_id) revalidatePath(`/homes/${data[0].home_id}`);
+  back(id, { saved: "cleared" });
+}

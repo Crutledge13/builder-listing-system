@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
-import { ALL_MLS_FIELDS, type MlsField } from "@/lib/mls-fields";
+import { MLS_BOARD_SELECT, sectionsForBoard, type MlsBoard, type MlsField } from "@/lib/mls-fields";
 
 function read(f: MlsField, formData: FormData): unknown {
   if (f.type === "multi") return formData.getAll(f.key).map(String).filter(Boolean);
@@ -41,14 +41,19 @@ export async function saveMlsSheet(formData: FormData) {
   if (!isStaff(me.role)) go({ error: "Only our team fills in the MLS sheet." });
 
   const supabase = await createClient();
-  const { data: home } = await supabase.from("homes").select("id, community_id").eq("id", homeId).maybeSingle();
+  const { data: home } = await supabase.from("homes").select("id, community_id, mls_board").eq("id", homeId).maybeSingle();
   if (!home) return go({ error: "Home not found." });
   const { data: rows } = await supabase.from("mls_details").select("id, home_id, community_id, data").or(`home_id.eq.${homeId},community_id.eq.${home.community_id}`);
   const homeRow = rows?.find((r) => r.home_id === homeId);
   const commRow = rows?.find((r) => r.community_id === home.community_id);
 
-  const homeData = merge((homeRow?.data ?? {}) as Record<string, unknown>, ALL_MLS_FIELDS.filter((f) => f.source === "detail"), formData);
-  const commData = merge((commRow?.data ?? {}) as Record<string, unknown>, ALL_MLS_FIELDS.filter((f) => f.source === "community"), formData);
+  // This MLS's own field list (including any extra fields it asks for).
+  const { data: board } = home.mls_board
+    ? await supabase.from("mls_boards").select(MLS_BOARD_SELECT).eq("code", home.mls_board).maybeSingle()
+    : { data: null };
+  const fields = sectionsForBoard(board as MlsBoard | null).flatMap((s) => s.fields);
+  const homeData = merge((homeRow?.data ?? {}) as Record<string, unknown>, fields.filter((f) => f.source === "detail"), formData);
+  const commData = merge((commRow?.data ?? {}) as Record<string, unknown>, fields.filter((f) => f.source === "community"), formData);
 
   const writes = [
     homeRow

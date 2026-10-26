@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
-import { formatMls, MLS_SECTIONS, resolveField, type MlsField } from "@/lib/mls-fields";
+import { formatMls, resolveField, type MlsField } from "@/lib/mls-fields";
 import { loadMlsSheet, type MlsSheet } from "@/lib/mls-sheet";
 import { Notice } from "@/components/notice";
 import { MlsScore } from "@/components/mls-sheet";
@@ -34,7 +34,7 @@ async function Sheet({ params }: { params: PageProps<"/homes/[id]/mls">["params"
   return (
     <div className="mx-auto max-w-4xl">
       <Link href={`/homes/${id}`} className="text-sm font-medium text-muted hover:text-foreground">← {h.unparsed_address}</Link>
-      <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight">MLS sheet</h1>
+      <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight">MLS sheet{sheet.board ? `: ${sheet.board.short_name}` : ""}</h1>
       <p className="mt-1 text-muted">
         Everything the MLS asks for, in the order you enter it. The builder’s fields come from the home; our team fills in the rest here.
         Fields marked “Shared” apply to every home in {communityName}.
@@ -51,7 +51,7 @@ async function Sheet({ params }: { params: PageProps<"/homes/[id]/mls">["params"
       <form action={saveMlsSheet} className="mt-6 space-y-6">
         <input type="hidden" name="home_id" value={id} />
         <input type="hidden" name="back" value={`/homes/${id}/mls`} />
-        {MLS_SECTIONS.map((section) => (
+        {sheet.sections.map((section) => (
           <section key={section.title} className="overflow-hidden rounded-2xl border border-line">
             <h2 className="bg-soft px-4 py-2.5 font-semibold">{section.title}</h2>
             <div className="divide-y divide-line">

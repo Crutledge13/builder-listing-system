@@ -65,6 +65,12 @@ async function Queues() {
         .in("status", ["todo", "in_progress"])
         .order("due_at", { ascending: true, nullsFirst: false })
     : { data: null };
+  // Readiness for listings waiting on approval (what would block "Ready for MLS").
+  const reviewIds = (homes ?? []).filter((h) => h.workflow_status === "in_review").map((h) => h.id);
+  const readinessList = await Promise.all(reviewIds.map((id) => supabase.rpc("mls_readiness", { p_home: id })));
+  const blocksFor = new Map(
+    reviewIds.map((id, i) => [id, ((readinessList[i].data ?? []) as { level: string; message: string }[]).filter((r) => r.level === "block")]),
+  );
   const entryTask = new Map((mlsWork ?? []).filter((t) => t.kind === "mls_entry").map((t) => [t.home_id, t.id]));
   const otherWork = (mlsWork ?? []).filter((t) => t.kind !== "mls_entry");
 
@@ -109,6 +115,14 @@ async function Queues() {
                         {isStaff(me.role) ? `, ${(h.builders as unknown as { name: string })?.name.replace(" (demo)", "")}` : ""}
                       </div>
                       <div className="mt-1 font-semibold tabular-nums sm:hidden">{money(h.list_price)}</div>
+                      {h.workflow_status === "in_review" && (blocksFor.get(h.id)?.length ?? 0) > 0 && (
+                        <div className="mt-1 truncate text-sm text-red-800" title={blocksFor.get(h.id)!.map((b) => b.message).join(" ")}>
+                          {blocksFor.get(h.id)!.length} to fix before the MLS: {blocksFor.get(h.id)![0].message}
+                        </div>
+                      )}
+                      {h.workflow_status === "in_review" && blocksFor.get(h.id)?.length === 0 && (
+                        <div className="mt-1 text-sm text-emerald-800">Passes the MLS readiness check</div>
+                      )}
                     </div>
                     <div className="hidden text-right sm:block">
                       <div className="font-semibold tabular-nums">{money(h.list_price)}</div>

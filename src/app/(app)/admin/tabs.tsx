@@ -10,6 +10,7 @@ const TABS = [
   { href: "/admin/communities", label: "Communities" },
   { href: "/admin/people", label: "People" },
   { href: "/admin/requests", label: "Requests" },
+  { href: "/admin/mls", label: "MLS rules" },
   { href: "/admin/payments", label: "Photographer pay" },
   { href: "/admin/settings", label: "Settings" },
 ];
