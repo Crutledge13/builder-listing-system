@@ -22,7 +22,7 @@ Private back-office system for new-construction home builders in Texas. This fil
 | Listing coordinator | Our company | Enters approved listings into the MLS, logs MLS numbers |
 | Builder owner | Builder | Everything for their company, plus adding staff |
 | Manager | Builder | Edits listings, approves them for the MLS; no billing |
-| Sales | Builder | Only their assigned communities: pricing, availability, status, open houses, change requests, view and download media. Cannot add homes or upload media. |
+| Sales | Builder | Only their assigned communities: pricing, availability, status, open houses, change requests, view and download media. Cannot add homes, upload media or request photos. |
 | Marketing | Builder | Adds homes (as drafts) and communities; descriptions, photos and media; no pricing changes after a home is added |
 | Photographer | Contractor (no builder) | Only their assigned jobs: set a shoot time, upload and tag media for that home or community, mark delivered. Sees no homes, prices, builders or other media. |
 
@@ -89,7 +89,7 @@ Salespeople see only the communities they're assigned to (`community_assignments
 
 ## Photo requests and photographers
 
-`media_requests`: the builder team asks for photos/video/drone/floor plan on a home or a whole community; our admins assign a photographer and shoot time; the photographer uploads and marks it delivered; the builder marks it complete or sends it back. Status rules live in the `media_requests_guard` trigger. Each request copies the address, community and builder name so photographers never need access to `homes`. Photographers can add media only to homes/communities on their open jobs (`private.photographer_can_shoot`) and edit only what they uploaded. Screens: `/media/requests` (builders, admins), `/jobs` (photographers), and the Photo requests section on each home.
+`media_requests`: the builder team (not sales) asks for photos/video/drone/floor plan on a home or a whole community; our admins assign a photographer and shoot time; the photographer uploads and marks it delivered; the builder marks it complete or sends it back. Status rules live in the `media_requests_guard` trigger. Each request copies the address, community and builder name so photographers never need access to `homes`. Photographers can add media only to homes/communities on their open jobs (`private.photographer_can_shoot`) and edit only what they uploaded. Screens: `/media/requests` (builders, admins), `/jobs` (photographers), and the Photo requests section on each home.
 
 ## Design
 

@@ -126,8 +126,9 @@ export function canManageMedia(role: Role) {
 }
 
 // Who may ask for a photo shoot (matches the database's request rules).
+// Sales view and download media but don't request photo shoots.
 export function canRequestMedia(role: Role) {
-  return ["platform_admin", "builder_owner", "manager", "sales", "marketing"].includes(role);
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }
 
 export const NEED_LABELS: Record<string, string> = {

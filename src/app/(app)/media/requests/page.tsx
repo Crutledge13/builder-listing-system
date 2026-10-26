@@ -18,6 +18,7 @@ export default function MediaRequestsPage(props: PageProps<"/media/requests">) {
 
 async function Requests() {
   const me = await requireProfile();
+  if (me.role === "sales") redirect("/media");
   if (me.role === "photographer") redirect("/jobs");
   const supabase = await createClient();
   const staff = isStaff(me.role);

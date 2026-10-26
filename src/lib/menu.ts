@@ -25,10 +25,8 @@ export function menuLinks(role: Role): MenuLink[] {
   if (role === "photographer") {
     return [{ href: "/jobs#earnings", label: "Earnings", hint: "Payments for your shoots" }];
   }
-  const links: MenuLink[] = [
-    { href: "/approvals", label: "Approvals", hint: "Listings waiting on someone" },
-    { href: "/media/requests", label: "Photo requests", hint: "Shoots and deliveries" },
-  ];
+  const links: MenuLink[] = [{ href: "/approvals", label: "Approvals", hint: "Listings waiting on someone" }];
+  if (role !== "sales") links.push({ href: "/media/requests", label: "Photo requests", hint: "Shoots and deliveries" });
   if (["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role)) {
     links.push({ href: "/website-check", label: "Website check", hint: "Website, Builder Listings and MLS side by side" });
   }

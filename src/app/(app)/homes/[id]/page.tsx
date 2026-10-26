@@ -296,7 +296,7 @@ async function HomeDetail({
             ))}
           </dl>
 
-          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} />
+          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} canRequestPhotos={canRequestMedia(me.role)} />
 
           {homeTasks && homeTasks.length > 0 && (
             <section className="border-b border-line py-6">
@@ -461,6 +461,7 @@ async function HomeDetail({
             )}
           </section>
 
+          {canRequestMedia(me.role) && (
           <section id="photo-requests" className="scroll-mt-28 border-b border-line py-8">
             <h3 className="text-lg font-semibold">
               Photo requests {openMediaRequests.length > 0 && <span className="font-normal text-muted">{openMediaRequests.length} open</span>}
@@ -481,6 +482,7 @@ async function HomeDetail({
               </details>
             )}
           </section>
+          )}
 
           <section id="requests" className="scroll-mt-28 border-b border-line py-8">
             <h3 className="text-lg font-semibold">
@@ -813,13 +815,13 @@ const REQUEST_STYLES: Record<string, string> = {
   declined: "bg-soft text-muted",
 };
 
-function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number }) {
+function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse, canRequestPhotos }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number; canRequestPhotos: boolean }) {
   const items = [
     { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
     { href: "#open-houses", title: "Open houses", sub: upcomingOH ? `${upcomingOH} scheduled` : "Schedule one" },
     { href: "#reverse-prospecting", title: "Reverse prospecting", sub: openReverse ? "In progress" : "Request a list" },
-    { href: "#photo-requests", title: "Request photos", sub: openShoots ? `${openShoots} in progress` : "Send a photographer" },
-    { href: `/media?home=${homeId}`, title: "Media", sub: "Home, community, plan" },
+    ...(canRequestPhotos ? [{ href: "#photo-requests", title: "Request photos", sub: openShoots ? `${openShoots} in progress` : "Send a photographer" }] : []),
+    { href: `/media?home=${homeId}`, title: canRequestPhotos ? "Media" : "Photos and video", sub: canRequestPhotos ? "Home, community, plan" : "View and download" },
   ];
   return (
     <nav className="grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-3 xl:grid-cols-5" aria-label="On this home">
