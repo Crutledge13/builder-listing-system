@@ -65,7 +65,7 @@ export function AlertCard({ a, back, canAnswer, staff, showHome = true }: { a: A
               <input type="hidden" name="back" value={back} />
               <input type="hidden" name="home_id" value={a.home_id} />
               <input type="hidden" name="answer" value="available" />
-              <button className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Still available</button>
+              <button className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">{a.kind === "sold_signal_website" ? "Still available (website is wrong)" : "Still available"}</button>
             </form>
           )}
           {a.kind !== "long_pending" && (
