@@ -50,6 +50,7 @@ export const DEMO_USERS = [
   { email: "marketing.prairie@demo.test", label: "Quinn Harper", detail: "Marketing, Prairie Lantern" },
 ] as const;
 
+// On whenever a demo password is set, unless DEMO_MODE is explicitly "false".
 export function demoModeOn() {
-  return process.env.DEMO_MODE === "true" && !!process.env.DEMO_PASSWORD;
+  return !!process.env.DEMO_PASSWORD && process.env.DEMO_MODE !== "false";
 }

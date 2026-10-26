@@ -71,11 +71,11 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 | Test | `builder-listing-test` (ref `fautaulhpsmeqnlzyhdc`, us-east-2) | Fake data only. Demo mode on. |
 | Live | not created yet | Create only after backups are in place. |
 
-Environment variables are listed in `.env.example`. Set them in Vercel; never commit `.env.local`.
+Environment variables are listed in `.env.example`. Set them in Vercel; never commit `.env.local`. The test project's public Supabase address and key are built in as fallbacks (`src/lib/supabase/config.ts`); the live deployment must set its own.
 
 ## Demo mode
 
-With `DEMO_MODE=true`, anyone signed in as a `@demo.test` user gets a "View as…" menu to switch between demo users and show each role's view. It must be off on the live system.
+When `DEMO_PASSWORD` is set (and `DEMO_MODE` isn't `false`), anyone signed in as a `@demo.test` user gets a "View as…" menu to switch between demo users and show each role's view. Never set `DEMO_PASSWORD` on the live system.
 
 ## Known follow-ups
 
