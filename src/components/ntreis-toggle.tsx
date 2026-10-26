@@ -49,7 +49,7 @@ export function NtreisToggle({
   return board === null || board === "NTREIS" ? (
     <p className="rounded-xl bg-accent-soft px-4 py-3 text-sm">
       {board === null ? "Most homes go to NTREIS, so its questions are below. " : "This home goes to NTREIS (North Texas), so its questions are below. "}
-      Labels and choices match NTREIS’s own form. <span className="text-red-700">*</span> marks what NTREIS requires before the listing can go live; you can save a draft without them.
+      Labels and choices match NTREIS’s own form. Questions marked <b className="text-accent">MLS required</b> are shaded blue until answered; NTREIS needs them before the listing goes live, but you can save a draft without them.
     </p>
   ) : (
     <p className="rounded-xl bg-soft px-4 py-3 text-sm">This home goes to {board}, so only the basic details are asked here. Our team fills in the rest.</p>

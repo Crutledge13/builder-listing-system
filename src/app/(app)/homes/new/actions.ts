@@ -61,6 +61,24 @@ export async function createHome(formData: FormData) {
     sources.stories = "staff";
   }
 
+  // Started from the builder's website: values that still match it are marked as
+  // coming from the website (checked here against the website row, not trusted from the form).
+  const websiteId = String(formData.get("website_listing_id") ?? "");
+  const { data: web } = websiteId
+    ? await supabase.from("website_listings").select("*").eq("id", websiteId).is("home_id", null).maybeSingle()
+    : { data: null };
+  const fromWebsite = !!web && web.builder_id === community.builder_id;
+  if (fromWebsite) {
+    for (const f of [...TEXT, ...NUMBERS]) {
+      const w = (web as Record<string, unknown>)[f];
+      if (w !== null && w !== undefined && row[f] !== null && String(w).trim() === String(row[f]).trim()) sources[f] = "website";
+    }
+    if (row.city === null && web.city) {
+      row.city = web.city;
+      sources.city = "website";
+    }
+  }
+
   if (!row.unparsed_address) fail("Enter the street address.");
   if (!row.city) row.city = community.city;
   if (!row.postal_code) fail("Enter the ZIP code.");
@@ -82,12 +100,16 @@ export async function createHome(formData: FormData) {
     fail(error?.message.includes("row-level security") ? "You don’t have permission to add homes for that builder." : `Couldn’t save the home: ${error?.message}`);
   }
 
+  // The website home is now in Builder Listings.
+  if (fromWebsite) await supabase.from("website_listings").update({ home_id: data.id }).eq("id", web.id).is("home_id", null);
+
   // Photos, video and tours (the home has to exist first).
   const problems = await setUpListingMedia(supabase, data.id, community.id, me.role, formData);
 
   revalidatePath("/homes");
   revalidatePath("/approvals");
   revalidatePath("/media/requests");
+  revalidatePath("/website-check");
   if (problems.length) redirect(`/homes/${data.id}?${new URLSearchParams({ error: `The home is saved, but: ${problems.join(" ")}`, at: "listing-media" })}#listing-media`);
   if (formData.get("photos_by") === "own") redirect(`/media/upload?home=${data.id}`);
   redirect(`/homes/${data.id}?saved=created`);

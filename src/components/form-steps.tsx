@@ -36,7 +36,10 @@ export function FormSteps({ formId, steps, children }: { formId: string; steps: 
           .filter((w) => !w.closest("fieldset[data-ntreis][hidden], [data-other-mls][hidden]"))
           .filter((w) => {
             const inputs = [...w.querySelectorAll<HTMLInputElement>("input:not([type=hidden]), select, textarea")];
-            return !inputs.some((x) => (x.type === "checkbox" || x.type === "radio" ? x.checked : x.value.trim() !== ""));
+            const empty = !inputs.some((x) => (x.type === "checkbox" || x.type === "radio" ? x.checked : x.value.trim() !== ""));
+            // Shades the box (see globals.css) until it's answered.
+            w.toggleAttribute("data-empty", empty);
+            return empty;
           })
           .map((w) => w.dataset.required!);
       }),
@@ -112,7 +115,7 @@ export function FormSteps({ formId, steps, children }: { formId: string; steps: 
                   <span className={cx("text-xs tabular-nums", on ? "text-white/80" : "text-muted")}>{n + 1}</span>
                   {s.title}
                   {!isReview && todo > 0 && (
-                    <span className={cx("rounded-full px-1.5 text-[11px] leading-5", on ? "bg-white/25 text-white" : "bg-amber-100 text-amber-900")} title={`${todo} required by NTREIS`}>
+                    <span className={cx("rounded-full px-1.5 text-[11px] leading-5", on ? "bg-white/25 text-white" : "bg-accent-soft text-accent")} title={`${todo} still required`}>
                       {todo}
                     </span>
                   )}

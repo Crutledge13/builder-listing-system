@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cx } from "@/lib/format";
 import { SourceBadge } from "@/components/badges";
+import { RequiredPill } from "@/components/required-pill";
 import type { MlsField } from "@/lib/mls-fields";
 import { NTREIS_SECTIONS } from "@/lib/ntreis-fields";
 
@@ -87,12 +88,7 @@ function Question({ f, mode, value, source, canEdit }: { f: MlsField; mode: "new
       <span className="flex flex-wrap items-center gap-x-2 text-sm font-medium">
         <span>
           {f.label}
-          {f.required && (
-            <>
-              <span aria-hidden className="text-red-700"> *</span>
-              <span className="sr-only"> (NTREIS requires this)</span>
-            </>
-          )}
+          {f.required && <RequiredPill />}
         </span>
         {mode === "edit" && <SourceBadge source={source} />}
       </span>
@@ -122,7 +118,7 @@ function Input({ f, name, start, disabled }: { f: MlsField; name: string; start:
     const on = new Set(Array.isArray(start) ? (start as string[]).map(String) : []);
     const long = (f.options?.length ?? 0) > 12;
     return (
-      <span className={cx("grid gap-x-4 gap-y-1.5 rounded-xl border border-line p-3 sm:grid-cols-2 lg:grid-cols-3", long && "max-h-64 overflow-y-auto")}>
+      <span className={cx("choice-box grid gap-x-4 gap-y-1.5 rounded-xl border border-line p-3 sm:grid-cols-2 lg:grid-cols-3", long && "max-h-64 overflow-y-auto")}>
         {f.options!.map((o) => (
           <label key={o} className="flex items-start gap-2 text-sm leading-snug">
             <input type="checkbox" name={name} value={o} defaultChecked={on.has(o)} disabled={disabled} className="mt-0.5 h-4 w-4 shrink-0 accent-[#3452c7]" />

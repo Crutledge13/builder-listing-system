@@ -589,7 +589,7 @@ async function HomeDetail({
                 <div className="pt-8">
                   <h3 className="text-xl font-semibold">NTREIS details</h3>
                   <p className="mt-1 text-sm text-muted">
-                    The rest of what NTREIS asks for this home, with NTREIS&rsquo;s own labels and choices. <span className="text-red-700">*</span> marks
+                    The rest of what NTREIS asks for this home, with NTREIS&rsquo;s own labels and choices. <b className="text-accent">MLS required</b> marks
                     what NTREIS requires before the listing can go live. Our team fills in the listing paperwork, schools, HOA and showing setup.
                   </p>
                 </div>

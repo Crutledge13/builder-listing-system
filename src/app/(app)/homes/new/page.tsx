@@ -7,6 +7,8 @@ import { createHome } from "./actions";
 import { questionSections, SectionFields } from "@/components/ntreis-questions";
 import { FormSteps } from "@/components/form-steps";
 import { NtreisToggle } from "@/components/ntreis-toggle";
+import { RequiredPill } from "@/components/required-pill";
+import { StartFrom, type CopyOption, type PlanOption, type Prefill, type WebsiteOption } from "@/components/start-from";
 
 export default function NewHomePage(props: PageProps<"/homes/new">) {
   return (
@@ -47,6 +49,8 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
   const mine = (settings ?? []).find((x) => x.builder_id === me.builder_id);
   const lockedBoard = !staff && mine?.mls_locked && mine.mls_boards?.length === 1 ? mine.mls_boards[0] : null;
   const communityBoards = Object.fromEntries((communities ?? []).map((c) => [c.id, c.mls_board ?? null]));
+  const communityBuilders = Object.fromEntries((communities ?? []).map((c) => [c.id, c.builder_id as string]));
+  const starters = await loadStarters(supabase, communities ?? []);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -65,7 +69,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
           <h3 className="text-lg font-semibold">Where is it?</h3>
           <div className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2">
             <label data-required="Community" className="block sm:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium">Community <span aria-hidden className="text-red-700">*</span></span>
+              <span className="mb-1.5 block text-sm font-medium">Community<RequiredPill kind="save" /></span>
               <select name="community_id" required defaultValue={typeof preset === "string" ? preset : ""} className="field-input">
                 <option value="" disabled>Choose a community</option>
                 {communities?.map((c) => (
@@ -76,6 +80,11 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
                 ))}
               </select>
             </label>
+          </div>
+          <div className="mt-5">
+            <StartFrom formId="new-home" communityBuilders={communityBuilders} plans={starters.plans} homes={starters.homes} website={starters.website} />
+          </div>
+          <div className="mt-5 grid gap-x-4 gap-y-5 sm:grid-cols-2">
             <Text name="unparsed_address" label="Street address" placeholder="1214 Pecan Ridge Dr" required wide help="Number, street and type, e.g. 1214 Pecan Ridge Dr. We split it into Matrix’s separate street boxes." />
             <Text name="city" label="City" placeholder="Leave blank to use the community’s city" />
             <Text name="postal_code" label="ZIP" required />
@@ -162,7 +171,7 @@ function Text({ name, label, type = "text", step, placeholder, required, wide, h
     <label data-required={required ? label : undefined} className={wide ? "block sm:col-span-2" : "block"}>
       <span className="block text-sm font-medium">
         {label}
-        {required && <span aria-hidden className="text-red-700"> *</span>}
+        {required && <RequiredPill kind="save" />}
       </span>
       {help && <span className="mt-0.5 block text-xs leading-snug text-muted">{help}</span>}
       <input name={name} type={type} step={step} placeholder={placeholder} required={required} className="field-input mt-1.5" />
@@ -246,4 +255,87 @@ function PhotosStep({ canRequest }: { canRequest: boolean }) {
       </fieldset>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// "Start from something": floor plans, homes to copy, and website homes.
+// ---------------------------------------------------------------------------
+const SPEC_COLUMNS = ["plan_name", "bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area", "stories", "garage_spaces", "lot_size_acres", "year_built"];
+// NTREIS answers that come with a floor plan (the layout, not the lot).
+const PLAN_ANSWERS = ["Levels", "LivingAreasTotal", "DiningAreasTotal", "FireplacesTotal", "AttachedGarageYN", "StructureType", "ArchitecturalStyle", "ConstructionMaterials", "FoundationDetails", "Roof"];
+// NTREIS answers that belong to one lot, so they're never copied to another home.
+const NOT_COPIED = new Set(["ParcelNumber", "AdditionalParcelsYN", "AdditionalParcelsDescription", "Lot", "TaxBlock", "LegalDescription", "LotSizeDimensions", "LockBoxSerialNumber", "LockBoxLocation"]);
+
+function asPrefill(row: Record<string, unknown>, columns: string[], answers: Record<string, unknown> | null, answerKeys: string[] | "all"): Prefill {
+  const out: Prefill = {};
+  for (const c of columns) {
+    const v = row[c];
+    if (v !== null && v !== undefined && v !== "") out[c] = String(v);
+  }
+  for (const [k, v] of Object.entries(answers ?? {})) {
+    if (answerKeys !== "all" && !answerKeys.includes(k)) continue;
+    if (answerKeys === "all" && NOT_COPIED.has(k)) continue;
+    if (v === null || v === undefined || v === "") continue;
+    out[`mls__${k}`] = Array.isArray(v) ? v.map(String) : String(v);
+  }
+  return out;
+}
+
+type HomeRow = Record<string, unknown> & {
+  id: string; builder_id: string; unparsed_address: string; plan_name: string | null; workflow_status: string;
+  mls_fields: Record<string, unknown> | null; communities: { name: string } | null;
+};
+
+async function loadStarters(supabase: Awaited<ReturnType<typeof createClient>>, communities: { id: string; name: string; builder_id: string }[]) {
+  const [{ data: homeRows }, { data: webRows }] = await Promise.all([
+    supabase
+      .from("homes")
+      .select("id, builder_id, unparsed_address, plan_name, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, lot_size_acres, stories, garage_spaces, year_built, public_remarks, workflow_status, mls_fields, updated_at, communities(name)")
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: false })
+      .limit(300),
+    supabase
+      .from("website_listings")
+      .select("id, builder_id, unparsed_address, city, postal_code, community_name, plan_name, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, public_remarks, status_text")
+      .is("home_id", null)
+      .is("dismissed_at", null)
+      .order("unparsed_address"),
+  ]);
+  const rows = (homeRows ?? []) as unknown as HomeRow[];
+
+  const homes: CopyOption[] = rows
+    .map((h) => ({
+      id: h.id,
+      builder_id: h.builder_id,
+      label: `${h.unparsed_address}${h.plan_name ? `, ${h.plan_name}` : ""}${h.communities ? ` (${h.communities.name})` : ""}`,
+      live: h.workflow_status === "live_on_mls",
+      values: asPrefill(h, [...SPEC_COLUMNS, "list_price", "public_remarks"], h.mls_fields, "all"),
+    }))
+    .sort((a, b) => Number(b.live) - Number(a.live));
+
+  // A plan's specs come from the most recently updated home built on it.
+  const plans: PlanOption[] = [];
+  const seen = new Set<string>();
+  for (const h of rows) {
+    if (!h.plan_name) continue;
+    const key = `${h.builder_id}:${h.plan_name.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    plans.push({ builder_id: h.builder_id, plan: h.plan_name, from: h.unparsed_address, values: asPrefill(h, SPEC_COLUMNS.filter((c) => c !== "lot_size_acres"), h.mls_fields, PLAN_ANSWERS) });
+  }
+  plans.sort((a, b) => a.plan.localeCompare(b.plan));
+
+  const website: WebsiteOption[] = (webRows ?? []).map((w) => {
+    const c = communities.find((x) => x.builder_id === w.builder_id && x.name.toLowerCase() === (w.community_name ?? "").toLowerCase());
+    const stage = /move/i.test(w.status_text ?? "") ? "move_in_ready" : /be built|coming/i.test(w.status_text ?? "") ? "to_be_built" : "under_construction";
+    return {
+      id: w.id,
+      builder_id: w.builder_id,
+      community_id: c?.id ?? null,
+      label: `${w.unparsed_address}${w.plan_name ? `, ${w.plan_name}` : ""}${w.community_name ? ` (${w.community_name})` : ""}`,
+      values: { ...asPrefill(w, ["unparsed_address", "city", "postal_code", "plan_name", "list_price", "bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area", "public_remarks"], null, []), build_stage: stage },
+    };
+  });
+
+  return { plans, homes, website };
 }
