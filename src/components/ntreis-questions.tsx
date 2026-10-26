@@ -26,28 +26,52 @@ export function NtreisQuestions({
   canEdit?: boolean;
   extra?: Record<string, ReactNode>; // more inputs at the end of a section, by title
 }) {
-  const sections = NTREIS_SECTIONS.map((s) => ({
-    title: s.title,
-    fields: s.fields.filter((f) => f.ask && (mode === "new" || f.source === "builder")),
-  })).filter((s) => s.fields.length > 0);
-
   return (
     <>
-      {sections.map((s) => {
-        const ntreisOnly = s.fields.every((f) => f.source === "builder") && !extra[s.title];
-        return (
-          <section key={s.title} className="py-8" data-ntreis-section={ntreisOnly ? "" : undefined}>
-            <h3 className="text-lg font-semibold">{s.title}</h3>
-            <div className={cx("mt-4 grid gap-x-4 gap-y-6", mode === "new" ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3")}>
-              {s.fields.map((f) => (
-                <Question key={f.key} f={f} mode={mode} value={values[f.key]} source={sources[`mls_fields.${f.key}`]} canEdit={canEdit} />
-              ))}
-              {extra[s.title]}
-            </div>
-          </section>
-        );
-      })}
+      {questionSections(mode).map((s) => (
+        <section key={s.title} className="py-8" data-ntreis-section={s.ntreisOnly && !extra[s.title] ? "" : undefined}>
+          <h3 className="text-lg font-semibold">{s.title}</h3>
+          <SectionFields title={s.title} mode={mode} values={values} sources={sources} canEdit={canEdit} extra={extra[s.title]} />
+        </section>
+      ))}
     </>
+  );
+}
+
+// The NTREIS sections that have questions for this screen, in Matrix's order.
+// ntreisOnly: every question is an NTREIS answer (nothing to ask for another MLS).
+export function questionSections(mode: "new" | "edit") {
+  return NTREIS_SECTIONS.map((s) => {
+    const fields = s.fields.filter((f) => f.ask && (mode === "new" || f.source === "builder"));
+    return { title: s.title, fields, ntreisOnly: fields.every((f) => f.source === "builder") };
+  }).filter((s) => s.fields.length > 0);
+}
+
+// One section's questions (used one per step on Add a home).
+export function SectionFields({
+  title,
+  mode,
+  values = {},
+  sources = {},
+  canEdit = true,
+  extra,
+}: {
+  title: string;
+  mode: "new" | "edit";
+  values?: Record<string, unknown>;
+  sources?: Record<string, string>;
+  canEdit?: boolean;
+  extra?: ReactNode;
+}) {
+  const section = questionSections(mode).find((s) => s.title === title);
+  if (!section) return null;
+  return (
+    <div className={cx("mt-4 grid gap-x-4 gap-y-6", mode === "new" ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3")}>
+      {section.fields.map((f) => (
+        <Question key={f.key} f={f} mode={mode} value={values[f.key]} source={sources[`mls_fields.${f.key}`]} canEdit={canEdit} />
+      ))}
+      {extra}
+    </div>
   );
 }
 
@@ -80,10 +104,12 @@ function Question({ f, mode, value, source, canEdit }: { f: MlsField; mode: "new
   );
 
   const span = wide ? (mode === "new" ? "sm:col-span-2" : "sm:col-span-2 lg:col-span-3") : undefined;
-  if (!isAnswer) return <label className={cx("block", span)}>{body}</label>;
+  // data-required: the step bar counts what NTREIS still needs.
+  const req = f.required ? { "data-required": f.label } : {};
+  if (!isAnswer) return <label {...req} className={cx("block", span)}>{body}</label>;
   // NTREIS answers: a fieldset, so hiding it for another MLS also stops it posting.
   return (
-    <fieldset data-ntreis="" disabled={!canEdit} className={cx("min-w-0", span)}>
+    <fieldset {...req} data-ntreis="" disabled={!canEdit} className={cx("min-w-0", span)}>
       <input type="hidden" name="mls_key" value={f.key} />
       {f.type === "multi" ? <div>{body}</div> : <label className="block">{body}</label>}
     </fieldset>

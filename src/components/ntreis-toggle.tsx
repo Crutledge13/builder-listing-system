@@ -29,7 +29,11 @@ export function NtreisToggle({
         el.hidden = !ntreis;
         el.disabled = !ntreis;
       });
-      form.querySelectorAll<HTMLElement>("[data-ntreis-section]").forEach((el) => (el.hidden = !ntreis));
+      // Steps made only of NTREIS questions are skipped for other MLSs (FormSteps listens).
+      if (form.dataset.ntreis !== (ntreis ? "1" : "0")) {
+        form.dataset.ntreis = ntreis ? "1" : "0";
+        form.dispatchEvent(new CustomEvent("ntreis-change"));
+      }
       form.querySelectorAll<HTMLElement>("[data-other-mls]").forEach((el) => {
         el.hidden = ntreis;
         el.querySelectorAll<HTMLInputElement>("input, select").forEach((i) => (i.disabled = ntreis));

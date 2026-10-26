@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { canAddHomes, isStaff, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
 import { createHome } from "./actions";
-import { NtreisQuestions } from "@/components/ntreis-questions";
+import { questionSections, SectionFields } from "@/components/ntreis-questions";
+import { FormSteps } from "@/components/form-steps";
 import { NtreisToggle } from "@/components/ntreis-toggle";
 
 export default function NewHomePage(props: PageProps<"/homes/new">) {
@@ -52,17 +53,19 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
       <Link href="/homes" className="text-sm font-medium text-muted hover:text-foreground">Cancel</Link>
       <h1 className="mt-3 text-[28px] font-bold leading-tight tracking-tight">Add a home</h1>
       <p className="mt-1 text-muted">
-        It’s saved as a draft. Fill in what you know now and finish the rest later, then submit it for review.
+        Step by step, in the same order as NTREIS. It’s saved as a draft, so fill in what you know now and finish the rest later.
       </p>
 
       {typeof error === "string" && <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
 
-      <form id="new-home" action={createHome} className="mt-8 divide-y divide-line">
-        <section className="pb-8">
-          <h2 className="text-lg font-semibold">Where is it?</h2>
+      <form id="new-home" action={createHome} className="mt-8">
+        <FormSteps formId="new-home" steps={[{ title: "The home" }, ...questionSections("new").map((q) => ({ title: q.title, ntreisOnly: q.ntreisOnly }))]}>
+          <div className="divide-y divide-line">
+        <section className="pb-8 pt-4">
+          <h3 className="text-lg font-semibold">Where is it?</h3>
           <div className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium">Community</span>
+            <label data-required="Community" className="block sm:col-span-2">
+              <span className="mb-1.5 block text-sm font-medium">Community <span aria-hidden className="text-red-700">*</span></span>
               <select name="community_id" required defaultValue={typeof preset === "string" ? preset : ""} className="field-input">
                 <option value="" disabled>Choose a community</option>
                 {communities?.map((c) => (
@@ -73,7 +76,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
                 ))}
               </select>
             </label>
-            <Text name="unparsed_address" label="Street address" placeholder="1214 Pecan Ridge Dr" required wide />
+            <Text name="unparsed_address" label="Street address" placeholder="1214 Pecan Ridge Dr" required wide help="Number, street and type, e.g. 1214 Pecan Ridge Dr. We split it into Matrix’s separate street boxes." />
             <Text name="city" label="City" placeholder="Leave blank to use the community’s city" />
             <Text name="postal_code" label="ZIP" required />
             <Text name="lot_number" label="Your lot reference" placeholder="B3-L12" help="However your team refers to the lot. The plat's lot and block numbers for the MLS are asked further down." />
@@ -82,7 +85,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
         </section>
 
         <section className="py-8">
-          <h2 className="text-lg font-semibold">Which MLS?</h2>
+          <h3 className="text-lg font-semibold">Which MLS?</h3>
           <p className="mt-1 text-sm text-muted">Each MLS asks for slightly different fields, so this decides what the home needs before it can go live.</p>
           {lockedBoard ? (
             <div className="mt-4 rounded-xl bg-soft px-4 py-3 text-sm">
@@ -118,7 +121,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
         </section>
 
         <section className="py-8">
-          <h2 className="text-lg font-semibold">Build stage</h2>
+          <h3 className="text-lg font-semibold">Build stage</h3>
           <label className="mt-4 block max-w-sm">
             <select name="build_stage" defaultValue="under_construction" className="field-input">
               {Object.entries(STAGE_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
@@ -129,25 +132,25 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
           </label>
         </section>
 
-        <div className="pt-8">
-          <NtreisToggle formId="new-home" communityBoards={communityBoards} lockedBoard={lockedBoard} />
-        </div>
-
-        <NtreisQuestions
-          mode="new"
-          extra={{
-            Rooms: (
-              <div key="stories" data-other-mls="" hidden>
-                <Text name="stories" label="Stories" type="number" />
-              </div>
-            ),
-          }}
-        />
-
-        <div className="flex items-center gap-4 pt-8">
-          <button className="rounded-xl bg-accent px-6 py-3 font-semibold text-white hover:brightness-110">Save draft</button>
-          <Link href="/homes" className="font-semibold underline">Cancel</Link>
-        </div>
+            <div className="pt-6">
+              <NtreisToggle formId="new-home" communityBoards={communityBoards} lockedBoard={lockedBoard} />
+            </div>
+          </div>
+          {questionSections("new").map((q) => (
+            <SectionFields
+              key={q.title}
+              title={q.title}
+              mode="new"
+              extra={
+                q.title === "Rooms" ? (
+                  <div data-other-mls="" hidden>
+                    <Text name="stories" label="Stories" type="number" />
+                  </div>
+                ) : undefined
+              }
+            />
+          ))}
+        </FormSteps>
       </form>
     </div>
   );
@@ -155,8 +158,11 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
 
 function Text({ name, label, type = "text", step, placeholder, required, wide, help }: Input) {
   return (
-    <label className={wide ? "block sm:col-span-2" : "block"}>
-      <span className="block text-sm font-medium">{label}</span>
+    <label data-required={required ? label : undefined} className={wide ? "block sm:col-span-2" : "block"}>
+      <span className="block text-sm font-medium">
+        {label}
+        {required && <span aria-hidden className="text-red-700"> *</span>}
+      </span>
       {help && <span className="mt-0.5 block text-xs leading-snug text-muted">{help}</span>}
       <input name={name} type={type} step={step} placeholder={placeholder} required={required} className="field-input mt-1.5" />
     </label>
