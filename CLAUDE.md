@@ -129,13 +129,13 @@ Builders list their markets in `builder_settings.mls_boards` (Admin > Builders, 
 
 `home_alerts` (one open alert per home and kind; audience builder, team or both). `private.run_listing_checks()` runs hourly (pg_cron `listing-checks`) and on demand ("Run the check now" on `/compliance`): completion date passed, weekly "still available?" for live listings, builder website showing under contract/sold, MLS feed status mismatch, status changes past half or all of the MLS window, open houses within 24 hours not entered, live descriptions breaking rules, long pending. Alerts resolve themselves when fixed; builder alerts email the owner, managers and assigned salespeople; urgent team alerts email the team.
 
-Builders answer from "Needs your attention" (communities page) or the home: Still available / Under contract (date) / Sold (date and close price), via `public.confirm_availability`. Marking a live home sold or under contract creates a high-priority task due in a third of the MLS window, with the MLS deadline, and emails our team at once.
+Builders answer from "Needs your attention" (a collapsed panel showing the 6 most pressing on the communities and reports pages, the full list at `/attention`, also in the menu) or the home: Still available / Under contract (date) / Sold (date and close price), via `public.confirm_availability`. Marking a live home sold or under contract creates a high-priority task due in a third of the MLS window, with the MLS deadline, and emails our team at once.
 
 Stage triggers: a home going move-in ready automatically requests real photos; when they're delivered the representative disclaimer comes off (`media_requests_real_photos`, using the `app.system_update` flag that lets trusted database code bypass role edit rules). Stage changes on live homes already add an MLS update.
 
 ## Reports
 
-`/reports` (our team and builder owners/managers): monthly listing health per builder: homes live, days on market, price changes, approval-to-live time (`homes.approved_at`, `live_at`), website homes not on the MLS, homes sitting too long, compliance issues caught. Printable as a PDF.
+`/reports` (our team and builder owners/managers): listing health per builder for a period (last 30/90 days, a month, a year, or custom dates; `parseRange` in `src/lib/report.ts`): homes live, days on market, price changes, under contract or sold, website homes not on the MLS, homes sitting too long, compliance issues caught. Lists show 10 homes and fold the rest. Download as Excel (`/reports/export`, built with exceljs from the same `buildReport`) or print to PDF. Approval-to-live time is tracked (`homes.approved_at`, `live_at`) but not shown to builders.
 
 ## Listing status and open houses
 

@@ -5,7 +5,7 @@ import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddCommunities, isStaff } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { HomeArt } from "@/components/home-art";
-import { AlertCard, loadAlerts } from "@/components/alerts";
+import { AttentionPanel, loadAlerts } from "@/components/alerts";
 import { Notice } from "@/components/notice";
 
 export default function CommunitiesPage(props: PageProps<"/communities">) {
@@ -37,7 +37,7 @@ async function CommunityList() {
   });
 
   // Builders: what needs an answer from them (still available? completion date passed?).
-  const alerts = staff || me.role === "marketing" ? [] : await loadAlerts({ limit: 12 });
+  const alerts = staff ? [] : await loadAlerts();
   const title = me.role === "sales" ? "Your communities" : "Communities";
   const subtitle =
     me.role === "sales"
@@ -65,15 +65,7 @@ async function CommunityList() {
         </div>
       </div>
 
-      {alerts.length > 0 && (
-        <section className="mt-8">
-          <h2 className="text-[22px] font-semibold">Needs your attention <span className="font-normal text-muted">{alerts.length}</span></h2>
-          <p className="mt-1 text-sm text-muted">Quick answers keep the MLS accurate and avoid fines. Sold or under contract goes to our team right away.</p>
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {alerts.map((a) => <AlertCard key={a.id} a={a} back="/communities" canAnswer staff={false} />)}
-          </div>
-        </section>
-      )}
+      <AttentionPanel alerts={alerts} back="/communities" canAnswer={me.role !== "marketing"} staff={false} fullHref="/attention" />
 
       <div className="mt-8 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
         {communities?.map((c) => {

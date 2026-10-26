@@ -6,6 +6,7 @@ import { answerAvailability, resolveAlert } from "@/app/(app)/compliance/actions
 export type Alert = {
   id: string;
   home_id: string;
+  builder_id: string;
   kind: string;
   severity: "info" | "warning" | "urgent";
   audience: string;
@@ -15,7 +16,7 @@ export type Alert = {
   builders?: { name: string } | null;
 };
 
-export const ALERT_SELECT = "id, home_id, kind, severity, audience, message, created_at, homes(unparsed_address, list_price, workflow_status, mls_board), builders(name)";
+export const ALERT_SELECT = "id, home_id, builder_id, kind, severity, audience, message, created_at, homes(unparsed_address, list_price, workflow_status, mls_board), builders(name)";
 
 export const ALERT_TITLES: Record<string, string> = {
   availability_check: "Still available?",
@@ -31,10 +32,11 @@ export const ALERT_TITLES: Record<string, string> = {
 const STATUS_KINDS = new Set(["availability_check", "sold_signal_website", "long_pending"]);
 
 // Open alerts the signed-in person can see (the database decides which).
-export async function loadAlerts(opts: { homeId?: string; limit?: number } = {}) {
+export async function loadAlerts(opts: { homeId?: string; builderId?: string; limit?: number } = {}) {
   const supabase = await createClient();
   let q = supabase.from("home_alerts").select(ALERT_SELECT).is("resolved_at", null).order("created_at", { ascending: false });
   if (opts.homeId) q = q.eq("home_id", opts.homeId);
+  if (opts.builderId) q = q.eq("builder_id", opts.builderId);
   if (opts.limit) q = q.limit(opts.limit);
   const { data } = await q;
   const order = { urgent: 0, warning: 1, info: 2 };
@@ -104,5 +106,52 @@ export function AlertCard({ a, back, canAnswer, staff, showHome = true }: { a: A
         </form>
       )}
     </div>
+  );
+}
+
+// Collapsed by default so a page doesn't open on a wall of alerts. Shows the
+// most pressing few; the full list is a click away.
+export function AttentionPanel({
+  alerts,
+  back,
+  canAnswer,
+  staff,
+  fullHref,
+  max = 6,
+}: {
+  alerts: Alert[];
+  back: string;
+  canAnswer: boolean;
+  staff: boolean;
+  fullHref: string;
+  max?: number;
+}) {
+  if (alerts.length === 0) return null;
+  const urgent = alerts.filter((a) => a.severity === "urgent").length;
+  return (
+    <details className="group mt-6 rounded-2xl border border-line">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
+        <span className={cx("flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-sm font-bold text-white", urgent ? "bg-red-600" : "bg-amber-500")}>
+          {alerts.length}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">Needs your attention</span>
+          <span className="block text-sm text-muted">
+            {urgent ? `${urgent} urgent. ` : ""}Quick answers keep the MLS accurate and avoid fines.
+          </span>
+        </span>
+        <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden>
+          <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </summary>
+      <div className="border-t border-line p-4">
+        <div className="grid gap-3 lg:grid-cols-2">
+          {alerts.slice(0, max).map((a) => <AlertCard key={a.id} a={a} back={back} canAnswer={canAnswer} staff={staff} />)}
+        </div>
+        <Link href={fullHref} className="mt-4 inline-flex rounded-full border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">
+          {alerts.length > max ? `See all ${alerts.length} issues` : "Open the full list"} →
+        </Link>
+      </div>
+    </details>
   );
 }
