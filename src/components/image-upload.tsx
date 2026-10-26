@@ -14,12 +14,18 @@ export function ImageUpload({
   save,
   remove,
   hasImage,
+  maxMb = 5,
+  typesLabel = "a JPG, PNG or WebP image",
+  busyLabel = "Uploading…",
 }: {
+  maxMb?: number;
+  typesLabel?: string;
+  busyLabel?: string;
   bucket: string;
   folder: string;
   accept?: string;
   label: string;
-  save: (path: string) => Promise<{ error?: string }>;
+  save: (path: string, fileName: string) => Promise<{ error?: string }>;
   remove?: () => Promise<{ error?: string }>;
   hasImage: boolean;
 }) {
@@ -31,17 +37,17 @@ export function ImageUpload({
   async function pick(file: File | undefined) {
     if (!file) return;
     setError(null);
-    if (file.size > 5 * 1_048_576) return setError("That file is over 5 MB. Try a smaller one.");
-    if (!accept.split(",").includes(file.type)) return setError("Use a JPG, PNG or WebP image" + (accept.includes("svg") ? " (or SVG)." : "."));
+    if (file.size > maxMb * 1_048_576) return setError(`That file is over ${maxMb} MB. Try a smaller one.`);
+    if (!accept.split(",").includes(file.type)) return setError(`Use ${typesLabel}.`);
     setBusy(true);
-    const ext = file.type === "image/svg+xml" ? "svg" : (file.name.split(".").pop() ?? "jpg").toLowerCase();
+    const ext = file.type === "image/svg+xml" ? "svg" : file.type === "application/pdf" ? "pdf" : (file.name.split(".").pop() ?? "jpg").toLowerCase();
     const path = `${folder}/${crypto.randomUUID()}.${ext}`;
     const { error: upError } = await createBrowserSupabase().storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
     if (upError) {
       setBusy(false);
       return setError("The upload didn’t go through. Check your connection and try again.");
     }
-    const result = await save(path);
+    const result = await save(path, file.name);
     setBusy(false);
     if (result.error) return setError(result.error);
     if (input.current) input.current.value = "";
@@ -52,7 +58,7 @@ export function ImageUpload({
     <div>
       <div className="flex flex-wrap gap-2">
         <label className="cursor-pointer rounded-xl border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">
-          {busy ? "Uploading…" : hasImage ? `Change ${label}` : `Add ${label}`}
+          {busy ? busyLabel : hasImage ? `Change ${label}` : `Add ${label}`}
           <input ref={input} type="file" accept={accept} className="sr-only" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
         </label>
         {hasImage && remove && (
