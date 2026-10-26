@@ -229,10 +229,14 @@ export function RequestCard({
 function JobContacts({ job, team }: { job: JobInfo; team?: { email: string | null; phone: string | null } }) {
   const builder = job.builder_name.replace(" (demo)", "");
   return (
-    <div className="mt-4 rounded-xl border border-line p-3">
-      <p className="text-sm font-semibold">Questions or a problem at the home?</p>
-      {job.access_notes && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950"><b className="font-semibold">Getting in:</b> {job.access_notes}</p>}
-      <div className="mt-2 grid gap-3 text-sm sm:grid-cols-3">
+    <details className="group mt-4 rounded-xl border border-line">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-semibold hover:bg-soft">
+        Questions or a problem at the home?
+        <span className="text-muted transition-transform group-open:rotate-180" aria-hidden>▾</span>
+      </summary>
+      <div className="border-t border-line p-3">
+      {job.access_notes && <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-950"><b className="font-semibold">Getting in:</b> {job.access_notes}</p>}
+      <div className="grid gap-3 text-sm sm:grid-cols-3">
         <Contact
           heading={`${builder} shoot contact`}
           name={job.builder_contact_name}
@@ -243,7 +247,8 @@ function JobContacts({ job, team }: { job: JobInfo; team?: { email: string | nul
         <Contact heading="Requested by" name={job.requester_name} detail={job.requester_title} phone={job.requester_phone} email={job.requester_email} empty="Not available" />
         <Contact heading="Our team (scheduling, pay)" name="Builder Listings" phone={team?.phone ?? null} email={team?.email ?? null} empty="" />
       </div>
-    </div>
+      </div>
+    </details>
   );
 }
 

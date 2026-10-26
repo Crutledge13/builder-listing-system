@@ -21,6 +21,14 @@ const ROOMS: [string, string][] = [
 
 const MAX_MB = 50;
 
+// Videos don't have a room; pick what kind of video it is instead.
+const VIDEO_TYPES: { key: string; label: string; room: string | null; tag: string | null }[] = [
+  { key: "walkthrough", label: "Home walkthrough or tour", room: null, tag: "Video tour" },
+  { key: "drone", label: "Drone or aerial", room: "aerial", tag: "Drone / aerial" },
+  { key: "community", label: "Community or amenities", room: "amenity", tag: "Amenities" },
+  { key: "other", label: "Something else", room: null, tag: null },
+];
+
 // One box can take everything, or just photos (and floor plan PDFs), or just video.
 const MODES = {
   all: { accept: "image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime,application/pdf", title: "Choose photos or videos", types: "JPG, PNG, HEIC, MP4 or MOV" },
@@ -56,6 +64,7 @@ export function UploadForm({
   const [homeId, setHomeId] = useState(presetHome ?? "");
   const wholeCommunityOk = !communityWide || communityWide.includes(communityId);
   const [room, setRoom] = useState("");
+  const [videoType, setVideoType] = useState("walkthrough");
   const [tags, setTags] = useState<string[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<Record<string, "waiting" | "uploading" | "done" | "failed">>({});
@@ -101,8 +110,12 @@ export function UploadForm({
     const result = await recordUploads({
       communityId: community.id,
       homeId: homeId || null,
-      room: room || null,
-      tags,
+      ...(mode === "videos"
+        ? (() => {
+            const t = VIDEO_TYPES.find((v) => v.key === videoType) ?? VIDEO_TYPES[0];
+            return { room: t.room, tags: t.tag ? [...tags, t.tag] : tags };
+          })()
+        : { room: room || null, tags }),
       files: done,
     });
     setBusy(false);
@@ -131,12 +144,21 @@ export function UploadForm({
             {homesHere.map((h) => <option key={h.id} value={h.id}>{h.unparsed_address}</option>)}
           </select>
         </label>
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium">Room or type</span>
-          <select value={room} onChange={(e) => setRoom(e.target.value)} className="field-input">
-            {ROOMS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-        </label>
+        {mode === "videos" ? (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">What kind of video?</span>
+            <select value={videoType} onChange={(e) => setVideoType(e.target.value)} className="field-input">
+              {VIDEO_TYPES.map((v) => <option key={v.key} value={v.key}>{v.label}</option>)}
+            </select>
+          </label>
+        ) : (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">Room or type</span>
+            <select value={room} onChange={(e) => setRoom(e.target.value)} className="field-input">
+              {ROOMS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </label>
+        )}
         <div className="block">
           <span className="mb-1.5 block text-sm font-medium">Extra tags (optional)</span>
           <TagPicker list={tagList} name="upload_tag" onChange={setTags} />
