@@ -16,11 +16,11 @@ export default function LoginPage(props: PageProps<"/login">) {
         <form action={signIn} className="mt-6 space-y-4">
           <label className="block text-sm">
             <span className="mb-1 block font-medium">Email</span>
-            <input name="email" type="email" required autoComplete="email" className="field-input" />
+            <input name="email" type="email" required autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="email" className="field-input" />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">Password</span>
-            <input name="password" type="password" required autoComplete="current-password" className="field-input" />
+            <input name="password" type="password" required autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="field-input" />
           </label>
           <button className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:opacity-90">
             Sign in
