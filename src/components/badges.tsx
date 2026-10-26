@@ -1,16 +1,23 @@
 import { STATUS_LABELS, STAGE_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { cx } from "@/lib/format";
 
-const STATUS_STYLES: Record<WorkflowStatus, string> = {
-  draft: "bg-stone-100 text-stone-700",
-  in_review: "bg-amber-100 text-amber-800",
-  approved_for_mls: "bg-sky-100 text-sky-800",
-  live_on_mls: "bg-emerald-100 text-emerald-800",
+const DOT: Record<WorkflowStatus, string> = {
+  draft: "bg-stone-400",
+  in_review: "bg-amber-500",
+  approved_for_mls: "bg-[#3452c7]",
+  live_on_mls: "bg-emerald-500",
 };
 
-export function StatusBadge({ status }: { status: WorkflowStatus }) {
+// A white pill with a colored dot: reads cleanly on top of a picture or on white.
+export function StatusBadge({ status, floating }: { status: WorkflowStatus; floating?: boolean }) {
   return (
-    <span className={cx("inline-flex rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", STATUS_STYLES[status])}>
+    <span
+      className={cx(
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold text-foreground",
+        floating ? "bg-white/95 shadow-sm backdrop-blur" : "border border-line bg-white",
+      )}
+    >
+      <span className={cx("h-2 w-2 rounded-full", DOT[status])} />
       {STATUS_LABELS[status]}
     </span>
   );
@@ -22,16 +29,22 @@ export function StageText({ stage }: { stage: string }) {
 
 const SOURCE_STYLES: Record<string, string> = {
   website: "bg-violet-50 text-violet-700",
-  staff: "bg-stone-100 text-stone-600",
+  staff: "bg-soft text-muted",
   mls: "bg-emerald-50 text-emerald-700",
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  website: "From website",
+  staff: "Entered by staff",
+  mls: "From MLS",
 };
 
 // Where a field's value came from: website, staff or MLS.
 export function SourceBadge({ source }: { source?: string }) {
   if (!source) return null;
   return (
-    <span className={cx("rounded px-1.5 py-px text-[10px] font-medium uppercase tracking-wide", SOURCE_STYLES[source] ?? SOURCE_STYLES.staff)}>
-      {source === "mls" ? "MLS" : source}
+    <span className={cx("rounded-full px-2 py-px text-[11px] font-medium", SOURCE_STYLES[source] ?? SOURCE_STYLES.staff)}>
+      {SOURCE_LABELS[source] ?? source}
     </span>
   );
 }

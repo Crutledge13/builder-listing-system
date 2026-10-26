@@ -1,31 +1,41 @@
 import { Suspense } from "react";
 import { signIn } from "./actions";
+import { HomeArt } from "@/components/home-art";
+import { Logo } from "@/components/logo";
 
 export default function LoginPage(props: PageProps<"/login">) {
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
-      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-8 shadow-sm">
-        <p className="text-xs font-medium uppercase tracking-wider text-accent">Private back office</p>
-        <h1 className="mt-1 text-2xl font-semibold">Builder Listings</h1>
-        <p className="mt-2 text-sm text-muted">Sign in with the login your team gave you.</p>
+    <main className="grid flex-1 lg:grid-cols-2">
+      <div className="flex flex-col px-6 py-8 sm:px-12">
+        <Logo />
+        <div className="flex flex-1 items-center">
+          <div className="w-full max-w-sm py-12">
+            <h1 className="text-[32px] font-bold leading-tight tracking-tight">Welcome back</h1>
+            <p className="mt-2 text-muted">Sign in to manage your homes, photos and listings.</p>
 
-        <Suspense>
-          <LoginError searchParams={props.searchParams} />
-        </Suspense>
+            <Suspense>
+              <LoginError searchParams={props.searchParams} />
+            </Suspense>
 
-        <form action={signIn} className="mt-6 space-y-4">
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">Email</span>
-            <input name="email" type="email" required autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="email" className="field-input" />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">Password</span>
-            <input name="password" type="password" required autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="field-input" />
-          </label>
-          <button className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:opacity-90">
-            Sign in
-          </button>
-        </form>
+            <form action={signIn} className="mt-8 space-y-4">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium">Email</span>
+                <input name="email" type="email" required autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="email" className="field-input" />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium">Password</span>
+                <input name="password" type="password" required autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="field-input" />
+              </label>
+              <button className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white hover:brightness-110">
+                Sign in
+              </button>
+            </form>
+            <p className="mt-6 text-sm text-muted">Logins are set up by your account owner. There’s no public sign-up.</p>
+          </div>
+        </div>
+      </div>
+      <div className="relative hidden overflow-hidden lg:block">
+        <HomeArt seed="welcome-home" stories={2} scene="twilight" className="absolute inset-0 h-full w-full" />
       </div>
     </main>
   );
@@ -35,10 +45,10 @@ async function LoginError({ searchParams }: { searchParams: PageProps<"/login">[
   const { error } = await searchParams;
   if (!error) return null;
   return (
-    <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+    <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">
       {error === "no-profile"
-        ? "Your login works, but no account is set up for it yet. Ask your admin."
-        : "That email and password didn’t match."}
+        ? "Your login works, but no account is set up for it yet. Ask your account owner to add you."
+        : "That email and password don’t match. Check the password’s capital letters and try again."}
     </p>
   );
 }
