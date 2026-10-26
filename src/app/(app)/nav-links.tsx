@@ -11,11 +11,11 @@ const LINKS = [
   { href: "/media", label: "Media" },
 ];
 
-export function NavLinks() {
+export function NavLinks({ showAdmin }: { showAdmin?: boolean }) {
   const path = usePathname();
   return (
     <nav className="flex items-center gap-1 overflow-x-auto text-[15px] [scrollbar-width:none]">
-      {LINKS.map((l) => {
+      {[...LINKS, ...(showAdmin ? [{ href: "/admin", label: "Admin" }] : [])].map((l) => {
         const active = path.startsWith(l.href);
         return (
           <Link

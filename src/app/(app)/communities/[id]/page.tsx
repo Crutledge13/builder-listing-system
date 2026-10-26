@@ -9,10 +9,13 @@ import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/compo
 import { StatusChips } from "@/components/status-chips";
 import { HomeArt } from "@/components/home-art";
 import { openHouseWhen } from "@/lib/time";
+import { setAssignments } from "@/app/(app)/admin/actions";
+import { Notice } from "@/components/notice";
 
 export default function CommunityPage(props: PageProps<"/communities/[id]">) {
   return (
     <Suspense fallback={<div className="mt-16 aspect-[21/6] animate-pulse rounded-2xl bg-soft" />}>
+      <Notice searchParams={props.searchParams} />
       <CommunityDetail params={props.params} searchParams={props.searchParams} />
     </Suspense>
   );
@@ -62,6 +65,14 @@ async function CommunityDetail({
       : Promise.resolve({ data: [] as { id: string }[] }),
     supabase.from("community_assignments").select("profiles(full_name)").eq("community_id", id),
   ]);
+  const canManageTeam = ["platform_admin", "builder_owner", "manager"].includes(me.role);
+  const { data: builderSales } = canManageTeam
+    ? await supabase.from("profiles").select("id, full_name").eq("builder_id", community.builder_id).eq("role", "sales").order("full_name")
+    : { data: null };
+  const { data: thisTeam } = canManageTeam
+    ? await supabase.from("community_assignments").select("profile_id").eq("community_id", id)
+    : { data: null };
+  const onTeam = new Set((thisTeam ?? []).map((t) => t.profile_id));
 
   const counts = new Map<string, number>();
   all.forEach((h) => counts.set(h.workflow_status, (counts.get(h.workflow_status) ?? 0) + 1));
@@ -110,6 +121,28 @@ async function CommunityDetail({
           <span className="text-sm text-muted">Sales team: {salesTeam.join(", ")}</span>
         )}
       </div>
+
+      {canManageTeam && builderSales && (
+        <details className="mt-4 rounded-2xl border border-line p-4">
+          <summary className="cursor-pointer font-semibold">Manage the sales team for {community.name}</summary>
+          <p className="mt-2 text-sm text-muted">Salespeople only see the communities they’re on.</p>
+          <div className="mt-3 space-y-2">
+            {builderSales.map((p) => (
+              <form key={p.id} action={setAssignments} className="flex items-center justify-between gap-3 rounded-xl bg-soft px-3 py-2">
+                <input type="hidden" name="profile_id" value={p.id} />
+                <input type="hidden" name="scope" value={community.id} />
+                <input type="hidden" name="back" value={`/communities/${community.id}`} />
+                {!onTeam.has(p.id) && <input type="hidden" name="community_id" value={community.id} />}
+                <span className="text-sm font-medium">{p.full_name}</span>
+                <button className={onTeam.has(p.id) ? "rounded-lg border border-foreground px-3 py-1.5 text-sm font-semibold hover:bg-white" : "rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black"}>
+                  {onTeam.has(p.id) ? "Remove" : "Add to this community"}
+                </button>
+              </form>
+            ))}
+            {builderSales.length === 0 && <p className="text-sm text-muted">This builder has no salespeople yet.</p>}
+          </div>
+        </details>
+      )}
 
       <dl className="mt-8 grid grid-cols-2 gap-6 border-y border-line py-6 sm:grid-cols-5">
         {stats.map((s) => (

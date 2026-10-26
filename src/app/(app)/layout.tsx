@@ -44,7 +44,7 @@ async function Header() {
           <Logo compact />
         </Link>
         <div className="flex min-w-0 flex-1 justify-start md:justify-center">
-          <NavLinks />
+          <NavLinks showAdmin={me.role === "platform_admin"} />
         </div>
 
         <details className="relative shrink-0">

@@ -22,7 +22,7 @@ Private back-office system for new-construction home builders in Texas. This fil
 | Listing coordinator | Our company | Enters approved listings into the MLS, logs MLS numbers |
 | Builder owner | Builder | Everything for their company, plus adding staff |
 | Manager | Builder | Edits listings, approves them for the MLS; no billing |
-| Sales | Builder | Their communities and homes: pricing, availability, status |
+| Sales | Builder | Only their assigned communities: pricing, availability, status, open houses, change requests, view and download media. Cannot add homes or upload media. |
 | Marketing | Builder | Descriptions, photos and media; no pricing changes |
 
 The permission grid in `docs/` is final once it exists; this table is the starting point.
@@ -33,7 +33,7 @@ The permission grid in `docs/` is final once it exists; this table is the starti
 2. **Permissions are enforced in the database** with Supabase row-level security (RLS), not just by hiding things on screen. Every new table gets RLS policies in the same change that creates it.
 3. **Every field records its source:** website, staff, or MLS.
 4. **Imports never silently overwrite staff edits.** New or changed data from builder websites goes to a review queue.
-5. **Media is private.** Files live in Cloudflare (R2 for photos, Stream for video), are locked by default, and are viewed through links that expire. Uploads go straight to Cloudflare, not through our server.
+5. **Media is private.** Files are locked by default and viewed only through links that expire. Uploads go straight from the browser to storage, not through our server. Target home is Cloudflare (R2 for photos, Stream for video); for the test phase, uploads use a private Supabase Storage bucket (`media`). Storage calls live in `src/app/api/media/[id]/route.ts` and `src/app/(app)/media/upload/`, so moving to Cloudflare before launch is contained.
 6. **Deletes go to a 30-day trash first**, and every change is written to the activity log.
 7. **No real builder data** goes into the system until backups and a security review are done. Until then, use realistic fake data only.
 
@@ -62,7 +62,10 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
 - `src/app/(app)/` — the signed-in screens: communities (start page) and each community's homes, all homes, home detail (edit, approvals, open houses, change requests), add a home, approvals, media library (placeholder).
-- `src/components/home-art.tsx` — drawn house pictures used until real photos exist.
+- `src/components/home-art.tsx`, `src/components/media-art.tsx` — drawn pictures (exteriors, rooms, floor plans, community scenes) for demo media. `demo-media/videos/` holds four short demo videos.
+- `src/app/(app)/media/` — media library (builder > community > home folders, room/type/tag filters, search), item page (download, tags, cover, trash), upload.
+- `src/app/api/media/[id]/route.ts` — the only way files are served: reads the media record as the signed-in user (RLS decides), then redirects to an hour-long storage link or streams a demo video.
+- `src/app/(app)/admin/` — platform admins only: overview, builders, communities (assign to a builder), people (roles, sales community assignments, invites), change-request inbox.
 - Next.js 16: middleware is called `proxy`, and Cache Components is on, so pages that read the signed-in user wrap that part in `<Suspense>`. Read `node_modules/next/dist/docs/` before using unfamiliar Next.js APIs.
 
 ## Environments
@@ -86,10 +89,19 @@ Salespeople see only the communities they're assigned to (`community_assignments
 
 White canvas, Figtree type, "bluebonnet" blue (#3452c7) as the single accent. Image-first cards like the big listing sites. Keep new screens consistent with `src/components/home-card.tsx` and the home detail page.
 
+## Media
+
+`media` rows belong to a builder, optionally a community, optionally a home (a home's builder and community are filled in automatically). Each has a room label and tags; the address, plan, community and room are added as tags automatically, and `search_text` powers search. Who sees media follows homes: staff all, builders their own, sales only their communities (plus builder-wide items). Owners, managers, marketing and our admins upload and edit. Nothing is hard-deleted; `deleted_at` is the trash.
+
+## Admin and invites
+
+Inviting people needs `SUPABASE_SERVICE_ROLE_KEY` set in Vercel (server only, never in code or the browser). Without it the invite form is off; everything else in Admin works.
+
 ## Known follow-ups
 
 - Turn on leaked-password protection in Supabase Auth before the live project goes out.
-- Media library needs Cloudflare R2/Stream connected.
-- Screen for owners and managers to assign salespeople to communities.
+- Move media storage to Cloudflare R2/Stream before launch, and add a 30-day job that purges trashed files.
+- Thumbnails and web-size copies of uploads; whole-home zip and MLS photo pack downloads.
+- AI photo tagging (Claude API) to suggest rooms and tags on upload.
 - Approved open houses should show in the listing coordinator's queue for MLS entry.
 - Field-level edit rules for homes are enforced by the `enforce_home_edit_rules` trigger; update it alongside `src/lib/permissions.ts` when the permission grid changes.

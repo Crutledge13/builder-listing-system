@@ -6,10 +6,13 @@ import { isStaff, type Role, type WorkflowStatus } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
+import { RequestsInbox } from "@/components/requests-inbox";
+import { Notice } from "@/components/notice";
 
-export default function ApprovalsPage() {
+export default function ApprovalsPage(props: PageProps<"/approvals">) {
   return (
     <Suspense fallback={<p className="text-sm text-muted">Loading…</p>}>
+      <Notice searchParams={props.searchParams} />
       <Queues />
     </Suspense>
   );
@@ -58,6 +61,15 @@ async function Queues() {
       <p className="mt-1 text-muted">Every listing moves from draft, to review, to ready for the MLS, to live.</p>
 
       <div className="mt-8 space-y-12">
+        {["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role) && (
+          <section>
+            <h2 className="text-[22px] font-semibold">Change requests</h2>
+            <p className="mt-1 text-muted">Things your team asked to fix. Make the change on the home, then mark it done.</p>
+            <div className="mt-4">
+              <RequestsInbox back="/approvals" showBuilder={isStaff(me.role)} canResolve />
+            </div>
+          </section>
+        )}
         {queuesFor(me.role).map((q) => {
           const rows = (homes ?? []).filter((h) => q.statuses.includes(h.workflow_status));
           return (
