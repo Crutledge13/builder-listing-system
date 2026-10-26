@@ -1,0 +1,40 @@
+# Practice restore (docs/backups.md): pulls the latest vault backup, restores it
+# into a scratch Supabase project and checks every table came back.
+# Runs every three months once BACKUPS_ENABLED is true, or any time by hand.
+name: Restore drill
+
+on:
+  schedule:
+    - cron: "23 14 1 1,4,7,10 *"
+  workflow_dispatch:
+    inputs:
+      backup_file:
+        description: "Backup to restore (blank = latest), e.g. database/2026/10/26/1307Z.tar.gpg"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  drill:
+    if: vars.BACKUPS_ENABLED == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      RESTORE_DB_URL: ${{ secrets.RESTORE_DB_URL }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+      B2_APP_KEY: ${{ secrets.B2_APP_KEY }}
+      B2_BUCKET: ${{ secrets.B2_BUCKET }}
+      BACKUP_FILE: ${{ github.event.inputs.backup_file }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: bash scripts/backup/install-tools.sh
+      - name: Restore and check
+        run: bash scripts/backup/restore.sh
+      - name: Report failure
+        if: failure() && env.HEALTHCHECK_URL != ''
+        run: curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL/fail" > /dev/null

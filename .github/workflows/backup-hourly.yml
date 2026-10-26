@@ -1,0 +1,80 @@
+# Backup layers 2 and 3 (see docs/backups.md).
+#
+# Every hour:
+#   1. Full database copy, encrypted, sent to Backblaze B2 (the off-site vault)
+#   2. Any new photo or video original copied to B2 (never overwritten or deleted)
+#   3. Readable copies: a Google Sheet tab per builder and a Dropbox photo mirror
+#      (each runs only once its accounts are connected)
+#
+# It runs on GitHub's computers, so it keeps working even if Supabase or
+# Vercel has a problem. It only runs on the schedule once the repository
+# variable BACKUPS_ENABLED is set to "true"; "Run workflow" works any time.
+name: Hourly backup
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    if: vars.BACKUPS_ENABLED == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+      B2_APP_KEY: ${{ secrets.B2_APP_KEY }}
+      B2_BUCKET: ${{ secrets.B2_BUCKET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_S3_ENDPOINT: ${{ secrets.SUPABASE_S3_ENDPOINT }}
+      SUPABASE_S3_REGION: ${{ secrets.SUPABASE_S3_REGION }}
+      SUPABASE_S3_KEY_ID: ${{ secrets.SUPABASE_S3_KEY_ID }}
+      SUPABASE_S3_SECRET: ${{ secrets.SUPABASE_S3_SECRET }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+      DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+      DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+      DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check settings
+        run: bash scripts/backup/check-settings.sh
+
+      - name: Install tools (Postgres 17 client, rclone)
+        run: bash scripts/backup/install-tools.sh
+
+      - name: "Layer 2: database copy to Backblaze"
+        run: bash scripts/backup/database.sh
+
+      - name: "Layer 2: photo and video originals to Backblaze"
+        if: env.SUPABASE_S3_KEY_ID != ''
+        run: bash scripts/backup/media.sh
+
+      - uses: actions/setup-node@v4
+        if: env.GOOGLE_SHEET_ID != '' || env.DROPBOX_REFRESH_TOKEN != ''
+        with:
+          node-version: 22
+
+      - name: "Layer 3: Google Sheet and Dropbox copies"
+        if: env.GOOGLE_SHEET_ID != '' || env.DROPBOX_REFRESH_TOKEN != ''
+        run: node scripts/backup/readable-copy.mjs
+
+      - name: Report success
+        if: success() && env.HEALTHCHECK_URL != ''
+        run: curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL" > /dev/null
+
+      - name: Report failure
+        if: failure() && env.HEALTHCHECK_URL != ''
+        run: curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL/fail" > /dev/null
