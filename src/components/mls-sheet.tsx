@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cx } from "@/lib/format";
-import { formatMls, resolveField, type MlsField } from "@/lib/mls-fields";
+import { formatMls, resolveField, sheetRuleProblems, type MlsField } from "@/lib/mls-fields";
 import type { MlsSheet } from "@/lib/mls-sheet";
 import { CheckOff, CopyButton } from "@/components/mls-client";
 import { MediaPicture } from "@/components/media-tile";
@@ -16,6 +16,7 @@ const FROM_TEXT: Record<string, string> = {
 export function MlsScore({ sheet, homeId, edit = true }: { sheet: MlsSheet; homeId: string; edit?: boolean }) {
   const { filled, required, missing } = sheet.score;
   const pct = Math.round((filled / required) * 100);
+  const problems = sheetRuleProblems(sheet.sections, sheet.home, sheet.homeDetails, sheet.communityDetails);
   return (
     <div className="rounded-2xl border border-line p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -30,6 +31,11 @@ export function MlsScore({ sheet, homeId, edit = true }: { sheet: MlsSheet; home
           Missing: {missing.map((f) => f.label).join(", ")}.{" "}
           {edit && <Link href={`/homes/${homeId}/mls`} className="font-semibold text-accent underline">Fill them in</Link>}
         </p>
+      )}
+      {problems.length > 0 && (
+        <ul className="mt-2 space-y-1 text-sm text-red-900">
+          {problems.map((p) => <li key={p}>✕ {p}</li>)}
+        </ul>
       )}
     </div>
   );

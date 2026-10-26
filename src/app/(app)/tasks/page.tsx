@@ -88,6 +88,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
     supabase.from("builders").select("id, name").order("name"),
   ]);
   const tasks = (rows ?? []) as unknown as Task[];
+  const { count: urgentAlerts } = await supabase.from("home_alerts").select("id", { count: "exact", head: true }).is("resolved_at", null).eq("severity", "urgent");
   const ids = tasks.map((t) => t.id);
   const { data: notes } = ids.length
     ? await supabase.from("task_notes").select("id, task_id, author_id, body, created_at").in("task_id", ids).order("created_at")
@@ -177,6 +178,13 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
           </form>
         </details>
       </div>
+
+      {(urgentAlerts ?? 0) > 0 && (
+        <Link href="/compliance" className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-red-900 hover:shadow-md">
+          <span><b>{urgentAlerts} urgent MLS compliance {urgentAlerts === 1 ? "alert" : "alerts"}</b>: sold signals, deadlines or rule problems.</span>
+          <span className="font-semibold">Open →</span>
+        </Link>
+      )}
 
       <div className="mt-6 flex flex-wrap gap-2">
         {[

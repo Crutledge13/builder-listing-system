@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
-import { formatMls, resolveField, type MlsField } from "@/lib/mls-fields";
+import { formatMls, resolveField, sheetRuleProblems, type MlsField } from "@/lib/mls-fields";
 import { loadMlsSheet, type MlsSheet } from "@/lib/mls-sheet";
 import { Notice } from "@/components/notice";
 import { MlsScore } from "@/components/mls-sheet";
@@ -47,6 +47,14 @@ async function Sheet({ params }: { params: PageProps<"/homes/[id]/mls">["params"
         </div>
       )}
       <div className="mt-6"><MlsScore sheet={sheet} homeId={id} edit={false} /></div>
+      {(() => {
+        const problems = sheetRuleProblems(sheet.sections, sheet.home, sheet.homeDetails, sheet.communityDetails);
+        return problems.length ? (
+          <ul className="mt-3 space-y-1 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-900">
+            {problems.map((p) => <li key={p}>✕ {p}</li>)}
+          </ul>
+        ) : null;
+      })()}
 
       <form action={saveMlsSheet} className="mt-6 space-y-6">
         <input type="hidden" name="home_id" value={id} />

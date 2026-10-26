@@ -117,6 +117,26 @@ Builders give the basics; our team enters listings into the MLS from a staff-onl
 
 Each task opens a **work sheet** at `/tasks/[id]`: new listings show the full sheet with copy buttons, a check-off per line, photos in MLS order and an "MLS number → mark live" box; updates show only what changed (`tasks.changes`: field, what the MLS has now, what to change it to, plus photos added/removed, recorded by `private.note_mls_change` and the `media_mls_changes` trigger); status changes show the new MLS status and the contract date or close date and price (`homes.purchase_contract_date`, `close_date`, `close_price`); open house tasks list each date. Ticked lines are saved in `tasks.checked`.
 
+## MLS per home and the readiness check
+
+`mls_boards` holds each MLS (NTREIS, HAR, Unlock MLS, SABOR): counties covered, rules (`status_change_hours`, `new_listing_hours`, `min_photos`, `min_photo_long_edge`, `remarks_max_chars`, `verified`, `source`), per-field overrides (`field_rules`: required/hidden/label by RESO name) and `extra_fields`. Only NTREIS's rules are confirmed (72-hour status changes and input, no contact info in public remarks, no compensation in any field, photo content rules, sold price required); the others are starting values marked unconfirmed. Admins edit them in Admin > MLS rules.
+
+Builders list their markets in `builder_settings.mls_boards` (Admin > Builders, set at onboarding); `mls_locked` locks every home to a single market. Communities and homes get `mls_board` from `private.suggest_mls_board` (builder's market covering the county), with an override for owners, managers and our team; a live listing can't move to another MLS. `sectionsForBoard()` in `src/lib/mls-fields.ts` builds each MLS's field list for the MLS sheet and work sheets.
+
+`public.mls_readiness(home)` returns block / warn / team items: the MLS's required builder fields, photo count and size (plan photos count when the disclaimer is on), description rules (phone, email, web address, compensation, length), and uncleared AI photo warnings. The `homes_mls_ready_guard` trigger refuses "Ready for MLS" while anything blocks. The checklist shows on the home and in the approvals queue; "I checked it: OK for the MLS" on a photo clears its AI warning.
+
+## Alerts, stage triggers and MLS compliance
+
+`home_alerts` (one open alert per home and kind; audience builder, team or both). `private.run_listing_checks()` runs hourly (pg_cron `listing-checks`) and on demand ("Run the check now" on `/compliance`): completion date passed, weekly "still available?" for live listings, builder website showing under contract/sold, MLS feed status mismatch, status changes past half or all of the MLS window, open houses within 24 hours not entered, live descriptions breaking rules, long pending. Alerts resolve themselves when fixed; builder alerts email the owner, managers and assigned salespeople; urgent team alerts email the team.
+
+Builders answer from "Needs your attention" (communities page) or the home: Still available / Under contract (date) / Sold (date and close price), via `public.confirm_availability`. Marking a live home sold or under contract creates a high-priority task due in a third of the MLS window, with the MLS deadline, and emails our team at once.
+
+Stage triggers: a home going move-in ready automatically requests real photos; when they're delivered the representative disclaimer comes off (`media_requests_real_photos`, using the `app.system_update` flag that lets trusted database code bypass role edit rules). Stage changes on live homes already add an MLS update.
+
+## Reports
+
+`/reports` (our team and builder owners/managers): monthly listing health per builder: homes live, days on market, price changes, approval-to-live time (`homes.approved_at`, `live_at`), website homes not on the MLS, homes sitting too long, compliance issues caught. Printable as a PDF.
+
 ## Listing status and open houses
 
 `homes.market_status` (active, paused, under_contract, sold, withdrawn) only applies once a home is live on the MLS. Pausing, going under contract, selling or withdrawing ends repeating open houses, cancels future ones, and adds a task to update the MLS. Repeating open houses (`open_house_series`) create dates only as far ahead as the MLS allows (`app_settings.mls_open_house_window_days`, default 28); a daily pg_cron job adds the next dates and a task for each batch.

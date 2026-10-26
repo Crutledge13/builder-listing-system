@@ -242,3 +242,28 @@ export function completeness(
 
 // Select for a home's MLS sheet.
 export const HOME_MLS_SELECT = "*, builders(name), communities(name, county)";
+
+// Rules that apply to every field our team types into the MLS (not just the
+// builder's description): no buyer-agent compensation anywhere, no contact
+// info outside agent remarks and showing instructions, and real directions.
+export function sheetRuleProblems(
+  sections: MlsSection[],
+  home: HomeForMls,
+  homeDetails: Record<string, unknown>,
+  communityDetails: Record<string, unknown>,
+): string[] {
+  const problems: string[] = [];
+  const contactOk = new Set(["PrivateRemarks", "ShowingInstructions", "ShowingContactName", "ShowingContactPhone"]);
+  for (const f of sections.flatMap((x) => x.fields)) {
+    if (f.type !== "text" && f.type !== "longtext") continue;
+    const v = resolveField(f, home, homeDetails, communityDetails).value;
+    if (typeof v !== "string" || !v) continue;
+    if (/(commission|compensation|co-?broke|bonus to (the )?(buyer|selling)|\d+(\.\d+)?\s*% (to|for) (buyer|selling))/i.test(v))
+      problems.push(`${f.label}: mentions agent compensation, which can’t appear in any MLS field.`);
+    if (!contactOk.has(f.key) && (/\(?\b\d{3}\)?[\s.-]*\d{3}[\s.-]*\d{4}\b/.test(v) || /[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test(v) || /(https?:\/\/|www\.)/i.test(v)))
+      problems.push(`${f.label}: has contact info (phone, email or website), only allowed in agent remarks and showing instructions.`);
+    if (f.key === "Directions" && /^(use )?(gps|see map|map it|google)/i.test(v.trim()))
+      problems.push("Directions: must be actual directions, not “use GPS” or “see map”.");
+  }
+  return problems;
+}

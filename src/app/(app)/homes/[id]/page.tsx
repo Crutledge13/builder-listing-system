@@ -48,6 +48,7 @@ import {
 import { MarketBadge } from "@/components/badges";
 import { DisclaimerOverlay } from "@/components/media-tile";
 import { loadMlsSheet } from "@/lib/mls-sheet";
+import { AlertCard, loadAlerts } from "@/components/alerts";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -158,6 +159,8 @@ async function HomeDetail({
       : Promise.resolve({ data: null }),
   ]);
   const mlsScore = staff ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
+  const alerts = await loadAlerts({ homeId: id });
+  const canAnswerAlerts = ["platform_admin", "listing_coordinator", "builder_owner", "manager", "sales"].includes(me.role);
 
   // Which MLS, and is the listing ready for it?
   const [{ data: boards }, { data: bset }, { data: readinessRaw }] = await Promise.all([
@@ -243,6 +246,12 @@ async function HomeDetail({
         <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           {savedText}
         </p>
+      )}
+
+      {alerts.length > 0 && (
+        <div className="mt-4 space-y-3">
+          {alerts.map((a) => <AlertCard key={a.id} a={a} back={`/homes/${home.id}`} canAnswer={canAnswerAlerts} staff={staff} showHome={false} />)}
+        </div>
       )}
 
       {/* Gallery: the cover photo large, then four more, like a listing page. */}
@@ -541,7 +550,7 @@ async function HomeDetail({
             </ul>
           </section>
 
-          <form action={saveHome} className="divide-y divide-line">
+          <form id="edit" action={saveHome} className="scroll-mt-28 divide-y divide-line">
             <input type="hidden" name="id" value={home.id} />
             {SECTIONS.map((section) => (
               <section key={section.title} className="py-8">

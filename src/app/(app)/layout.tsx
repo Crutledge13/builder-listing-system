@@ -47,7 +47,7 @@ async function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur print:hidden">
       {showDemo && (
         <div className="bg-[#fff7e6] px-4 py-1.5 text-center text-xs text-[#7a5200]">
           You’re in the demo. Every builder, home and person here is made up.

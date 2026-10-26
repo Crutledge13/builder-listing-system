@@ -73,6 +73,20 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Email log, system settings | ✅ (settings) / 👁 log | 👁 log | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Report an issue / see own reports | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
+## MLS rules, alerts and reports
+
+| Action | Admin | Coord | Owner | Mgr | Sales | Mktg | Photo |
+|---|---|---|---|---|---|---|---|
+| See MLS boards and their rules | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Edit MLS rules, fields, counties | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| Set a builder's MLS markets | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| Change which MLS a home goes to (not once live) | ✅ | ✅ | own | own | ➖ | ➖ | ➖ |
+| See readiness check | ✅ | ✅ | own | own | assigned | own | ➖ |
+| See alerts | all | all | own (not team-only) | own (not team-only) | assigned (not team-only) | own (not team-only) | ➖ |
+| Answer "still available / under contract / sold" | ✅ | ✅ | own | own | assigned | ➖ | ➖ |
+| Close alerts by hand, run the compliance check | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| Reports page | all builders | all builders | own | own | ➖ | ➖ | ➖ |
+
 ## Always true
 
 - One builder never sees another builder's homes, people, photos, website or MLS data.

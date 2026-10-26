@@ -91,3 +91,23 @@ update public.media m set mls_ready = false, ai_status = 'done', ai_at = now(),
 where m.id = (select m2.id from public.media m2 join public.homes h on h.id = m2.home_id
               where h.unparsed_address = '1260 Willow Bend Ln' and m2.kind = 'photo' and m2.room = 'living' and m2.deleted_at is null
               order by m2.sort_order limit 1);
+
+-- Compliance examples: the builder's website already shows a live home as
+-- under contract, and a live home's completion date has passed.
+update public.website_listings set status_text = 'Under contract'
+where unparsed_address = '1278 Bur Oak Ct' and status_text <> 'Under contract';
+select private.system_update_on();
+update public.homes set estimated_completion = (now() at time zone 'America/Chicago')::date - 6
+where unparsed_address = '1272 Willow Bend Ln' and build_stage <> 'move_in_ready';
+select private.system_update_off();
+select private.run_listing_checks();
+
+-- Report history: a few past price changes on live homes this month.
+insert into public.activity_log (builder_id, home_id, actor_id, action, changes, created_at)
+select h.builder_id, h.id, (select id from public.profiles where email = 'manager.mesquite@demo.test'), 'edited',
+       jsonb_build_object('list_price', jsonb_build_object('from', h.list_price + d.drop, 'to', h.list_price)),
+       now() - make_interval(days => d.days_ago)
+from public.homes h
+join (values ('1230 Sycamore Trl', 10000, 9), ('1272 Willow Bend Ln', 15000, 4), ('1278 Bur Oak Ct', 5000, 16)) as d(address, drop, days_ago)
+  on d.address = h.unparsed_address
+where not exists (select 1 from public.activity_log a where a.home_id = h.id and a.action = 'edited' and a.changes ? 'list_price');
