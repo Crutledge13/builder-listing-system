@@ -228,7 +228,22 @@ export async function setMarketStatus(formData: FormData) {
   const supabase = await createClient();
   // The database ends repeating open houses, cancels future ones, and adds a
   // task for our team to update the MLS.
-  const { data, error } = await supabase.from("homes").update({ market_status: to }).eq("id", id).select("id");
+  const patch: Record<string, string | number | null> = { market_status: to };
+  // The sale details the MLS needs for these statuses.
+  if (to === "under_contract") {
+    const d = String(formData.get("purchase_contract_date") ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) back(id, { error: "Enter the contract date." });
+    patch.purchase_contract_date = d;
+  }
+  if (to === "sold") {
+    const d = String(formData.get("close_date") ?? "");
+    const price = Number(String(formData.get("close_price") ?? "").replace(/[$,]/g, ""));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) back(id, { error: "Enter the close date." });
+    if (!price || Number.isNaN(price)) back(id, { error: "Enter the close price." });
+    patch.close_date = d;
+    patch.close_price = price;
+  }
+  const { data, error } = await supabase.from("homes").update(patch).eq("id", id).select("id");
   if (error) back(id, { error: friendly(error.message) });
   if (!data?.length) back(id, { error: "You don’t have permission to change this listing." });
   revalidatePath("/", "layout");

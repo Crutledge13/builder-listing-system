@@ -59,7 +59,7 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 ## How the code is laid out
 
 - `supabase/migrations/` — every database change, in order. The database's security rules live here. Never change the database by hand without adding a migration file.
-- `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo.
+- `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo. Then, in order: `demo_media.sql`, `demo_photo_requests.sql`, `demo_round3.sql`, `demo_mls.sql`.
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
 - `src/app/(app)/` — the signed-in screens: communities (start page, add a community) and each community's homes, all homes, home detail (edit, approvals, listing status, open houses incl. repeating, reverse prospecting, photo requests, change requests), add a home, approvals, media library, photo requests, photographer jobs and earnings, tasks (our team), team (builder owners/managers), website check, help, admin.
@@ -110,6 +110,12 @@ Inviting people needs `SUPABASE_SERVICE_ROLE_KEY` set in Vercel (server only, ne
 ## Our team's task board
 
 `tasks` (staff only) is our to-do list at `/tasks`. Database triggers add tasks on their own: approved homes (enter in MLS), edits to live listings (update MLS), listing status changes, open houses (add/remove on MLS), change requests, photo requests, reverse prospecting, and help reports. Finishing the source (e.g. delivering a reverse prospecting list) closes its task. `task_notes` holds comments.
+
+## MLS work (our team)
+
+Builders give the basics; our team enters listings into the MLS from a staff-only **MLS sheet** (`/homes/[id]/mls`). `src/lib/mls-fields.ts` lists every MLS field in NTREIS input order with RESO names and where each value comes from: the home (builder's data), `mls_details` for this home (our team), `mls_details` for the community (shared defaults like schools, HOA, utilities, showing contact), or derived. Builders can read `mls_details` but only staff write it.
+
+Each task opens a **work sheet** at `/tasks/[id]`: new listings show the full sheet with copy buttons, a check-off per line, photos in MLS order and an "MLS number → mark live" box; updates show only what changed (`tasks.changes`: field, what the MLS has now, what to change it to, plus photos added/removed, recorded by `private.note_mls_change` and the `media_mls_changes` trigger); status changes show the new MLS status and the contract date or close date and price (`homes.purchase_contract_date`, `close_date`, `close_price`); open house tasks list each date. Ticked lines are saved in `tasks.checked`.
 
 ## Listing status and open houses
 

@@ -33,6 +33,7 @@ type Task = {
   source_id: string | null;
   created_at: string;
   completed_at: string | null;
+  changes: Record<string, { label: string }>;
   homes: { unparsed_address: string } | null;
   builders: { name: string } | null;
 };
@@ -74,7 +75,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
 
   let q = supabase
     .from("tasks")
-    .select("id, kind, title, details, status, priority, due_at, home_id, builder_id, assignee_id, source_table, source_id, created_at, completed_at, homes(unparsed_address), builders(name)");
+    .select("id, kind, title, details, status, priority, due_at, home_id, builder_id, assignee_id, source_table, source_id, created_at, completed_at, changes, homes(unparsed_address), builders(name)");
   q = view === "done" ? q.in("status", ["done", "cancelled"]).order("completed_at", { ascending: false, nullsFirst: false }).limit(60) : q.in("status", ["todo", "in_progress"]);
   if (view === "mine") q = q.eq("assignee_id", me.id);
   if (kind) q = q.eq("kind", kind);
@@ -224,12 +225,23 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
                       {closed && <span className="rounded-full bg-soft px-2.5 py-1 font-semibold">{TASK_STATUS_LABELS[t.status]}</span>}
                       {t.builders && <span className="text-muted">{t.builders.name.replace(" (demo)", "")}</span>}
                     </div>
-                    <h3 className="mt-2 font-semibold leading-snug">{t.title}</h3>
+                    <h3 className="mt-2 font-semibold leading-snug">
+                      <Link href={`/tasks/${t.id}`} className="hover:underline">{t.title}</Link>
+                    </h3>
+                    {Object.keys(t.changes ?? {}).length > 0 && (
+                      <p className="mt-1 text-sm">
+                        {Object.values(t.changes).map((c) => c.label).join(", ")}
+                        <span className="text-muted"> to change</span>
+                      </p>
+                    )}
                     {t.details && <p className="mt-1 whitespace-pre-line text-sm text-muted">{t.details}</p>}
                     <p className="mt-2 text-sm">
                       {t.due_at && <span className={cx(new Date(t.due_at) < now && !closed && "font-semibold text-red-700")}>Due {whenCentral(t.due_at)}. </span>}
                       {closed && t.completed_at ? <span className="text-muted">Finished {dateTime(t.completed_at)}. </span> : <span className="text-muted">Added {dateTime(t.created_at)}. </span>}
-                      {src && <Link href={src.href} className="font-semibold text-accent hover:underline">{src.label} →</Link>}
+                      <Link href={`/tasks/${t.id}`} className="font-semibold text-accent hover:underline">
+                        {["mls_entry", "mls_update", "listing_status", "open_house_mls"].includes(t.kind) ? "Open work sheet →" : "Open →"}
+                      </Link>
+                      {src && <> <Link href={src.href} className="text-muted hover:underline">{src.label}</Link></>}
                     </p>
 
                     <div className="mt-3 flex flex-wrap items-center gap-2">

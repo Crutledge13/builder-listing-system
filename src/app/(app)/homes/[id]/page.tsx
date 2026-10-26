@@ -46,6 +46,7 @@ import {
 } from "@/lib/permissions";
 import { MarketBadge } from "@/components/badges";
 import { DisclaimerOverlay } from "@/components/media-tile";
+import { loadMlsSheet } from "@/lib/mls-sheet";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -155,6 +156,7 @@ async function HomeDetail({
       ? supabase.from("tasks").select("id, kind, title, status, due_at, priority").eq("home_id", id).in("status", ["todo", "in_progress"]).order("created_at")
       : Promise.resolve({ data: null }),
   ]);
+  const mlsScore = staff ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
   const activeSeries = (series ?? []).filter((x) => !x.ended_at);
   const mlsWindow = Number(windowSetting?.value ?? 28);
   const openReverse = (reverse ?? []).filter((r) => r.status === "requested" || r.status === "in_progress");
@@ -308,7 +310,7 @@ async function HomeDetail({
                 {homeTasks.map((t) => (
                   <li key={t.id} className={cx("flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-sm", t.priority === "high" ? "border-red-200" : "border-line")}>
                     <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">{TASK_KIND_LABELS[t.kind]}</span>
-                    <span className="min-w-0 flex-1 font-medium">{t.title}</span>
+                    <Link href={`/tasks/${t.id}`} className="min-w-0 flex-1 font-medium hover:underline">{t.title}</Link>
                     {t.status === "in_progress" && <span className="text-xs text-amber-800">In progress</span>}
                   </li>
                 ))}
@@ -645,6 +647,19 @@ async function HomeDetail({
               <p className="mt-6 rounded-xl bg-soft px-4 py-3 text-sm text-muted">{nextStepHint(status)}</p>
             )}
 
+            {mlsScore && (
+              <Link href={`/homes/${home.id}/mls`} className="mt-6 block rounded-xl border border-line p-4 hover:border-foreground">
+                <div className="flex items-baseline justify-between">
+                  <span className="font-semibold">MLS sheet</span>
+                  <span className="text-sm text-muted">{mlsScore.filled} of {mlsScore.required} required</span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-soft">
+                  <div className={cx("h-full rounded-full", mlsScore.missing.length ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${Math.round((mlsScore.filled / mlsScore.required) * 100)}%` }} />
+                </div>
+                <p className="mt-2 text-xs text-muted">Our team only. Every field the MLS needs, ready to copy.</p>
+              </Link>
+            )}
+
             {status === "live_on_mls" && marketChoices(me.role).length > 0 && (
               <div className="mt-6 border-t border-line pt-5">
                 <h4 className="text-sm font-semibold">On the market</h4>
@@ -654,15 +669,44 @@ async function HomeDetail({
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {marketChoices(me.role)
                     .filter((m) => m !== (home.market_status ?? "active"))
-                    .map((m) => (
-                      <form key={m} action={setMarketStatus}>
-                        <input type="hidden" name="id" value={home.id} />
-                        <input type="hidden" name="market_status" value={m} />
-                        <button className={cx("w-full rounded-lg px-3 py-2 text-sm font-semibold", m === "active" ? "bg-accent text-white hover:brightness-110" : "border border-line hover:border-foreground")}>
-                          {MARKET_ACTIONS[m]}
-                        </button>
-                      </form>
-                    ))}
+                    .map((m) =>
+                      m === "under_contract" || m === "sold" ? (
+                        <details key={m} className="col-span-2 rounded-lg border border-line open:border-foreground">
+                          <summary className="cursor-pointer list-none px-3 py-2 text-center text-sm font-semibold">{MARKET_ACTIONS[m]}</summary>
+                          <form action={setMarketStatus} className="space-y-2 border-t border-line p-3">
+                            <input type="hidden" name="id" value={home.id} />
+                            <input type="hidden" name="market_status" value={m} />
+                            {m === "under_contract" ? (
+                              <label className="block text-sm">
+                                <span className="mb-1 block font-medium">Contract date</span>
+                                <input type="date" name="purchase_contract_date" required className="field-input py-2" />
+                              </label>
+                            ) : (
+                              <>
+                                <label className="block text-sm">
+                                  <span className="mb-1 block font-medium">Close date</span>
+                                  <input type="date" name="close_date" required className="field-input py-2" />
+                                </label>
+                                <label className="block text-sm">
+                                  <span className="mb-1 block font-medium">Close price ($)</span>
+                                  <input name="close_price" inputMode="decimal" required defaultValue={home.list_price ?? ""} className="field-input py-2" />
+                                </label>
+                              </>
+                            )}
+                            <p className="text-xs text-muted">The MLS requires this to change the status.</p>
+                            <button className="w-full rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Save {MARKET_ACTIONS[m].toLowerCase()}</button>
+                          </form>
+                        </details>
+                      ) : (
+                        <form key={m} action={setMarketStatus}>
+                          <input type="hidden" name="id" value={home.id} />
+                          <input type="hidden" name="market_status" value={m} />
+                          <button className={cx("w-full rounded-lg px-3 py-2 text-sm font-semibold", m === "active" ? "bg-accent text-white hover:brightness-110" : "border border-line hover:border-foreground")}>
+                            {MARKET_ACTIONS[m]}
+                          </button>
+                        </form>
+                      ),
+                    )}
                 </div>
                 <p className="mt-3 text-xs text-muted">Our team gets a task to update the MLS. Pausing or ending a listing also stops its open houses.</p>
               </div>

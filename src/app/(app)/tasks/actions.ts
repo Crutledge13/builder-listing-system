@@ -96,3 +96,33 @@ export async function createTask(formData: FormData) {
   revalidatePath("/", "layout");
   back(formData, { saved: `Added: ${title}` });
 }
+
+// Tick one line of a task's work sheet as entered in the MLS (no page reload).
+export async function toggleTaskCheck(taskId: string, item: string, on: boolean) {
+  const me = await requireProfile();
+  if (!isStaff(me.role)) throw new Error("Tasks are for our team.");
+  const supabase = await createClient();
+  const { data: t } = await supabase.from("tasks").select("checked").eq("id", taskId).single();
+  if (!t) throw new Error("Task not found.");
+  const set = new Set<string>(t.checked ?? []);
+  if (on) set.add(item);
+  else set.delete(item);
+  const { error } = await supabase.from("tasks").update({ checked: [...set] }).eq("id", taskId);
+  if (error) throw new Error("Couldn’t save that.");
+  revalidatePath(`/tasks/${taskId}`);
+}
+
+// After entering a new listing: record its MLS number and mark it live.
+// That closes the "Enter in MLS" task automatically.
+export async function markListingLive(formData: FormData) {
+  await staffOnly(formData);
+  const homeId = String(formData.get("home_id"));
+  const mls = String(formData.get("mls_number") ?? "").trim();
+  if (!mls) back(formData, { error: "Enter the MLS number the MLS gave this listing." });
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("homes").update({ workflow_status: "live_on_mls", mls_number: mls }).eq("id", homeId).select("id");
+  if (error) back(formData, { error: error.message.includes("cannot") ? "Your role can’t mark this listing live." : `Couldn’t save: ${error.message}` });
+  if (!data?.length) back(formData, { error: "Couldn’t find that home." });
+  revalidatePath("/", "layout");
+  back(formData, { saved: `Live on the MLS as #${mls}. Task done.` });
+}
