@@ -1,12 +1,12 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { BuilderLogo } from "@/components/avatar";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
-import { isStaff, MARKET_LABELS, type MarketStatus } from "@/lib/permissions";
-import { cx, money } from "@/lib/format";
+import { canSeeReports, isStaff, MARKET_LABELS, type MarketStatus } from "@/lib/permissions";
+import { FilterTable, type FRow } from "@/components/filter-table";
+import { money } from "@/lib/format";
 import { TZ } from "@/lib/time";
 import { buildReport, parseRange } from "@/lib/report";
 import { PrintButton } from "@/components/print-button";
@@ -29,13 +29,13 @@ const RANGES = [
   { key: "year", label: "A year" },
   { key: "custom", label: "Custom dates" },
 ];
-const SHOW = 10; // rows before a list collapses
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: TZ });
 
 async function ReportView({ searchParams }: { searchParams: PageProps<"/reports">["searchParams"] }) {
   const me = await requireProfile();
   const staff = isStaff(me.role);
-  if (!staff && me.role !== "builder_owner" && me.role !== "manager") redirect("/communities");
+  if (!canSeeReports(me.role)) redirect("/communities");
+  const sales = me.role === "sales";
   const sp = await searchParams;
   const supabase = await createClient();
 
@@ -48,7 +48,12 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
 
   const { data: brand } = await supabase.from("builder_branding").select("logo_updated_at").eq("builder_id", builderId).maybeSingle();
   const range = parseRange(sp);
-  const [r, alerts] = await Promise.all([buildReport(supabase, builderId, range), loadAlerts({ builderId })]);
+  // Narrow to one community (salespeople only ever get their own communities).
+  const { data: communities } = await supabase.from("communities").select("id, name").eq("builder_id", builderId).order("name");
+  const communityId = typeof sp.community === "string" && (communities ?? []).some((c) => c.id === sp.community) ? sp.community : null;
+  const communityName = (communities ?? []).find((c) => c.id === communityId)?.name ?? null;
+  const [r, allAlerts] = await Promise.all([buildReport(supabase, builderId, range, { communityId }), loadAlerts({ builderId })]);
+  const alerts = communityId ? allAlerts.filter((a) => r.homeIds.includes(a.home_id)) : allAlerts;
   const stale = r.stale.filter((s) => staff || !s.staffOnly);
 
   // Pickers: the last 24 months and last 5 years.
@@ -60,6 +65,7 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
   const years = Array.from({ length: 5 }, (_, i) => String(now.getUTCFullYear() - i));
   const query = new URLSearchParams({
     ...(staff ? { builder: builderId } : {}),
+    ...(communityId ? { community: communityId } : {}),
     range: range.key,
     ...(range.key === "month" ? { month: range.month } : {}),
     ...(range.key === "year" ? { year: range.year } : {}),
@@ -75,7 +81,7 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
             {brand?.logo_updated_at && <BuilderLogo builderId={builderId} name={builderName} version={brand.logo_updated_at} className="h-10 max-w-[140px]" />}
             {builderName}
           </h1>
-          <p className="mt-1 text-muted">{range.label}</p>
+          <p className="mt-1 text-muted">{range.label}{communityName ? ` · ${communityName}` : sales ? " · your communities" : ""}</p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
           <a href={`/reports/export?${query}`} className="rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110">Download Excel</a>
@@ -90,6 +96,15 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
             <span className="mb-1 block font-medium">Builder</span>
             <select name="builder" defaultValue={builderId} className="field-input py-2">
               {builders.map((b) => <option key={b.id} value={b.id}>{b.name.replace(" (demo)", "")}</option>)}
+            </select>
+          </label>
+        )}
+        {(communities ?? []).length > 1 && (
+          <label className="text-sm">
+            <span className="mb-1 block font-medium">Community</span>
+            <select name="community" defaultValue={communityId ?? ""} className="field-input py-2">
+              <option value="">{sales ? "All my communities" : "All communities"}</option>
+              {(communities ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </label>
         )}
@@ -144,72 +159,93 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
 
       {stale.length > 0 && (
         <Section title="Needs a look" hint="Homes sitting too long, caught before anyone has to ask.">
-          <Rows
-            items={stale.map((s, i) => (
-              <li key={s.home.id + i} className="flex flex-wrap justify-between gap-2 px-4 py-2.5 text-sm">
-                <Link href={`/homes/${s.home.id}`} className="font-medium hover:underline">{s.home.unparsed_address}</Link>
-                <span className="text-amber-900">{s.why}</span>
-              </li>
-            ))}
+          <FilterTable
+            columns={[{ label: "Home" }, { label: "Community" }, { label: "Why" }]}
+            rows={stale.map((x) => ({
+              cells: [{ text: x.home.unparsed_address, href: `/homes/${x.home.id}` }, { text: x.home.communities?.name ?? "" }, { text: x.why, tone: "warn" }],
+              tags: tagsFor(x.home),
+            }))}
+            filters={["community", "plan"]}
+            empty="Nothing sitting too long."
           />
         </Section>
       )}
 
       <Section title="Days on market" hint="Every listing live at the end of the period, longest first.">
-        <Table
-          head={["Home", "Community", "Price", "Live since", "Days"]}
-          rows={r.dom.map(({ h, days }) => [
-            <Link key="a" href={`/homes/${h.id}`} className="font-medium hover:underline">{h.unparsed_address}</Link>,
-            h.communities?.name ?? "",
-            money(h.list_price),
-            shortDate(h.live_at!),
-            <span key="d" className={cx("font-semibold tabular-nums", days >= 60 && "text-amber-900")}>{days}</span>,
-          ])}
+        <FilterTable
+          columns={[{ label: "Home" }, { label: "Community" }, { label: "Price", numeric: true }, { label: "Live since" }, { label: "Days", numeric: true }]}
+          rows={r.dom.map(({ h, days }) => ({
+            cells: [
+              { text: h.unparsed_address, href: `/homes/${h.id}` },
+              { text: h.communities?.name ?? "" },
+              { text: money(h.list_price), sort: Number(h.list_price ?? 0) },
+              { text: shortDate(h.live_at!), sort: h.live_at! },
+              { text: String(days), sort: days, tone: days >= 60 ? "warn" : undefined },
+            ],
+            tags: tagsFor(h),
+          }))}
+          filters={["community", "plan", "status"]}
+          defaultSort={{ col: 4, desc: true }}
           empty="No live listings."
         />
       </Section>
 
       <Section title="Price changes" hint="Every price change in this period.">
-        <Table
-          head={["Home", "Date", "From", "To", "Change"]}
-          rows={r.prices.map((p) => [
-            <Link key="a" href={`/homes/${p.home.id}`} className="font-medium hover:underline">{p.home.unparsed_address}</Link>,
-            shortDate(p.at),
-            money(p.from),
-            money(p.to),
-            <span key="c" className={cx("font-semibold tabular-nums", p.to < p.from ? "text-red-800" : "text-emerald-800")}>{p.to < p.from ? "−" : "+"}{money(Math.abs(p.to - p.from))}</span>,
-          ])}
+        <FilterTable
+          columns={[{ label: "Home" }, { label: "Date" }, { label: "From", numeric: true }, { label: "To", numeric: true }, { label: "Change", numeric: true }]}
+          rows={r.prices.map((p) => ({
+            cells: [
+              { text: p.home.unparsed_address, href: `/homes/${p.home.id}` },
+              { text: shortDate(p.at), sort: p.at },
+              { text: money(p.from), sort: p.from },
+              { text: money(p.to), sort: p.to },
+              { text: `${p.to < p.from ? "−" : "+"}${money(Math.abs(p.to - p.from))}`, sort: p.to - p.from, tone: p.to < p.from ? "bad" : "good" },
+            ],
+            tags: { ...tagsFor(p.home), status: p.to < p.from ? "Price drop" : "Price increase" },
+          }))}
+          filters={["community", "plan", "status"]}
+          noun="changes"
           empty="No price changes in this period."
         />
       </Section>
 
       <Section title="Under contract or sold" hint="Homes that went under contract or sold in this period.">
-        <Table
-          head={["Home", "Community", "Status", "Date", "Close price"]}
-          rows={r.contracts.map((h) => [
-            <Link key="a" href={`/homes/${h.id}`} className="font-medium hover:underline">{h.unparsed_address}</Link>,
-            h.communities?.name ?? "",
-            MARKET_LABELS[(h.market_status ?? "active") as MarketStatus],
-            shortDate(h.market_status_at!),
-            h.close_price ? money(h.close_price) : "—",
-          ])}
+        <FilterTable
+          columns={[{ label: "Home" }, { label: "Community" }, { label: "Status" }, { label: "Date" }, { label: "Close price", numeric: true }]}
+          rows={r.contracts.map((h) => ({
+            cells: [
+              { text: h.unparsed_address, href: `/homes/${h.id}` },
+              { text: h.communities?.name ?? "" },
+              { text: MARKET_LABELS[(h.market_status ?? "active") as MarketStatus] },
+              { text: shortDate(h.market_status_at!), sort: h.market_status_at! },
+              { text: h.close_price ? money(h.close_price) : "—", sort: Number(h.close_price ?? 0) },
+            ],
+            tags: tagsFor(h),
+          }))}
+          filters={["community", "plan", "status"]}
           empty="None in this period."
         />
       </Section>
 
-      <Section title="On the website but not on the MLS" hint="Homes the builder is marketing that buyers’ agents can’t find on the MLS yet.">
-        <Table
-          head={["Home", "Community", "Website price", "Website status", "Builder Listings"]}
-          rows={r.notOnMls.map((w) => [
-            w.home ? <Link key="a" href={`/homes/${w.home.id}`} className="font-medium hover:underline">{w.unparsed_address}</Link> : <span key="a" className="font-medium">{w.unparsed_address}</span>,
-            w.community_name ?? "",
-            money(w.list_price),
-            w.status_text ?? "",
-            w.home ? w.home.workflow_status.replace(/_/g, " ") : <Link key="n" href="/website-check?tab=new" className="text-accent underline">Not added yet</Link>,
-          ])}
-          empty="Every home on the website is live on the MLS."
-        />
-      </Section>
+      {!sales && (
+        <Section title="On the website but not on the MLS" hint="Homes the builder is marketing that buyers’ agents can’t find on the MLS yet.">
+          <FilterTable
+            columns={[{ label: "Home" }, { label: "Community" }, { label: "Website price", numeric: true }, { label: "Website status" }, { label: "Builder Listings" }]}
+            rows={r.notOnMls.map((w) => ({
+              cells: [
+                { text: w.unparsed_address, href: w.home ? `/homes/${w.home.id}` : undefined },
+                { text: w.community_name ?? "" },
+                { text: money(w.list_price), sort: Number(w.list_price ?? 0) },
+                { text: w.status_text ?? "" },
+                w.home ? { text: w.home.workflow_status.replace(/_/g, " ") } : { text: "Not added yet", href: "/website-check?tab=new" },
+              ],
+              tags: { community: w.community_name ?? "", status: w.home ? w.home.workflow_status.replace(/_/g, " ") : "Not added yet" },
+            }))}
+            filters={["community", "status"]}
+            empty="Every home on the website is live on the MLS."
+          />
+        </Section>
+      )}
 
       <Section title="MLS compliance" hint="Problems caught and fixed before the MLS could fine them.">
         <p className="px-4 py-3 text-sm">
@@ -222,6 +258,15 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
   );
 }
 
+// What each list can be filtered by.
+function tagsFor(h: { communities: { name: string } | null; plan_name: string | null; market_status: string | null; workflow_status: string }): FRow["tags"] {
+  return {
+    community: h.communities?.name ?? "",
+    plan: h.plan_name ?? "",
+    status: h.workflow_status === "live_on_mls" ? MARKET_LABELS[(h.market_status ?? "active") as MarketStatus] : h.workflow_status.replace(/_/g, " "),
+  };
+}
+
 function Section({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
     <section className="mt-8 overflow-hidden rounded-2xl border border-line">
@@ -231,56 +276,5 @@ function Section({ title, hint, children }: { title: string; hint: string; child
       </div>
       {children}
     </section>
-  );
-}
-
-// A list that shows the first 10 and folds the rest away.
-function Rows({ items }: { items: React.ReactNode[] }) {
-  return (
-    <>
-      <ul className="divide-y divide-line">{items.slice(0, SHOW)}</ul>
-      {items.length > SHOW && (
-        <details className="group border-t border-line">
-          <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-semibold text-accent print:hidden">
-            <span className="group-open:hidden">Show all {items.length}</span>
-            <span className="hidden group-open:inline">Show fewer</span>
-          </summary>
-          <ul className="divide-y divide-line border-t border-line">{items.slice(SHOW)}</ul>
-        </details>
-      )}
-    </>
-  );
-}
-
-function Table({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
-  if (!rows.length) return <p className="px-4 py-4 text-sm text-muted">{empty}</p>;
-  const tr = (r: React.ReactNode[], i: number) => (
-    <tr key={i}>{r.map((c, j) => <td key={j} className="px-4 py-2">{c}</td>)}</tr>
-  );
-  const table = (body: React.ReactNode[][], withHead: boolean, offset = 0) => (
-    <div className="overflow-x-auto">
-      <table className="w-full table-fixed text-sm">
-        {withHead && (
-          <thead>
-            <tr className="text-left text-xs text-muted">{head.map((h) => <th key={h} className="px-4 py-2 font-medium">{h}</th>)}</tr>
-          </thead>
-        )}
-        <tbody className="divide-y divide-line">{body.map((r, i) => tr(r, i + offset))}</tbody>
-      </table>
-    </div>
-  );
-  return (
-    <>
-      {table(rows.slice(0, SHOW), true)}
-      {rows.length > SHOW && (
-        <details className="group border-t border-line">
-          <summary className="cursor-pointer list-none px-4 py-2.5 text-sm font-semibold text-accent print:hidden">
-            <span className="group-open:hidden">Show all {rows.length} homes</span>
-            <span className="hidden group-open:inline">Show fewer</span>
-          </summary>
-          {table(rows.slice(SHOW), false, SHOW)}
-        </details>
-      )}
-    </>
   );
 }

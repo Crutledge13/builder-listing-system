@@ -19,7 +19,7 @@ export function primaryTabs(role: Role): MenuLink[] {
     { href: "/homes", label: "Homes" },
     { href: "/media", label: "Media" },
   ];
-  if (role === "builder_owner" || role === "manager") tabs.push({ href: "/reports", label: "Reports" });
+  if (role === "builder_owner" || role === "manager" || role === "sales") tabs.push({ href: "/reports", label: "Reports" });
   if (role === "marketing") tabs.push({ href: "/todo", label: "To-do" });
   if (role === "sales" || role === "marketing") tabs.push({ href: "/comps/new", label: "Request comps" });
   return tabs;

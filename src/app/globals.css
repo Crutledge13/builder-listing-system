@@ -41,6 +41,8 @@ body {
   outline-offset: 2px;
 }
 
+/* In the components layer so size and spacing utilities (w-auto, py-2…) win. */
+@layer components {
 .field-input {
   width: 100%;
   border: 1px solid #c9cdd2;
@@ -63,6 +65,7 @@ body {
   border-color: var(--line);
   color: var(--muted);
   cursor: not-allowed;
+}
 }
 
 /* Required questions: shaded in our blue until answered (FormSteps sets

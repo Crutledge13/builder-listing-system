@@ -121,6 +121,11 @@ export function canAddHomes(role: Role) {
 }
 
 // Who may upload media and edit tags (matches the database's media rules).
+// Reports: our team, owners and managers for their builder, sales for their communities.
+export function canSeeReports(role: Role) {
+  return ["platform_admin", "listing_coordinator", "builder_owner", "manager", "sales"].includes(role);
+}
+
 // The builder's own to-do board. Mirrors private.on_builder_board.
 export function canUseBuilderBoard(role: Role) {
   return ["builder_owner", "manager", "marketing"].includes(role);

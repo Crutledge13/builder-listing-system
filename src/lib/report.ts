@@ -60,6 +60,7 @@ export type ReportHome = {
   workflow_status: string;
   market_status: string | null;
   build_stage: string;
+  plan_name: string | null;
   approved_at: string | null;
   live_at: string | null;
   market_status_at: string | null;
@@ -69,22 +70,25 @@ export type ReportHome = {
   communities: { name: string } | null;
 };
 
-export async function buildReport(supabase: SupabaseClient, builderId: string, range: Range) {
+// communityId narrows everything to one community (sales only ever see their
+// own communities anyway: the database returns nothing else).
+export async function buildReport(supabase: SupabaseClient, builderId: string, range: Range, opts: { communityId?: string | null } = {}) {
   const now = new Date();
   const { start, end } = range;
   const [{ data: homeRows }, { data: priceRows }, { data: web }, { data: alertRows }] = await Promise.all([
     supabase
       .from("homes")
-      .select("id, unparsed_address, community_id, list_price, workflow_status, market_status, build_stage, approved_at, live_at, market_status_at, close_price, close_date, updated_at, communities(name)")
+      .select("id, unparsed_address, community_id, list_price, workflow_status, market_status, build_stage, plan_name, approved_at, live_at, market_status_at, close_price, close_date, updated_at, communities(name)")
       .eq("builder_id", builderId)
       .is("deleted_at", null),
     supabase.from("activity_log").select("home_id, changes, created_at").eq("builder_id", builderId).eq("action", "edited")
       .gte("created_at", start.toISOString()).lt("created_at", end.toISOString()).order("created_at"),
     supabase.from("website_listings").select("id, unparsed_address, community_name, list_price, status_text, home_id").eq("builder_id", builderId).is("dismissed_at", null),
-    supabase.from("home_alerts").select("kind, severity, created_at, resolved_at").eq("builder_id", builderId).gte("created_at", start.toISOString()).lt("created_at", end.toISOString()),
+    supabase.from("home_alerts").select("home_id, kind, severity, created_at, resolved_at").eq("builder_id", builderId).gte("created_at", start.toISOString()).lt("created_at", end.toISOString()),
   ]);
-  const homes = (homeRows ?? []) as unknown as ReportHome[];
+  const homes = ((homeRows ?? []) as unknown as ReportHome[]).filter((h) => !opts.communityId || h.community_id === opts.communityId);
   const byId = new Map(homes.map((h) => [h.id, h]));
+  const communityName = opts.communityId ? homes[0]?.communities?.name ?? null : null;
 
   // Live at the end of the range: went live by then and hadn't left the market.
   const offMarketBy = (h: ReportHome) => h.market_status && h.market_status !== "active" && h.market_status_at && new Date(h.market_status_at) <= end;
@@ -106,6 +110,7 @@ export async function buildReport(supabase: SupabaseClient, builderId: string, r
   const netPrice = prices.reduce((n, p) => n + (p.to - p.from), 0);
 
   const notOnMls = (web ?? [])
+    .filter((w) => !opts.communityId || (w.home_id ? byId.has(w.home_id) : !!communityName && w.community_name === communityName))
     .filter((w) => {
       const h = w.home_id ? byId.get(w.home_id) : null;
       if (/sold|closed/i.test(w.status_text ?? "")) return false;
@@ -129,9 +134,10 @@ export async function buildReport(supabase: SupabaseClient, builderId: string, r
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  const alerts = alertRows ?? [];
+  const alerts = (alertRows ?? []).filter((a) => !opts.communityId || byId.has(a.home_id as string));
 
   return {
+    homeIds: [...byId.keys()],
     live,
     wentLive,
     contracts,

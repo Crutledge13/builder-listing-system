@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
-import { isStaff, MARKET_LABELS, type MarketStatus, type Role } from "@/lib/permissions";
+import { canSeeReports, isStaff, MARKET_LABELS, type MarketStatus, type Role } from "@/lib/permissions";
 import { buildReport, parseRange } from "@/lib/report";
 
 // The listing health report as an Excel file. Same numbers as the page.
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   if (!me?.is_active) return new Response("Not allowed", { status: 403 });
   const role = me.role as Role;
   const staff = isStaff(role);
-  if (!staff && role !== "builder_owner" && role !== "manager") return new Response("Not allowed", { status: 403 });
+  if (!canSeeReports(role)) return new Response("Not allowed", { status: 403 });
   const builderId = staff ? sp.builder : me.builder_id;
   if (!builderId) return new Response("Pick a builder", { status: 400 });
   // The database only returns builders this person may see.
@@ -22,7 +22,11 @@ export async function GET(request: Request) {
   if (!builder) return new Response("Not found", { status: 404 });
 
   const range = parseRange(sp);
-  const r = await buildReport(supabase, builderId, range);
+  // One community, if picked (and visible to this person).
+  const { data: community } = sp.community
+    ? await supabase.from("communities").select("id, name").eq("id", sp.community).eq("builder_id", builderId).maybeSingle()
+    : { data: null };
+  const r = await buildReport(supabase, builderId, range, { communityId: community?.id ?? null });
   const name = builder.name.replace(" (demo)", "");
 
   const wb = new ExcelJS.Workbook();
