@@ -21,7 +21,9 @@ export function PhotoPackButton({
   presets,
   builderDefault = null,
   disclaimer,
+  fileBase = "/api/media/",
 }: {
+  fileBase?: string;
   name: string;
   photos: PackPhoto[];
   readme: string;
@@ -57,7 +59,7 @@ export function PhotoPackButton({
             zip.file(`${p.label}.${extFor(size.format === "original" ? "png" : size.format)}`, await renderSvg(svg, size, disclaimer));
           } else notes.push(`${p.label}: demo picture (drawn on screen, no file).`);
         } else {
-          const res = await fetch(`/api/media/${p.id}?download=1`);
+          const res = await fetch(`${fileBase}${p.id}?download=1`);
           if (!res.ok) notes.push(`${p.label}: couldn't be downloaded.`);
           else {
             const original = await res.blob();

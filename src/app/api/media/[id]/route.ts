@@ -8,10 +8,8 @@
 //
 // Query option: ?download=1 to save the file instead of viewing it.
 
-import { readFile, stat } from "node:fs/promises";
-import path from "node:path";
 import { createClient } from "@/lib/supabase/server";
-import { demoVideoFile } from "@/lib/demo-media";
+import { serveDemoVideo } from "@/lib/serve-demo-video";
 
 const LINK_SECONDS = 60 * 60;
 
@@ -34,7 +32,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .maybeSingle();
   if (!m) return new Response("Not found", { status: 404 });
 
-  const privateCache = { "Cache-Control": "private, max-age=3600" };
 
   if (m.source === "upload" && m.storage_path) {
     const ext = m.storage_path.split(".").pop() ?? "bin";
@@ -46,30 +43,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   // Demo video.
-  const videoFile = demoVideoFile(m.demo_key ?? "");
-  if (videoFile) {
-    const full = path.join(process.cwd(), "demo-media", "videos", videoFile);
-    const size = (await stat(full)).size;
-    const bytes = await readFile(full);
-    const range = request.headers.get("range");
-    const headers: Record<string, string> = {
-      "Content-Type": "video/mp4",
-      "Accept-Ranges": "bytes",
-      ...privateCache,
-    };
-    if (download) headers["Content-Disposition"] = `attachment; filename="${fileName(m.title, "mp4")}"`;
-    // Phones (Safari especially) ask for videos in pieces.
-    const match = range?.match(/bytes=(\d*)-(\d*)/);
-    if (match) {
-      const start = match[1] ? Number(match[1]) : 0;
-      const end = match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;
-      return new Response(bytes.subarray(start, end + 1), {
-        status: 206,
-        headers: { ...headers, "Content-Range": `bytes ${start}-${end}/${size}`, "Content-Length": String(end - start + 1) },
-      });
-    }
-    return new Response(bytes, { headers: { ...headers, "Content-Length": String(size) } });
-  }
+  const video = await serveDemoVideo(m.demo_key, request, download ? fileName(m.title, "mp4") : null);
+  if (video) return video;
 
   return new Response("This item has no file to download", { status: 404 });
 }

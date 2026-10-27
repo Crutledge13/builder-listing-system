@@ -38,6 +38,7 @@ import { nextSaturdayCentral, openHouseWhen } from "@/lib/time";
 import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
 import {
   canManageMedia,
+  canShareLinks,
   canRequestMedia,
   canRequestReverseProspecting,
   canScheduleOpenHouses,
@@ -55,6 +56,7 @@ import { NtreisQuestions } from "@/components/ntreis-questions";
 import { canEditMlsAnswers } from "@/lib/ntreis-form";
 import { loadListingMedia } from "@/lib/listing-media";
 import { ListingMediaPanel } from "@/components/listing-media-panel";
+import { ShareLinksPanel } from "@/components/share-links-panel";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -509,6 +511,10 @@ async function HomeDetail({
             canRequest={canRequestMedia(me.role)}
             notice={sectionNotice("listing-media")}
           />
+
+          {(canShareLinks(me.role) || isStaff(me.role)) && (
+            <ShareLinksPanel homeId={home.id} canShare={canShareLinks(me.role)} notice={sectionNotice("share")} />
+          )}
 
           {canRequestMedia(me.role) && (
           <section id="photo-requests" className="scroll-mt-28 border-b border-line py-8">

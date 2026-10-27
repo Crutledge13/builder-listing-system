@@ -121,6 +121,11 @@ export function canAddHomes(role: Role) {
 }
 
 // Who may upload media and edit tags (matches the database's media rules).
+// Realtor share links for a home. Mirrors private.can_share.
+export function canShareLinks(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
+}
+
 // Builder logo, colors and website. Mirrors private.can_edit_branding.
 export function canEditBranding(role: Role) {
   return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);

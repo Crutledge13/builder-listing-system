@@ -35,8 +35,10 @@ export async function proxy(request: NextRequest) {
   const isLogin = request.nextUrl.pathname.startsWith("/login");
   // Email confirmation links land here and sign the person in themselves.
   const isConfirm = request.nextUrl.pathname === "/auth/confirm";
+  // Realtor share links: the page checks the link's code itself (see /s/[token]).
+  const isShare = request.nextUrl.pathname.startsWith("/s/");
 
-  if (!user && !isLogin && !isConfirm) {
+  if (!user && !isLogin && !isConfirm && !isShare) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

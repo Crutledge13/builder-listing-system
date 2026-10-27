@@ -67,6 +67,8 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | See builder name, logo, shoot contact and requester contact on a job | ✅ | ✅ | own | own | ➖ | own | their jobs |
 | Download photos at any size (incl. custom) | all | all | own | own | assigned | own | jobs |
 | Add download sizes, set the builder's default size | ✅ | ➖ | own | own | ➖ | own | ➖ |
+| Make or turn off realtor share links | ✅ | ➖ | own | own | ➖ | own | ➖ |
+| See share links and who opened them | all | all | own | own | ➖ | own | ➖ |
 | See photographer pay | all | all | ➖ | ➖ | ➖ | ➖ | their own |
 | Approve / mark paid, change rates | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
 
@@ -102,6 +104,7 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 - One builder never sees another builder's homes, people, photos, website or MLS data.
 - Turned-off people can't sign in and their role gives no access.
 - Nothing is sent to the MLS by the system; our team enters it by hand.
+- Nothing is public except realtor share links: one home each, unlisted, expiring, revocable, logged.
 - Emails are read and marked sent only by our server (service key), never by signed-in users.
 
 ## Questions for the owners

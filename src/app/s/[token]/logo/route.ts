@@ -1,0 +1,12 @@
+// The builder's logo on a realtor share page (only while the link is live).
+import { createClient } from "@/lib/supabase/server";
+
+export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const supabase = await createClient();
+  const { data: path } = await supabase.rpc("share_logo", { p_token: token });
+  if (!path) return new Response("Not found", { status: 404 });
+  const { data: link } = await supabase.storage.from("branding").createSignedUrl(path as string, 3600);
+  if (!link) return new Response("Not found", { status: 404 });
+  return new Response(null, { status: 302, headers: { Location: link.signedUrl, "Cache-Control": "private, no-store" } });
+}

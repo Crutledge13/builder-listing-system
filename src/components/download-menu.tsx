@@ -17,7 +17,9 @@ export function DownloadMenu({
   builderDefault,
   disclaimer,
   offerDisclaimer,
+  fileBase = "/api/media/",
 }: {
+  fileBase?: string; // where files come from (signed-in route or a share link's)
   mediaId: string;
   fileName: string;
   demoTargetId?: string; // drawn demo picture: the element holding its <svg>
@@ -52,10 +54,10 @@ export function DownloadMenu({
       }
       // Full quality with nothing drawn on it: hand over the original file as it is.
       if (isUntouched(preset) && !strip) {
-        window.location.href = `/api/media/${mediaId}?download=1`;
+        window.location.href = `${fileBase}${mediaId}?download=1`;
         return;
       }
-      const res = await fetch(`/api/media/${mediaId}?download=1`);
+      const res = await fetch(`${fileBase}${mediaId}?download=1`);
       if (!res.ok) throw new Error("Couldn’t get the photo. Try again.");
       const file = await res.blob();
       const blob = await renderFileBlob(file, preset, strip);

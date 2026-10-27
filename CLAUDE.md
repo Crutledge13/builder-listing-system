@@ -7,6 +7,7 @@ Private back-office system for new-construction home builders in Texas. This fil
 - A private system where listing data, photos and videos are created, organized and approved.
 - Only our staff and our builder clients log in. Nothing is visible to anyone signed out.
 - **Never public-facing.** No consumer website, no public listing pages, no home-buyer accounts, no SEO or public search. The MLS is the public outlet.
+  - **One approved exception (owners, 27 Oct 2026): realtor share links.** A builder can make an expiring, unlisted link for one home so a realtor can download its photos and videos. These pages are never indexed, never listed anywhere, show only that one home, expire (30 days by default, a year at most), can be turned off at any time, and log every view and download. Nothing else may be public.
 
 ## The MLS
 
@@ -160,6 +161,10 @@ Downloads (photo page, "Download all photos" on a home's media folder, our team'
 Our team can narrow every page to one builder with the picker in the top bar (`builder_focus` cookie, `src/lib/builder-focus.ts`): tasks (plus general tasks), communities, homes, media, approvals, compliance, photo requests, and the starting builder on website check and reports. It's only a view filter; the database still decides access.
 
 Photo requests can ask for a horizontal walkthrough video (`video`) and a vertical social reel (`vertical_video`, 9:16); video uploads have a "Vertical social reel" type (tagged "Vertical reel"), picked automatically when the video is taller than wide.
+
+## Realtor share links
+
+`share_links` (one home; random 32-character `token`; `expires_at`, default 30 days, max a year; `revoked_at`; view and download counts) and `share_link_events` (each view and download). Owners, managers, marketing and our admins make and turn off links in "Share with a realtor" on each home (`src/components/share-links-panel.tsx`, `homes/[id]/share-actions.ts`); our coordinators can see them. The token, home and counts can't be changed by people (`share_links_prepare`); making and turning off links goes in the home's activity log. The public page is `/s/[token]` (`src/app/s/`, allowed signed out in `src/proxy.ts`): builder logo, the home's facts and description, listing photos (gallery with per-photo size picker and a zip), horizontal walkthrough and vertical reel videos, tour links. It reads only through `public.share_page(token)`; files come through `/s/[token]/file/[id]` (`public.share_file`, which checks the file belongs to that home and logs downloads) as hour-long storage links, and the logo through `/s/[token]/logo`. Signed-out visitors may only create storage links for files of homes with a live share link (`share_access.file_is_shared`, its own schema). Pages send `noindex` and `no-referrer` (`next.config.ts` and page metadata). What a link shows: what's on the home's listing (`listing_media`), plus the home's own videos; homes with no listing order yet show their own photos.
 
 ## Listing status and open houses
 

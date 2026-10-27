@@ -7,6 +7,21 @@ const nextConfig: NextConfig = {
   // Ship the demo videos with the media route that streams them.
   outputFileTracingIncludes: {
     "/api/media/*": ["./demo-media/**/*"],
+    "/s/*": ["./demo-media/**/*"],
+  },
+  // Realtor share pages: never in search engines, and the link's code is never
+  // passed on to other sites (e.g. when someone clicks a tour link).
+  async headers() {
+    return [
+      {
+        source: "/s/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
+      },
+    ];
   },
   partialPrefetching: true,
   turbopack: {
