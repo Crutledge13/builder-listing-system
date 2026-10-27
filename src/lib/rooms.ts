@@ -28,6 +28,7 @@ export function cleanRooms(raw: unknown): Room[] {
       RoomLevel: ROOM_LEVELS.includes(String(r.RoomLevel ?? "")) ? String(r.RoomLevel) : undefined,
       RoomLength: n(r.RoomLength),
       RoomWidth: n(r.RoomWidth),
+      ...(Array.isArray(r.RoomFeatures) && r.RoomFeatures.length ? { RoomFeatures: r.RoomFeatures.map(String).slice(0, 30) } : {}),
     }))
     .slice(0, 60);
 }

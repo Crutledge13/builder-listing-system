@@ -95,7 +95,9 @@ export async function savePlanFile(id: string, path: string, fileName: string): 
 }
 
 export async function rescanPlan(formData: FormData) {
+  const me = await requireProfile();
   const id = String(formData.get("id"));
+  if (!isStaff(me.role)) go(`/plans/${id}`, { error: "Our team changes floor plans." });
   const r = await runScan(id);
   go(`/plans/${id}`, r.error ? { error: r.error } : { saved: "Read the plan again. Check what it found." }, "#scan");
 }
@@ -119,7 +121,9 @@ export async function useScan(formData: FormData) {
 }
 
 export async function dismissScan(formData: FormData) {
+  const me = await requireProfile();
   const id = String(formData.get("id"));
+  if (!isStaff(me.role)) go(`/plans/${id}`, { error: "Our team changes floor plans." });
   const supabase = await createClient();
   await supabase.from("floor_plans").update({ scan: null }).eq("id", id);
   go(`/plans/${id}`, { saved: "Dismissed." });
