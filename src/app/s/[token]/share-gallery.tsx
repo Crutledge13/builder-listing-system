@@ -48,7 +48,7 @@ export function ShareGallery({ photos, fileBase, disclaimer, slug }: { photos: M
           <div className="grid max-h-full w-full max-w-6xl gap-4 overflow-y-auto rounded-2xl bg-white p-3 sm:p-4 lg:grid-cols-[1fr_300px]" onClick={(e) => e.stopPropagation()}>
             <div className="relative">
               <div id="share-view" className="relative aspect-[3/2] overflow-hidden rounded-xl bg-soft">
-                <MediaPicture m={m} fileBase={fileBase} className="h-full w-full object-contain" />
+                <MediaPicture m={m} size="web" fileBase={fileBase} className="h-full w-full object-contain" />
                 {disclaimer && m.kind !== "floor_plan" && <DisclaimerOverlay />}
               </div>
               <div className="mt-2 flex items-center justify-between text-sm">

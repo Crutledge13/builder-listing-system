@@ -62,3 +62,36 @@ $$;
 
 revoke execute on function public.community_media_counts(uuid[]), public.home_media_counts(uuid[]) from public, anon;
 grant execute on function public.community_media_counts(uuid[]), public.home_media_counts(uuid[]) to authenticated;
+
+-- Realtor share links get the small copies too: share_file hands back the
+-- preview paths, and the signed-out storage check accepts them for the same
+-- live links as the original.
+drop function public.share_file(text, uuid, boolean);
+create function public.share_file(p_token text, p_media uuid, p_download boolean default false)
+returns table (storage_path text, title text, source text, demo_key text, mime_type text, kind text, thumb_path text, web_path text)
+language plpgsql volatile security definer set search_path = '' as $$
+declare s public.share_links;
+begin
+  s := private.live_share(p_token);
+  if s.id is null or p_media not in (select private.shared_media_ids(s.home_id)) then return; end if;
+  if p_download then perform private.count_share(s.id, 'download', p_media); end if;
+  return query select m.storage_path, m.title, m.source, m.demo_key, m.mime_type, m.kind, m.thumb_path, m.web_path
+    from public.media m where m.id = p_media;
+end $$;
+revoke all on function public.share_file(text, uuid, boolean) from public;
+grant execute on function public.share_file(text, uuid, boolean) to anon, authenticated;
+
+create or replace function share_access.file_is_shared(p_bucket text, p_name text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select case p_bucket
+    when 'media' then exists (
+      select 1 from public.media m
+      join public.share_links s on s.revoked_at is null and s.expires_at > now()
+      where (m.storage_path = p_name or m.thumb_path = p_name or m.web_path = p_name)
+        and m.deleted_at is null and m.id in (select private.shared_media_ids(s.home_id)))
+    when 'branding' then exists (
+      select 1 from public.builder_branding bb
+      join public.share_links s on s.builder_id = bb.builder_id and s.revoked_at is null and s.expires_at > now()
+      where bb.logo_path = p_name)
+    else false end
+$$;

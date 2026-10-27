@@ -95,7 +95,7 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-8">
         {hero && (
           <div className="relative aspect-[16/9] overflow-hidden rounded-2xl bg-soft sm:aspect-[21/9]">
-            <MediaPicture m={hero} fileBase={fileBase} className="h-full w-full" />
+            <MediaPicture m={hero} size="web" fileBase={fileBase} className="h-full w-full" />
             {h.disclaimer && hero.kind !== "floor_plan" && <DisclaimerOverlay />}
           </div>
         )}
