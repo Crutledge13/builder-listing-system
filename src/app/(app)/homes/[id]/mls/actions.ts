@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { enterOwnMls } from "@/lib/mls-entry";
 import { isStaff } from "@/lib/permissions";
 import { MLS_BOARD_SELECT, sectionsForBoard, type MlsBoard, type MlsField } from "@/lib/mls-fields";
 
@@ -38,7 +39,7 @@ export async function saveMlsSheet(formData: FormData) {
     redirect(`${path}${path.includes("?") ? "&" : "?"}${new URLSearchParams(p).toString()}${hash ? `#${hash}` : ""}`);
   };
   const me = await requireProfile();
-  if (!isStaff(me.role)) go({ error: "Only our team fills in the MLS sheet." });
+  if (!isStaff(me.role) && !(await enterOwnMls(me.role, me.builder_id))) go({ error: "Only our team fills in the MLS sheet." });
 
   const supabase = await createClient();
   const { data: home } = await supabase.from("homes").select("id, community_id, mls_board").eq("id", homeId).maybeSingle();

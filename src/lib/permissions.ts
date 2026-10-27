@@ -91,6 +91,7 @@ export function isStaff(role: Role) {
 export function allowedTransitions(
   role: Role,
   from: WorkflowStatus,
+  enterOwnMls = false, // the builder enters its own listings in the MLS
 ): WorkflowStatus[] {
   if (role === "platform_admin") {
     return (["draft", "in_review", "approved_for_mls", "live_on_mls"] as const)
@@ -105,6 +106,7 @@ export function allowedTransitions(
   if (approver && from === "in_review") out.push("approved_for_mls");
   if (approver && from === "approved_for_mls") out.push("in_review");
   if (role === "listing_coordinator" && from === "approved_for_mls") out.push("live_on_mls");
+  if (enterOwnMls && ["builder_owner", "manager", "marketing"].includes(role) && from === "approved_for_mls") out.push("live_on_mls");
   return out;
 }
 

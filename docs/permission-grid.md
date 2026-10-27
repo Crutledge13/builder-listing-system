@@ -76,7 +76,10 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 
 | Action | Admin | Coord | Owner | Mgr | Sales | Mktg | Photo |
 |---|---|---|---|---|---|---|---|
-| Task board, work sheets, notes | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| Task board, work sheets, notes | ✅ | ✅ | own MLS work* | own MLS work* | ➖ | own MLS work* | ➖ |
+| Mark an approved listing live with its MLS number | ✅ | ✅ | own* | own* | ➖ | own* | ➖ |
+| Fill in the MLS sheet (schools, HOA, showing setup) | ✅ | ✅ | own* | own* | ➖ | own* | ➖ |
+| Choose who enters a builder's MLS listings | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Website check page | all | all | own | own | ➖ | own | ➖ |
 | Turn website feed on/off | ✅ | ➖ | own | own | ➖ | ➖ | ➖ |
 | Use website value / add home from website | ✅ | ➖ | own | own | ➖ | own (as draft) | ➖ |
@@ -84,6 +87,8 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Admin area (builders, people, pay, settings) | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Email log, system settings | ✅ (settings) / 👁 log | 👁 log | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Report an issue / see own reports | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+\* Only for builders set to enter their own MLS listings (software only). Full-service builders: our team.
 
 ## MLS rules, alerts and reports
 

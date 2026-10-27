@@ -240,6 +240,4 @@ create policy "shared files: live realtor share links" on storage.objects
   for select to anon using (bucket_id in ('media', 'branding') and share_access.file_is_shared(bucket_id, objects.name));
 
 -- Someone signed in to a different company can open a share link too.
-drop policy "shared files: live realtor share links" on storage.objects;
-create policy "shared files: live realtor share links" on storage.objects
-  for select to anon, authenticated using (bucket_id in ('media', 'branding') and share_access.file_is_shared(bucket_id, objects.name));
+alter policy "shared files: live realtor share links" on storage.objects to anon, authenticated;

@@ -22,7 +22,7 @@ async function Builders() {
     supabase.from("homes").select("builder_id").is("deleted_at", null),
     supabase.from("profiles").select("builder_id"),
     supabase.from("mls_boards").select("code, short_name, region").eq("active", true).order("code"),
-    supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked"),
+    supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked, mls_entry"),
   ]);
   const settingsFor = (id: string) => (settings ?? []).find((x) => x.builder_id === id);
   const tally = (rows: { builder_id: string | null }[] | null, id: string) => (rows ?? []).filter((r) => r.builder_id === id).length;
@@ -62,7 +62,18 @@ async function Builders() {
                 <input type="checkbox" name="locked" defaultChecked={settingsFor(b.id)?.mls_locked ?? true} className="h-4 w-4 accent-[#3452c7]" />
                 With one market, lock every home to it (owners, managers and our team can still override a home)
               </label>
-              <button className="mt-2 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save markets</button>
+              <fieldset className="mt-3 border-t border-line pt-3">
+                <legend className="text-sm font-medium">Who enters listings in the MLS</legend>
+                <label className="mt-1.5 flex items-start gap-2 text-sm">
+                  <input type="radio" name="mls_entry" value="our_team" defaultChecked={(settingsFor(b.id)?.mls_entry ?? "our_team") === "our_team"} className="mt-0.5 h-4 w-4 accent-[#3452c7]" />
+                  <span>Our team <span className="text-muted">(full service: MLS work comes to our task board)</span></span>
+                </label>
+                <label className="mt-1 flex items-start gap-2 text-sm">
+                  <input type="radio" name="mls_entry" value="builder" defaultChecked={settingsFor(b.id)?.mls_entry === "builder"} className="mt-0.5 h-4 w-4 accent-[#3452c7]" />
+                  <span>The builder&rsquo;s own team <span className="text-muted">(software only: their owners, managers and marketing get the MLS work sheets, notices and emails)</span></span>
+                </label>
+              </fieldset>
+              <button className="mt-2 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save MLS settings</button>
             </form>
           </div>
         ))}

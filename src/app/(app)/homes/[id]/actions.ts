@@ -5,6 +5,7 @@ import { missingBuyerAgent, readBuyerAgent } from "@/lib/buyer-agent";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { enterOwnMls } from "@/lib/mls-entry";
 import { after } from "next/server";
 import {
   allowedTransitions,
@@ -86,7 +87,7 @@ export async function changeStatus(formData: FormData) {
   const mls = String(formData.get("mls_number") ?? "").trim();
 
   const me = await requireProfile();
-  if (!allowedTransitions(me.role, from).includes(to)) {
+  if (!allowedTransitions(me.role, from, await enterOwnMls(me.role, me.builder_id)).includes(to)) {
     back(id, { error: "Your role can’t make that status change." });
   }
 

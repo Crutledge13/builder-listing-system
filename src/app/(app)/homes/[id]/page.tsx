@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { enterOwnMls } from "@/lib/mls-entry";
 import {
   allowedTransitions,
   editableFields,
@@ -176,7 +177,9 @@ async function HomeDetail({
       ? supabase.from("tasks").select("id, kind, title, status, due_at, priority").eq("home_id", id).in("status", ["todo", "in_progress"]).order("created_at")
       : Promise.resolve({ data: null }),
   ]);
-  const mlsScore = staff ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
+  // Builders who enter their own listings get the MLS sheet and the "mark live" step too.
+  const ownMls = !staff && (await enterOwnMls(me.role, me.builder_id));
+  const mlsScore = staff || ownMls ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
   const alerts = await loadAlerts({ homeId: id });
   const canAnswerAlerts = ["platform_admin", "listing_coordinator", "builder_owner", "manager", "sales"].includes(me.role);
 
@@ -241,7 +244,7 @@ async function HomeDetail({
 
   const editable = new Set(editableFields(me.role));
   const status = home.workflow_status as WorkflowStatus;
-  const transitions = allowedTransitions(me.role, status);
+  const transitions = allowedTransitions(me.role, status, ownMls);
   const sources = (home.field_sources ?? {}) as Record<string, string>;
   const error = typeof sp.error === "string" ? sp.error : null;
   const saved = typeof sp.saved === "string" ? sp.saved : null;
@@ -272,11 +275,20 @@ async function HomeDetail({
         All homes
       </Link>
 
-      <h1 className="mt-3 text-[28px] font-bold leading-tight tracking-tight">{home.unparsed_address}</h1>
-      <p className="mt-1 text-muted">
-        <Link href={`/communities/${home.community_id}`} className="font-medium text-foreground underline">{home.communities?.name}</Link>, {home.city}, TX {home.postal_code}
-        {isStaff(me.role) ? `. Built by ${home.builders?.name.replace(" (demo)", "")}` : ""}
-      </p>
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-[28px] font-bold leading-tight tracking-tight">{home.unparsed_address}</h1>
+          <p className="mt-1 text-muted">
+            <Link href={`/communities/${home.community_id}`} className="font-medium text-foreground underline">{home.communities?.name}</Link>, {home.city}, TX {home.postal_code}
+            {isStaff(me.role) ? `. Built by ${home.builders?.name.replace(" (demo)", "")}` : ""}
+          </p>
+        </div>
+        {canRequestComps(me.role) && (
+          <Link href={`/comps/new?home=${home.id}`} className="shrink-0 rounded-full border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">
+            Request comps
+          </Link>
+        )}
+      </div>
 
       {error && !at && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {saved && !at && (
@@ -934,7 +946,7 @@ async function HomeDetail({
                 })}
               </div>
             ) : (
-              <p className="mt-6 rounded-xl bg-soft px-4 py-3 text-sm text-muted">{nextStepHint(status)}</p>
+              <p className="mt-6 rounded-xl bg-soft px-4 py-3 text-sm text-muted">{nextStepHint(status, ownMls)}</p>
             )}
 
             {mlsScore && (
@@ -946,7 +958,7 @@ async function HomeDetail({
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-soft">
                   <div className={cx("h-full rounded-full", mlsScore.missing.length ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${Math.round((mlsScore.filled / mlsScore.required) * 100)}%` }} />
                 </div>
-                <p className="mt-2 text-xs text-muted">Our team only. Every field the MLS needs, ready to copy.</p>
+                <p className="mt-2 text-xs text-muted">{ownMls ? "Every field the MLS needs, ready to copy." : "Our team only. Every field the MLS needs, ready to copy."}</p>
               </Link>
             )}
 
@@ -980,11 +992,11 @@ function Field({ def, value, source, canEdit }: { def: FieldDef; value: unknown;
   );
 }
 
-function nextStepHint(status: WorkflowStatus) {
+function nextStepHint(status: WorkflowStatus, ownMls = false) {
   switch (status) {
     case "draft": return "Waiting for the builder team to submit this for review.";
     case "in_review": return "Waiting for a builder manager or owner to approve it for the MLS.";
-    case "approved_for_mls": return "Approved. Our listing coordinator will enter it into the MLS.";
+    case "approved_for_mls": return ownMls ? "Approved. It's on your MLS work list with a work sheet to copy from." : "Approved. Our listing coordinator will enter it into the MLS.";
     case "live_on_mls": return "This listing is live on the MLS.";
   }
 }

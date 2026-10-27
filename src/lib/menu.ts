@@ -3,7 +3,7 @@ import type { Role } from "@/lib/permissions";
 export type MenuLink = { href: string; label: string; hint?: string };
 
 // The few tabs that always show along the top, by role.
-export function primaryTabs(role: Role): MenuLink[] {
+export function primaryTabs(role: Role, enterOwnMls = false): MenuLink[] {
   if (role === "photographer") return [{ href: "/jobs", label: "Your jobs" }];
   if (role === "platform_admin" || role === "listing_coordinator") {
     return [
@@ -19,9 +19,9 @@ export function primaryTabs(role: Role): MenuLink[] {
     { href: "/homes", label: "Homes" },
     { href: "/media", label: "Media" },
   ];
+  if (enterOwnMls) tabs.unshift({ href: "/tasks", label: "MLS work" });
+  if (role === "builder_owner" || role === "manager" || role === "marketing") tabs.push({ href: "/todo", label: "To-do" });
   if (role === "builder_owner" || role === "manager" || role === "sales") tabs.push({ href: "/reports", label: "Reports" });
-  if (role === "marketing") tabs.push({ href: "/todo", label: "To-do" });
-  if (role === "sales" || role === "marketing") tabs.push({ href: "/comps/new", label: "Request comps" });
   return tabs;
 }
 
@@ -45,7 +45,6 @@ export function menuLinks(role: Role): MenuLink[] {
     links.push({ href: "/website-check", label: "Website check", hint: "Website, Builder Listings and MLS side by side" });
   }
   if (role === "builder_owner" || role === "manager") {
-    links.push({ href: "/todo", label: "To-do", hint: "Your team’s to-do list" });
     links.push({ href: "/team", label: "Your team", hint: "Add people and set their access" });
   }
   if (role === "platform_admin" || role === "listing_coordinator") {

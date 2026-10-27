@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { enterOwnMls } from "@/lib/mls-entry";
 import { isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
 import { formatMls, resolveField, sheetRuleProblems, type MlsField } from "@/lib/mls-fields";
@@ -23,7 +24,7 @@ export default function MlsSheetPage(props: PageProps<"/homes/[id]/mls">) {
 async function Sheet({ params }: { params: PageProps<"/homes/[id]/mls">["params"] }) {
   const { id } = await params;
   const me = await requireProfile();
-  if (!isStaff(me.role)) redirect(`/homes/${id}`);
+  if (!isStaff(me.role) && !(await enterOwnMls(me.role, me.builder_id))) redirect(`/homes/${id}`);
   const supabase = await createClient();
   const sheet = await loadMlsSheet(supabase, id);
   if (!sheet) notFound();

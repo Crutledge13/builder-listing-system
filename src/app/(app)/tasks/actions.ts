@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
+import { enterOwnMls } from "@/lib/mls-entry";
 import { centralToUtc } from "@/lib/time";
 
 function back(formData: FormData, params: Record<string, string>): never {
@@ -21,8 +22,16 @@ async function staffOnly(formData: FormData) {
   return me;
 }
 
+// Our team, or a builder that enters its own listings in the MLS (the database
+// limits them to their own MLS work).
+async function mlsWorker(formData: FormData) {
+  const me = await requireProfile();
+  if (!isStaff(me.role) && !(await enterOwnMls(me.role, me.builder_id))) back(formData, { error: "Tasks are for our team." });
+  return me;
+}
+
 export async function setTaskStatus(formData: FormData) {
-  await staffOnly(formData);
+  await mlsWorker(formData);
   const id = String(formData.get("id"));
   const status = String(formData.get("status"));
   if (!["todo", "in_progress", "done", "cancelled"].includes(status)) back(formData, { error: "Unknown status." });
@@ -42,7 +51,7 @@ export async function setTaskStatus(formData: FormData) {
 }
 
 export async function assignTask(formData: FormData) {
-  await staffOnly(formData);
+  await mlsWorker(formData);
   const id = String(formData.get("id"));
   const assignee = String(formData.get("assignee_id") ?? "") || null;
   const supabase = await createClient();
@@ -53,7 +62,7 @@ export async function assignTask(formData: FormData) {
 }
 
 export async function addTaskNote(formData: FormData) {
-  const me = await staffOnly(formData);
+  const me = await mlsWorker(formData);
   const id = String(formData.get("id"));
   const body = String(formData.get("body") ?? "").trim();
   if (!body) back(formData, { error: "Write a note first." });
@@ -100,7 +109,7 @@ export async function createTask(formData: FormData) {
 // Tick one line of a task's work sheet as entered in the MLS (no page reload).
 export async function toggleTaskCheck(taskId: string, item: string, on: boolean) {
   const me = await requireProfile();
-  if (!isStaff(me.role)) throw new Error("Tasks are for our team.");
+  if (!isStaff(me.role) && !(await enterOwnMls(me.role, me.builder_id))) throw new Error("Tasks are for our team.");
   const supabase = await createClient();
   const { data: t } = await supabase.from("tasks").select("checked").eq("id", taskId).single();
   if (!t) throw new Error("Task not found.");
@@ -115,7 +124,7 @@ export async function toggleTaskCheck(taskId: string, item: string, on: boolean)
 // After entering a new listing: record its MLS number and mark it live.
 // That closes the "Enter in MLS" task automatically.
 export async function markListingLive(formData: FormData) {
-  await staffOnly(formData);
+  await mlsWorker(formData);
   const homeId = String(formData.get("home_id"));
   const mls = String(formData.get("mls_number") ?? "").trim();
   if (!mls) back(formData, { error: "Enter the MLS number the MLS gave this listing." });

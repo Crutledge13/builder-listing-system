@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { enterOwnMls } from "@/lib/mls-entry";
 import { isStaff, TASK_KIND_LABELS, TASK_STATUS_LABELS } from "@/lib/permissions";
 import { cx, dateTime, money } from "@/lib/format";
 import { openHouseWhen, whenCentral } from "@/lib/time";
@@ -48,7 +49,8 @@ type Task = {
 async function Work({ params }: { params: PageProps<"/tasks/[id]">["params"] }) {
   const { id } = await params;
   const me = await requireProfile();
-  if (!isStaff(me.role)) redirect("/communities");
+  const ownMls = !isStaff(me.role) && (await enterOwnMls(me.role, me.builder_id));
+  if (!isStaff(me.role) && !ownMls) redirect("/communities");
   const supabase = await createClient();
   const { data } = await supabase
     .from("tasks")
@@ -62,7 +64,9 @@ async function Work({ params }: { params: PageProps<"/tasks/[id]">["params"] }) 
 
   const [sheet, { data: staff }, { data: notes }, { data: feed }] = await Promise.all([
     t.home_id ? loadMlsSheet(supabase, t.home_id) : Promise.resolve(null),
-    supabase.from("profiles").select("id, full_name").in("role", ["platform_admin", "listing_coordinator"]).eq("is_active", true).order("full_name"),
+    ownMls
+      ? supabase.from("profiles").select("id, full_name").eq("builder_id", me.builder_id!).in("role", ["builder_owner", "manager", "marketing"]).eq("is_active", true).order("full_name")
+      : supabase.from("profiles").select("id, full_name").in("role", ["platform_admin", "listing_coordinator"]).eq("is_active", true).order("full_name"),
     supabase.from("task_notes").select("id, author_id, body, created_at").eq("task_id", t.id).order("created_at"),
     t.home_id ? supabase.from("mls_listings").select("listing_id, standard_status, modification_timestamp").eq("home_id", t.home_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
@@ -72,7 +76,7 @@ async function Work({ params }: { params: PageProps<"/tasks/[id]">["params"] }) 
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link href="/tasks" className="text-sm font-medium text-muted hover:text-foreground">← Task board</Link>
+      <Link href="/tasks" className="text-sm font-medium text-muted hover:text-foreground">← {ownMls ? "MLS work" : "Task board"}</Link>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded-full bg-accent-soft px-2.5 py-1 font-semibold text-accent">{TASK_KIND_LABELS[t.kind]}</span>
@@ -118,7 +122,7 @@ async function Work({ params }: { params: PageProps<"/tasks/[id]">["params"] }) 
         <ul className="mt-3 space-y-2">
           {(notes ?? []).map((n) => (
             <li key={n.id} className="rounded-lg bg-soft px-3 py-2 text-sm">
-              <span className="font-medium">{nameOf.get(n.author_id) ?? "Team"}</span> <span className="text-muted">{dateTime(n.created_at)}</span>
+              <span className="font-medium">{nameOf.get(n.author_id) ?? (ownMls ? "Builder Listings team" : "Team")}</span> <span className="text-muted">{dateTime(n.created_at)}</span>
               <p className="whitespace-pre-line">{n.body}</p>
             </li>
           ))}

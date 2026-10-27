@@ -8,7 +8,7 @@ import { money } from "@/lib/format";
 import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
 import { cardIncentive, forHome, INCENTIVE_SELECT, type Incentive } from "@/lib/incentives";
 import { IncentiveList } from "@/components/incentive-list";
-import { canManageIncentives } from "@/lib/permissions";
+import { canManageIncentives, canRequestComps } from "@/lib/permissions";
 import { StatusChips } from "@/components/status-chips";
 import { HomeArt } from "@/components/home-art";
 import { openHouseWhen } from "@/lib/time";
@@ -124,6 +124,11 @@ async function CommunityDetail({
         <Link href={`/media?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
           Community photos and videos
         </Link>
+        {canRequestComps(me.role) && (
+          <Link href={`/comps/new?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
+            Request comps
+          </Link>
+        )}
         {salesTeam.length > 0 && me.role !== "sales" && (
           <span className="text-sm text-muted">Sales team: {salesTeam.join(", ")}</span>
         )}

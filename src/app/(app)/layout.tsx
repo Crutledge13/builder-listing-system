@@ -4,6 +4,7 @@ import { requireProfile, DEMO_USERS, demoModeOn } from "@/lib/auth";
 import { ROLE_LABELS, isStaff } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { menuLinks, primaryTabs } from "@/lib/menu";
+import { enterOwnMls } from "@/lib/mls-entry";
 import { signOut } from "../login/actions";
 import { switchDemoUser } from "./demo-actions";
 import { NavLinks } from "./nav-links";
@@ -35,6 +36,7 @@ async function Header() {
 
   // Open task count on the Tasks tab for our team, and the builder picker.
   let badges: Record<string, number> | undefined;
+  const ownMls = await enterOwnMls(me.role, me.builder_id);
   let focusBuilders: { id: string; name: string }[] = [];
   const focus = await builderFocus(me.role);
   if (isStaff(me.role)) {
@@ -44,9 +46,13 @@ async function Header() {
     const [{ count }, { data: bs }] = await Promise.all([tq, supabase.from("builders").select("id, name").order("name")]);
     badges = { "/tasks": count ?? 0 };
     focusBuilders = bs ?? [];
-  } else if (me.role === "marketing") {
-    const { count } = await (await createClient()).from("builder_tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]);
-    badges = { "/todo": count ?? 0 };
+  } else if (["builder_owner", "manager", "marketing"].includes(me.role)) {
+    const supabase = await createClient();
+    const [{ count }, { count: mls }] = await Promise.all([
+      supabase.from("builder_tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]),
+      ownMls ? supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]) : Promise.resolve({ count: 0 }),
+    ]);
+    badges = { "/todo": count ?? 0, "/tasks": mls ?? 0 };
   }
 
   // Unread notices for the bell.
@@ -70,7 +76,7 @@ async function Header() {
           </span>
         )}
         <div className="flex min-w-0 flex-1 justify-start md:justify-center">
-          <NavLinks links={primaryTabs(me.role)} badges={badges} />
+          <NavLinks links={primaryTabs(me.role, ownMls)} badges={badges} />
         </div>
         {isStaff(me.role) && focusBuilders.length > 1 && <BuilderFocusPicker builders={focusBuilders} current={focus} action={setBuilderFocus} />}
 

@@ -259,10 +259,18 @@ export async function setBuilderMarkets(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("builder_settings")
-    .upsert({ builder_id: builderId, mls_boards: markets, mls_locked: formData.get("locked") === "on", updated_at: new Date().toISOString() });
+    .upsert({
+      builder_id: builderId,
+      mls_boards: markets,
+      mls_locked: formData.get("locked") === "on",
+      mls_entry: formData.get("mls_entry") === "builder" ? "builder" : "our_team",
+      updated_at: new Date().toISOString(),
+    });
   if (error) go("/admin/builders", { error: friendly(error.message) });
   revalidatePath("/", "layout");
-  go("/admin/builders", { saved: markets.length ? `Markets saved: ${markets.join(", ")}. New communities and homes use them.` : "Markets cleared." });
+  go("/admin/builders", {
+    saved: `${markets.length ? `Markets saved: ${markets.join(", ")}.` : "Markets cleared."} ${formData.get("mls_entry") === "builder" ? "The builder enters its own MLS listings." : "Our team enters the MLS listings."}`,
+  });
 }
 
 // ---------------------------------------------------------------------------

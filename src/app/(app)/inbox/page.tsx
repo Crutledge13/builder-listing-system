@@ -21,6 +21,7 @@ const KIND_LABELS: Record<string, string> = {
   reverse_prospecting: "Reverse prospecting",
   comps: "Comps",
   incentive: "Incentive",
+  mls: "MLS work",
   task: "To-do",
 };
 

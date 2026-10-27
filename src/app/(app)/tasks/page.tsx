@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
+import { enterOwnMls } from "@/lib/mls-entry";
+
+const MLS_KINDS = ["mls_entry", "mls_update", "listing_status", "open_house_mls"];
 import { isStaff, TASK_KIND_LABELS, TASK_STATUS_LABELS } from "@/lib/permissions";
 import { cx, dateTime } from "@/lib/format";
 import { TZ, whenCentral } from "@/lib/time";
@@ -70,7 +73,9 @@ function sourceLink(t: Task) {
 
 async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["searchParams"] }) {
   const me = await requireProfile();
-  if (!isStaff(me.role)) redirect("/communities");
+  // Builders who enter their own listings work their MLS tasks here too.
+  const ownMls = !isStaff(me.role) && (await enterOwnMls(me.role, me.builder_id));
+  if (!isStaff(me.role) && !ownMls) redirect("/communities");
   const sp = await searchParams;
   const view = sp.view === "mine" || sp.view === "done" ? sp.view : "open";
   const kind = typeof sp.kind === "string" && TASK_KIND_LABELS[sp.kind] ? sp.kind : null;
@@ -88,7 +93,9 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
 
   const [{ data: rows }, { data: staff }, { data: openCounts }, { data: homes }, { data: builders }] = await Promise.all([
     q,
-    supabase.from("profiles").select("id, full_name").in("role", ["platform_admin", "listing_coordinator"]).eq("is_active", true).order("full_name"),
+    ownMls
+      ? supabase.from("profiles").select("id, full_name").eq("builder_id", me.builder_id!).in("role", ["builder_owner", "manager", "marketing"]).eq("is_active", true).order("full_name")
+      : supabase.from("profiles").select("id, full_name").in("role", ["platform_admin", "listing_coordinator"]).eq("is_active", true).order("full_name"),
     focus
       ? supabase.from("tasks").select("kind, assignee_id").in("status", ["todo", "in_progress"]).or(`builder_id.eq.${focus},builder_id.is.null`)
       : supabase.from("tasks").select("kind, assignee_id").in("status", ["todo", "in_progress"]),
@@ -96,6 +103,9 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
     supabase.from("builders").select("id, name").order("name"),
   ]);
   const tasks = (rows ?? []) as unknown as Task[];
+  // Builders who enter their own listings: our team can see that work but doesn't need to do it.
+  const { data: selfRows } = ownMls ? { data: [] } : await supabase.from("builder_settings").select("builder_id").eq("mls_entry", "builder");
+  const selfBuilders = new Set((selfRows ?? []).map((r) => r.builder_id));
   let uq = supabase.from("home_alerts").select("id", { count: "exact", head: true }).is("resolved_at", null).eq("severity", "urgent");
   if (focus) uq = uq.eq("builder_id", focus);
   const { count: urgentAlerts } = await uq;
@@ -150,11 +160,14 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold leading-tight tracking-tight">Team tasks</h1>
+          <h1 className="text-[28px] font-bold leading-tight tracking-tight">{ownMls ? "MLS work" : "Team tasks"}</h1>
           <p className="mt-1 text-muted">
-            Everything our team needs to do. New requests, approvals and open houses add tasks here on their own.
+            {ownMls
+              ? "Everything to enter or change in your MLS. Approved homes, edits to live listings, status changes and open houses land here on their own, with a work sheet to copy from. You also get a notice and an email for each."
+              : "Everything our team needs to do. New requests, approvals and open houses add tasks here on their own."}
           </p>
         </div>
+        {!ownMls && (
         <details data-popover className="relative">
           <summary className="cursor-pointer list-none rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110">+ New task</summary>
           <form action={createTask} className="card-lift absolute right-0 z-20 mt-2 w-[min(92vw,380px)] space-y-3 rounded-2xl border border-line bg-white p-4">
@@ -187,10 +200,11 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
             <button className="w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white">Add task</button>
           </form>
         </details>
+        )}
       </div>
 
       {(urgentAlerts ?? 0) > 0 && (
-        <Link href="/compliance" className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-red-900 hover:shadow-md">
+        <Link href={ownMls ? "/attention" : "/compliance"} className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-red-900 hover:shadow-md">
           <span><b>{urgentAlerts} urgent MLS compliance {urgentAlerts === 1 ? "alert" : "alerts"}</b>: sold signals, deadlines or rule problems.</span>
           <span className="font-semibold">Open →</span>
         </Link>
@@ -215,7 +229,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
         <Link href={link({ kind: null })} className={cx("shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold", !kind ? "bg-accent text-white" : "bg-soft")}>
           All kinds
         </Link>
-        {Object.entries(TASK_KIND_LABELS).map(([k, label]) => (
+        {Object.entries(TASK_KIND_LABELS).filter(([k]) => !ownMls || MLS_KINDS.includes(k)).map(([k, label]) => (
           <Link key={k} href={link({ kind: k })} className={cx("shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold", kind === k ? "bg-accent text-white" : "bg-soft")}>
             {label}
             {kindCounts.get(k) ? ` ${kindCounts.get(k)}` : ""}
@@ -242,6 +256,9 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
                       {t.status === "in_progress" && <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-900">In progress</span>}
                       {closed && <span className="rounded-full bg-soft px-2.5 py-1 font-semibold">{TASK_STATUS_LABELS[t.status]}</span>}
                       {t.builders && <span className="text-muted">{t.builders.name.replace(" (demo)", "")}</span>}
+                      {!ownMls && t.builder_id && selfBuilders.has(t.builder_id) && MLS_KINDS.includes(t.kind) && (
+                        <span className="rounded-full bg-soft px-2.5 py-1 font-semibold text-muted" title="This builder enters its own listings in the MLS">Builder enters this</span>
+                      )}
                     </div>
                     <h3 className="mt-2 font-semibold leading-snug">
                       <Link href={`/tasks/${t.id}`} className="hover:underline">{t.title}</Link>
@@ -257,7 +274,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
                       {t.due_at && <span className={cx(new Date(t.due_at) < now && !closed && "font-semibold text-red-700")}>Due {whenCentral(t.due_at)}. </span>}
                       {closed && t.completed_at ? <span className="text-muted">Finished {dateTime(t.completed_at)}. </span> : <span className="text-muted">Added {dateTime(t.created_at)}. </span>}
                       <Link href={`/tasks/${t.id}`} className="font-semibold text-accent hover:underline">
-                        {["mls_entry", "mls_update", "listing_status", "open_house_mls"].includes(t.kind) ? "Open work sheet →" : "Open →"}
+                        {MLS_KINDS.includes(t.kind) ? "Open work sheet →" : "Open →"}
                       </Link>
                       {src && <> <Link href={src.href} className="text-muted hover:underline">{src.label}</Link></>}
                     </p>
@@ -303,7 +320,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
                       <ul className="mt-2 space-y-2">
                         {taskNotes.map((n) => (
                           <li key={n.id} className="rounded-lg bg-soft px-3 py-2 text-sm">
-                            <span className="font-medium">{nameOf.get(n.author_id) ?? "Team"}</span>{" "}
+                            <span className="font-medium">{nameOf.get(n.author_id) ?? (ownMls ? "Builder Listings team" : "Team")}</span>{" "}
                             <span className="text-muted">{dateTime(n.created_at)}</span>
                             <p className="whitespace-pre-line">{n.body}</p>
                           </li>
