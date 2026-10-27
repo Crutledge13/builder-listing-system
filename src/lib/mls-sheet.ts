@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadListingMedia } from "@/lib/listing-media";
+import { cleanRooms } from "@/lib/rooms";
 import { completeness, HOME_MLS_SELECT, MLS_BOARD_SELECT, sectionsForBoard, type HomeForMls, type MlsBoard } from "@/lib/mls-fields";
 
 // Everything our team needs to enter one home on the MLS.
@@ -28,6 +29,7 @@ export async function loadMlsSheet(supabase: SupabaseClient, homeId: string) {
     tours: listing.tours,
     board,
     sections,
+    rooms: cleanRooms(((h as unknown as { mls_fields?: Record<string, unknown> | null }).mls_fields ?? {}).Rooms),
     score: completeness(h, homeDetails, communityDetails, sections),
   };
 }

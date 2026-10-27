@@ -18,6 +18,7 @@ import {
 import { sendQueuedEmails } from "@/lib/email";
 import { centralToUtc } from "@/lib/time";
 import { answerSources, canEditMlsAnswers, readMlsAnswers } from "@/lib/ntreis-form";
+import { cleanRooms, type Room } from "@/lib/rooms";
 
 const NUMERIC: HomeField[] = [
   "list_price", "bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area",
@@ -341,4 +342,32 @@ export async function setBuildStage(formData: FormData) {
   if (!data?.length) back(id, { error: "Your role can’t change the construction status.", at: "home-status" });
   revalidatePath("/", "layout");
   back(id, { saved: stage === "move_in_ready" ? "stage-ready" : "stage", at: "home-status" });
+}
+
+// Room sizes (NTREIS's room list), saved into the home's MLS answers as RESO "Rooms".
+export async function saveRooms(formData: FormData) {
+  const id = String(formData.get("id"));
+  const me = await requireProfile();
+  if (!canEditMlsAnswers(me.role)) back(id, { error: "Your role can’t change room sizes.", at: "rooms" });
+  let rooms: Room[] = [];
+  try {
+    rooms = cleanRooms(JSON.parse(String(formData.get("rooms_json") ?? "[]")));
+  } catch {
+    back(id, { error: "Couldn’t read the room list.", at: "rooms" });
+  }
+  const supabase = await createClient();
+  const { data: cur } = await supabase.from("homes").select("mls_fields, field_sources").eq("id", id).maybeSingle();
+  if (!cur) back(id, { error: "You don’t have permission to edit this home.", at: "rooms" });
+  const { data, error } = await supabase
+    .from("homes")
+    .update({
+      mls_fields: { ...((cur.mls_fields ?? {}) as Record<string, unknown>), Rooms: rooms },
+      field_sources: { ...((cur.field_sources ?? {}) as Record<string, string>), "mls_fields.Rooms": "staff" },
+    })
+    .eq("id", id)
+    .select("id");
+  if (error) back(id, { error: friendly(error.message), at: "rooms" });
+  if (!data?.length) back(id, { error: "You don’t have permission to edit this home.", at: "rooms" });
+  revalidatePath(`/homes/${id}`);
+  back(id, { saved: "1", at: "rooms" });
 }

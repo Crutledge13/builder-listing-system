@@ -7,6 +7,7 @@ import { requireProfile } from "@/lib/auth";
 import { canAddHomes, canRequestMedia, type Role } from "@/lib/permissions";
 import { detectProvider } from "@/lib/listing-media";
 import { answerSources, readMlsAnswers, storiesFromLevels } from "@/lib/ntreis-form";
+import { cleanRooms } from "@/lib/rooms";
 
 const TEXT = ["unparsed_address", "city", "postal_code", "lot_number", "plan_name", "public_remarks", "build_stage", "estimated_completion"] as const;
 const NUMBERS = ["list_price", "bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area", "lot_size_acres", "stories", "garage_spaces", "year_built"] as const;
@@ -56,6 +57,16 @@ export async function createHome(formData: FormData) {
   // The builder's NTREIS answers (only sent when the home is going to NTREIS).
   const answers = readMlsAnswers(formData);
   if (answers.badNumbers.length) fail(`${answers.badNumbers.join(", ")} must be a number.`);
+  // Room sizes (from the floor plan or typed in).
+  try {
+    const rooms = cleanRooms(JSON.parse(String(formData.get("rooms_json") ?? "[]")));
+    if (rooms.length) {
+      answers.values.Rooms = rooms;
+      answers.changed.push("Rooms");
+    }
+  } catch {
+    // An unreadable room list is just left off; rooms can be added on the home.
+  }
   if (row.stories === null && storiesFromLevels(answers.values.Levels) !== null) {
     row.stories = storiesFromLevels(answers.values.Levels);
     sources.stories = "staff";

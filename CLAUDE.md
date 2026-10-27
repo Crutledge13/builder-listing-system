@@ -60,7 +60,7 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 ## How the code is laid out
 
 - `supabase/migrations/` — every database change, in order. The database's security rules live here. Never change the database by hand without adding a migration file.
-- `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo. Then, in order: `demo_media.sql`, `demo_photo_requests.sql`, `demo_round3.sql`, `demo_mls.sql`.
+- `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo. Then, in order: `demo_media.sql`, `demo_photo_requests.sql`, `demo_round3.sql`, `demo_mls.sql`, `demo_plans.sql`.
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
 - `src/app/(app)/` — the signed-in screens: communities (start page, add a community) and each community's homes, all homes, home detail (edit, approvals, listing status, open houses incl. repeating, reverse prospecting, photo requests, change requests), add a home, approvals, media library, photo requests, photographer jobs and earnings, tasks (our team), team (builder owners/managers), website check, help, admin.
@@ -146,9 +146,25 @@ Builders answer from "Needs your attention" (a collapsed panel showing the 6 mos
 
 Stage triggers: a home going move-in ready automatically requests real photos; when they're delivered the representative disclaimer comes off (`media_requests_real_photos`, using the `app.system_update` flag that lets trusted database code bypass role edit rules). Stage changes on live homes already add an MLS update.
 
+## Inbox and deliveries
+
+`notifications` is each person's inbox (bell in the header, `/inbox`; `private.notify`, `private.notify_builder`). Finished work comes back to whoever asked: a delivered reverse prospecting list or comp report notifies and emails the requester (`private.queue_email_to`). Files delivered back are `deliverable_files` (private bucket `deliverables`, 50 MB, served by `/api/deliverables/[id]`); who sees a file follows who can see its request (`private.request_visible`, runs with the caller's own access). Our team uploads them; the "Send to {requester}" button delivers.
+
+## Comp requests
+
+"Request comps" (owners, managers, marketing, sales; a top tab for sales and marketing) opens `/comps/new`: the home or an address, community, price point, square feet, beds, baths, stories, radius, sold within, what kind (sold, active, pending), notes. `comp_requests` RLS: our team all; owners, managers and marketing their builder's; sales their own requests and their assigned communities. Each request adds a 'comps' task to our board and emails our team. Our team pulls comps and adds them on `/comps/[id]` (`comp_request_items`, staff write only) plus any files, then delivers; the requester gets a notice and email. Everything stays on the request for later.
+
+## Builder to-do board
+
+`builder_tasks` is each builder's own to-do list at `/todo` (owners, managers, marketing work it; a top tab for marketing; our staff see every board read-only as "Builders' to-do boards"). Some add themselves and close when done: photos delivered → "Review the photos", change requests, and incentives ending. People add their own, assign them (only to owners, managers or marketing at that builder; the assignee gets a notice) and set due dates and urgency.
+
+## Floor plans and room sizes
+
+`floor_plans` (one per builder plan: specs, NTREIS Levels, # living and dining areas, and a room list) is set up by our team at `/plans` (staff write; everyone at the builder reads their own). A plan file (PDF or image, private bucket `plan-files`, `/api/plan-file/[id]`) is read by Claude Sonnet 5.5 (`src/lib/plan-scan.ts`, needs `ANTHROPIC_API_KEY`); what it reads waits as `scan` until someone clicks "Use these rooms" or dismisses it. Rooms are RESO rows (RoomType from NTREIS's list, RoomLevel 1-9 or B, RoomLength, RoomWidth in feet), cleaned by `private.clean_rooms` on plans and on homes. A home's rooms live in `homes.mls_fields -> 'Rooms'`: "Room sizes" on each home (fill from the plan, then adjust; owners, managers and our admins edit, like other NTREIS answers), the Rooms step of Add a home (`RoomsEditor`, filled by "start from a floor plan" or a copied listing), and a Room sizes list with copy buttons on our MLS sheet and work sheets. "Start from a floor plan" uses the plans our team set up first, then the latest home on a plan. NTREIS homes with no rooms get a readiness warning (`rooms`).
+
 ## Reports
 
-`/reports` (our team and builder owners/managers): listing health per builder for a period (last 30/90 days, a month, a year, or custom dates; `parseRange` in `src/lib/report.ts`): homes live, days on market, price changes, under contract or sold, website homes not on the MLS, homes sitting too long, compliance issues caught. Lists show 10 homes and fold the rest. Download as Excel (`/reports/export`, built with exceljs from the same `buildReport`) or print to PDF. Approval-to-live time is tracked (`homes.approved_at`, `live_at`) but not shown to builders.
+`/reports` (our team, builder owners/managers, and salespeople for only their assigned communities; sales don't see the website section): listing health per builder for a period (last 30/90 days, a month, a year, or custom dates; `parseRange` in `src/lib/report.ts`): homes live, days on market, price changes, under contract or sold, website homes not on the MLS, homes sitting too long, compliance issues caught. A community picker narrows the whole report. Each list (`FilterTable`, `src/components/filter-table.tsx`) has its own search, community/plan/status filters and sorting, shows 10 homes and folds the rest; printing shows everything that matches. Download as Excel (`/reports/export`, built with exceljs from the same `buildReport`) or print to PDF. Approval-to-live time is tracked (`homes.approved_at`, `live_at`) but not shown to builders.
 
 ## Add a home: required answers and starting points
 

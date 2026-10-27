@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Room } from "@/lib/rooms";
 
 // "Save time: start from something" on Add a home. Fills the form from a floor
 // plan, an existing listing, or a home on the builder's website. It works on
@@ -8,8 +9,8 @@ import { useEffect, useState } from "react";
 // person typed or ticked themselves is never replaced.
 
 export type Prefill = Record<string, string | string[]>; // field name → value(s)
-export type PlanOption = { builder_id: string; plan: string; from: string; values: Prefill };
-export type CopyOption = { id: string; builder_id: string; label: string; live: boolean; values: Prefill };
+export type PlanOption = { builder_id: string; plan: string; from: string; values: Prefill; rooms?: Room[] };
+export type CopyOption = { id: string; builder_id: string; label: string; live: boolean; values: Prefill; rooms?: Room[] };
 export type WebsiteOption = { id: string; builder_id: string; community_id: string | null; label: string; values: Prefill };
 
 type Field = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
@@ -57,10 +58,15 @@ export function StartFrom({
   const builderId = communityBuilders[communityId] ?? null;
   const mine = <T extends { builder_id: string }>(list: T[]) => list.filter((x) => x.builder_id === builderId);
 
-  function fill(values: Prefill, label: string) {
+  function fill(values: Prefill, label: string, rooms?: Room[]) {
     const form = document.getElementById(formId) as HTMLFormElement | null;
     if (!form) return;
     let n = 0;
+    // Room sizes go to the room list editor on the Rooms step.
+    if (rooms?.length) {
+      form.dispatchEvent(new CustomEvent("rooms-fill", { detail: { rooms, label } }));
+      n++;
+    }
     for (const [name, v] of Object.entries(values)) {
       if (v === "" || (Array.isArray(v) && v.length === 0)) continue;
       const els = [...form.querySelectorAll<Field>(`[name="${CSS.escape(name)}"]`)].filter((e) => e.type !== "hidden" && !e.disabled);
@@ -109,7 +115,7 @@ export function StartFrom({
           options={mine(plans).map((p) => ({ id: p.plan, label: p.plan }))}
           onPick={(id) => {
             const p = mine(plans).find((x) => x.plan === id);
-            if (p) fill(p.values, `the ${p.plan} plan`);
+            if (p) fill(p.values, `the ${p.plan} plan`, p.rooms);
           }}
           off={!builderId}
         />
@@ -120,7 +126,7 @@ export function StartFrom({
           options={mine(homes).map((h) => ({ id: h.id, label: h.label + (h.live ? " · live" : "") }))}
           onPick={(id) => {
             const h = mine(homes).find((x) => x.id === id);
-            if (h) fill(h.values, h.label.split(",")[0]);
+            if (h) fill(h.values, h.label.split(",")[0], h.rooms);
           }}
           off={!builderId}
         />

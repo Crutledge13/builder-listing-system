@@ -97,7 +97,15 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | See alerts | all | all | own (not team-only) | own (not team-only) | assigned (not team-only) | own (not team-only) | ➖ |
 | Answer "still available / under contract / sold" | ✅ | ✅ | own | own | assigned | ➖ | ➖ |
 | Close alerts by hand, run the compliance check | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
-| Reports page | all builders | all builders | own | own | ➖ | ➖ | ➖ |
+| Reports page (with filters) | all builders | all builders | own | own | assigned communities | ➖ | ➖ |
+| Request comps | ✅ | ➖ | own | own | assigned | own | ➖ |
+| See comp requests and delivered comps | all | all | own | own | own requests + assigned | own | ➖ |
+| Add comps, deliver files | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| Builder to-do board (add, assign, finish) | 👁 all | 👁 all | own | own | ➖ | own | ➖ |
+| Inbox (own notices) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| See floor plans and room sizes | all | all | own | own | own | own | ➖ |
+| Set up floor plans, upload plan files | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| Change a home's room sizes | ✅ | ➖ | own | own | ➖ | when adding | ➖ |
 
 ## Always true
 

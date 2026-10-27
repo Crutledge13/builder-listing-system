@@ -7,6 +7,7 @@ import { MediaPicture } from "@/components/media-tile";
 import { TOUR_PROVIDERS } from "@/lib/listing-media";
 import { PhotoPackButton } from "@/components/photo-pack-button";
 import type { MediaRow } from "@/lib/demo-media";
+import { levelLabel } from "@/lib/rooms";
 
 function slug(s: string) {
   return s.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase().slice(0, 40) || "photo";
@@ -97,6 +98,7 @@ export function MlsSheetView({
           </section>
         );
       })}
+      <RoomList sheet={sheet} check={check} />
       <PhotoList sheet={sheet} check={check} />
     </div>
   );
@@ -188,6 +190,38 @@ function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeo
             ))}
           </ul>
         </div>
+      )}
+    </section>
+  );
+}
+
+// The home's room list (Rooms tab in Matrix): type, level, length × width.
+export function RoomList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeof MlsSheetView>[0]["check"] }) {
+  if (sheet.board?.code && sheet.board.code !== "NTREIS" && !sheet.rooms.length) return null;
+  const done = check ? sheet.rooms.filter((_, i) => check.checked.includes(`room-${i}`)).length : 0;
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line">
+      <h3 className="flex items-baseline justify-between bg-soft px-4 py-2.5 font-semibold">
+        Room sizes
+        {check && sheet.rooms.length > 0 && <span className="text-xs font-normal text-muted">{done} of {sheet.rooms.length} entered</span>}
+      </h3>
+      {sheet.rooms.length === 0 ? (
+        <p className="bg-amber-50/60 px-4 py-3 text-sm text-amber-900">No room sizes yet. The builder pulls them from the floor plan on the home page (or our team adds the plan&rsquo;s rooms under Floor plans).</p>
+      ) : (
+        <dl className="divide-y divide-line">
+          {sheet.rooms.map((r, i) => {
+            const size = r.RoomLength && r.RoomWidth ? `${Number(r.RoomLength)} x ${Number(r.RoomWidth)}` : "";
+            return (
+              <div key={i} className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 px-4 py-2 sm:grid-cols-[auto_220px_120px_1fr_auto]">
+                {check ? <CheckOff taskId={check.taskId} item={`room-${i}`} initial={check.checked.includes(`room-${i}`)} action={check.action} disabled={check.disabled} /> : <span className="w-0" />}
+                <dt className="text-sm font-medium">{r.RoomType}</dt>
+                <dd className="text-sm text-muted">{levelLabel(r.RoomLevel)}</dd>
+                <dd className={cx("text-[15px] tabular-nums", !size && "text-amber-900")}>{size ? `${size} ft` : "Size missing"}</dd>
+                <div>{size && <CopyButton value={size} />}</div>
+              </div>
+            );
+          })}
+        </dl>
       )}
     </section>
   );

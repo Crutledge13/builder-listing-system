@@ -26,6 +26,7 @@ import {
   requestReverseProspecting,
   resolveRequest,
   saveHome,
+  saveRooms,
   scheduleOpenHouse,
   setBuildStage,
   setDisclaimer,
@@ -58,6 +59,8 @@ import { canEditMlsAnswers } from "@/lib/ntreis-form";
 import { loadListingMedia } from "@/lib/listing-media";
 import { ListingMediaPanel } from "@/components/listing-media-panel";
 import { ShareLinksPanel } from "@/components/share-links-panel";
+import { RoomsEditor } from "@/components/rooms-editor";
+import { cleanRooms, levelLabel, roomSize } from "@/lib/rooms";
 import { Deliverables } from "@/components/deliverables";
 import { loadDeliverables } from "@/lib/deliverables";
 
@@ -197,6 +200,14 @@ async function HomeDetail({
   const reverseFiles = await loadDeliverables(supabase, "reverse_prospect_requests", (reverse ?? []).map((r) => r.id));
   const canResolve = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const openRequests = (requests ?? []).filter((r) => r.status === "open");
+
+  // Room sizes: the home's own list, and its floor plan's list to pull from.
+  const rooms = cleanRooms(((home.mls_fields ?? {}) as Record<string, unknown>).Rooms);
+  const { data: planRow } = home.plan_name
+    ? await supabase.from("floor_plans").select("id, name, rooms").eq("builder_id", home.builder_id).ilike("name", home.plan_name).maybeSingle()
+    : { data: null };
+  const planRooms = cleanRooms(planRow?.rooms);
+  const canEditRooms = canEditMlsAnswers(me.role);
 
   const { data: mediaRows, count: mediaCount } = await supabase
     .from("media")
@@ -588,6 +599,40 @@ async function HomeDetail({
                 </li>
               ))}
             </ul>
+          </section>
+
+          <section id="rooms" className="scroll-mt-28 border-b border-line py-8">
+            <h2 className="text-[22px] font-semibold">Room sizes</h2>
+            <p className="mt-1 text-sm text-muted">
+              The MLS lists each room with its level and size (feet).{" "}
+              {planRow ? <>Pull them from the <Link href={`/plans/${planRow.id}`} className="underline">{planRow.name} plan</Link>, then adjust anything this home does differently.</> : home.plan_name ? <>Our team hasn&rsquo;t set up the {home.plan_name} plan yet, so add the rooms here.</> : "Pick this home's floor plan to pull rooms from it."}
+            </p>
+            {sectionNotice("rooms")}
+            {canEditRooms ? (
+              <>
+                {planRooms.length > 0 && (
+                  <form action={saveRooms} className="mt-4">
+                    <input type="hidden" name="id" value={home.id} />
+                    <input type="hidden" name="rooms_json" value={JSON.stringify(planRooms)} />
+                    <button className="rounded-xl border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">
+                      {rooms.length ? `Replace with the ${planRow!.name} plan’s ${planRooms.length} rooms` : `Fill from the ${planRow!.name} plan (${planRooms.length} rooms)`}
+                    </button>
+                  </form>
+                )}
+                <form action={saveRooms} className="mt-4">
+                  <input type="hidden" name="id" value={home.id} />
+                  <RoomsEditor key={JSON.stringify(rooms)} initial={rooms} />
+                  <button className="mt-4 rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save room sizes</button>
+                </form>
+              </>
+            ) : rooms.length ? (
+              <table className="mt-4 w-full max-w-xl text-sm">
+                <thead className="text-left text-xs text-muted"><tr><th className="pb-1 font-medium">Room</th><th className="pb-1 font-medium">Level</th><th className="pb-1 font-medium">Size (ft)</th></tr></thead>
+                <tbody className="divide-y divide-line">{rooms.map((r, i) => <tr key={i}><td className="py-1.5">{r.RoomType}</td><td className="py-1.5">{levelLabel(r.RoomLevel)}</td><td className="py-1.5 tabular-nums">{roomSize(r)}</td></tr>)}</tbody>
+              </table>
+            ) : (
+              <p className="mt-4 text-sm text-muted">No room sizes yet.</p>
+            )}
           </section>
 
           <form id="edit" action={saveHome} className="scroll-mt-28 divide-y divide-line">

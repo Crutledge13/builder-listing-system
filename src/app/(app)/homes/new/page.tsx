@@ -8,6 +8,8 @@ import { questionSections, SectionFields } from "@/components/ntreis-questions";
 import { FormSteps } from "@/components/form-steps";
 import { NtreisToggle } from "@/components/ntreis-toggle";
 import { RequiredPill } from "@/components/required-pill";
+import { RoomsEditor } from "@/components/rooms-editor";
+import { cleanRooms } from "@/lib/rooms";
 import { StartFrom, type CopyOption, type PlanOption, type Prefill, type WebsiteOption } from "@/components/start-from";
 
 export default function NewHomePage(props: PageProps<"/homes/new">) {
@@ -152,9 +154,16 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
               mode="new"
               extra={
                 q.title === "Rooms" ? (
-                  <div data-other-mls="" hidden>
-                    <Text name="stories" label="Stories" type="number" />
-                  </div>
+                  <>
+                    <div data-other-mls="" hidden>
+                      <Text name="stories" label="Stories" type="number" />
+                    </div>
+                    <div className="sm:col-span-2 lg:col-span-3">
+                      <span className="block text-sm font-medium">Room sizes</span>
+                      <p className="mb-2 mt-0.5 text-xs text-muted">Each room&rsquo;s level and size in feet. Starting from a floor plan above fills these in; you can also add them later on the home.</p>
+                      <RoomsEditor formId="new-home" initial={[]} />
+                    </div>
+                  </>
                 ) : undefined
               }
             />
@@ -264,7 +273,7 @@ const SPEC_COLUMNS = ["plan_name", "bedrooms_total", "bathrooms_full", "bathroom
 // NTREIS answers that come with a floor plan (the layout, not the lot).
 const PLAN_ANSWERS = ["Levels", "LivingAreasTotal", "DiningAreasTotal", "FireplacesTotal", "AttachedGarageYN", "StructureType", "ArchitecturalStyle", "ConstructionMaterials", "FoundationDetails", "Roof"];
 // NTREIS answers that belong to one lot, so they're never copied to another home.
-const NOT_COPIED = new Set(["ParcelNumber", "AdditionalParcelsYN", "AdditionalParcelsDescription", "Lot", "TaxBlock", "LegalDescription", "LotSizeDimensions", "LockBoxSerialNumber", "LockBoxLocation"]);
+const NOT_COPIED = new Set(["ParcelNumber", "AdditionalParcelsYN", "AdditionalParcelsDescription", "Lot", "TaxBlock", "LegalDescription", "LotSizeDimensions", "LockBoxSerialNumber", "LockBoxLocation", "Rooms"]);
 
 function asPrefill(row: Record<string, unknown>, columns: string[], answers: Record<string, unknown> | null, answerKeys: string[] | "all"): Prefill {
   const out: Prefill = {};
@@ -281,13 +290,19 @@ function asPrefill(row: Record<string, unknown>, columns: string[], answers: Rec
   return out;
 }
 
+type FloorPlanRow = {
+  builder_id: string; name: string; bedrooms_total: number | null; bathrooms_full: number | null; bathrooms_half: number | null;
+  living_area: number | null; stories: number | null; garage_spaces: number | null; levels: string | null;
+  living_areas_total: number | null; dining_areas_total: number | null; rooms: unknown;
+};
+
 type HomeRow = Record<string, unknown> & {
   id: string; builder_id: string; unparsed_address: string; plan_name: string | null; workflow_status: string;
   mls_fields: Record<string, unknown> | null; communities: { name: string } | null;
 };
 
 async function loadStarters(supabase: Awaited<ReturnType<typeof createClient>>, communities: { id: string; name: string; builder_id: string }[]) {
-  const [{ data: homeRows }, { data: webRows }] = await Promise.all([
+  const [{ data: homeRows }, { data: webRows }, { data: planRows }] = await Promise.all([
     supabase
       .from("homes")
       .select("id, builder_id, unparsed_address, plan_name, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, lot_size_acres, stories, garage_spaces, year_built, public_remarks, workflow_status, mls_fields, updated_at, communities(name)")
@@ -300,6 +315,11 @@ async function loadStarters(supabase: Awaited<ReturnType<typeof createClient>>, 
       .is("home_id", null)
       .is("dismissed_at", null)
       .order("unparsed_address"),
+    supabase
+      .from("floor_plans")
+      .select("builder_id, name, bedrooms_total, bathrooms_full, bathrooms_half, living_area, stories, garage_spaces, levels, living_areas_total, dining_areas_total, rooms")
+      .eq("active", true)
+      .order("name"),
   ]);
   const rows = (homeRows ?? []) as unknown as HomeRow[];
 
@@ -310,18 +330,36 @@ async function loadStarters(supabase: Awaited<ReturnType<typeof createClient>>, 
       label: `${h.unparsed_address}${h.plan_name ? `, ${h.plan_name}` : ""}${h.communities ? ` (${h.communities.name})` : ""}`,
       live: h.workflow_status === "live_on_mls",
       values: asPrefill(h, [...SPEC_COLUMNS, "list_price", "public_remarks"], h.mls_fields, "all"),
+      rooms: cleanRooms(h.mls_fields?.Rooms),
     }))
     .sort((a, b) => Number(b.live) - Number(a.live));
 
-  // A plan's specs come from the most recently updated home built on it.
+  // Floor plans our team set up come first (specs and room sizes); otherwise a
+  // plan's specs come from the most recently updated home built on it.
   const plans: PlanOption[] = [];
   const seen = new Set<string>();
+  const latest = new Map<string, HomeRow>();
   for (const h of rows) {
     if (!h.plan_name) continue;
     const key = `${h.builder_id}:${h.plan_name.toLowerCase()}`;
-    if (seen.has(key)) continue;
+    if (!latest.has(key)) latest.set(key, h);
+  }
+  for (const fp of (planRows ?? []) as FloorPlanRow[]) {
+    const key = `${fp.builder_id}:${fp.name.toLowerCase()}`;
     seen.add(key);
-    plans.push({ builder_id: h.builder_id, plan: h.plan_name, from: h.unparsed_address, values: asPrefill(h, SPEC_COLUMNS.filter((c) => c !== "lot_size_acres"), h.mls_fields, PLAN_ANSWERS) });
+    const h = latest.get(key);
+    const base = h ? asPrefill(h, SPEC_COLUMNS.filter((c) => c !== "lot_size_acres"), h.mls_fields, PLAN_ANSWERS) : {};
+    const own: Prefill = { plan_name: fp.name };
+    for (const c of ["bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area", "stories", "garage_spaces"] as const) if (fp[c] != null) own[c] = String(fp[c]);
+    if (fp.levels) own.mls__Levels = fp.levels;
+    if (fp.living_areas_total != null) own.mls__LivingAreasTotal = String(fp.living_areas_total);
+    if (fp.dining_areas_total != null) own.mls__DiningAreasTotal = String(fp.dining_areas_total);
+    const rooms = cleanRooms(fp.rooms);
+    plans.push({ builder_id: fp.builder_id, plan: fp.name, from: "the plan our team set up", values: { ...base, ...own }, rooms: rooms.length ? rooms : cleanRooms(h?.mls_fields?.Rooms) });
+  }
+  for (const [key, h] of latest) {
+    if (seen.has(key)) continue;
+    plans.push({ builder_id: h.builder_id, plan: h.plan_name!, from: h.unparsed_address, values: asPrefill(h, SPEC_COLUMNS.filter((c) => c !== "lot_size_acres"), h.mls_fields, PLAN_ANSWERS), rooms: cleanRooms(h.mls_fields?.Rooms) });
   }
   plans.sort((a, b) => a.plan.localeCompare(b.plan));
 
