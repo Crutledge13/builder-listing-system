@@ -15,7 +15,8 @@ const ROOMS = [
   "backyard", "floor_plan", "amenity", "entrance", "aerial", "site_map", "model_home", "other",
 ] as const;
 const FLAGS = ["blurry", "dark", "people", "signage_or_logo", "text_overlay", "not_a_home_photo"] as const;
-// Image types Claude can read. (iPhone HEIC isn't one; those skip AI.)
+// Image types Claude can read. (iPhone HEIC isn't one; those use the WebP
+// screen-size copy when there is one, and skip AI otherwise.)
 const READABLE = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 export type AiSuggestion = {
@@ -78,7 +79,7 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
   if (ids.length === 0) return;
   const { data: rows } = await supabase
     .from("media")
-    .select("id, kind, mime_type, storage_path, source, room, room_source, caption, tags, title")
+    .select("id, kind, mime_type, storage_path, web_path, source, room, room_source, caption, tags, title")
     .in("id", ids);
   const photos = (rows ?? []).filter((r) => r.source === "upload" && r.kind === "photo" && r.storage_path);
 
@@ -91,13 +92,15 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
   const SYSTEM = system(list.map((t) => t.label));
 
   const work = photos.map((p) => async () => {
-    if (!READABLE.has(p.mime_type ?? "")) {
+    // The screen-size copy (WebP) is smaller and quicker for the AI to read, and
+    // exists even for HEIC photos when the uploader's browser could read them.
+    if (!p.web_path && !READABLE.has(p.mime_type ?? "")) {
       await supabase.from("media").update({ ai_status: "skipped" }).eq("id", p.id);
       return;
     }
     try {
       // A short-lived private link just for the AI to read the photo.
-      const { data: link } = await supabase.storage.from("media").createSignedUrl(p.storage_path!, 600);
+      const { data: link } = await supabase.storage.from("media").createSignedUrl(p.web_path ?? p.storage_path!, 600);
       if (!link) throw new Error("No link");
       const reply = await client.messages.create({
         model: MODEL,

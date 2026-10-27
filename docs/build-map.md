@@ -210,7 +210,11 @@ Photos and videos are a main feature, not an add-on. Files live in Cloudflare; t
 
 - Uploads go straight to storage, skipping your app's server
 - Big videos upload in pieces and resume if the internet drops
-- The grid shows small thumbnails; full size loads only when opened
+- Every upload gets two small copies, made in the uploader's browser: a thumbnail (about 640 px) and a screen-size copy (about 1600 px). Videos get a still frame.
+- Grids, cards and folder covers only ever load thumbnails; a photo's own page loads the screen-size copy; downloads and the MLS photo pack use the original
+- Pictures load only as they scroll into view
+- Long lists come in pages (120 at a time, with "Show more"), and file counts are added up in the database, not by loading every record
+- The browser reuses each private link for 50 minutes, so scrolling back doesn't ask again
 - Files are served from Cloudflare locations near the viewer
 
 **Rough monthly cost example**

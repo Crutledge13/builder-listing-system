@@ -36,6 +36,9 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   const communityId = str(sp.community);
   const homeId = str(sp.home);
   const builderId = str(sp.builder);
+  // Results come in pages of 120; "Show more" adds the next page.
+  const pages = Math.min(8, Math.max(1, Number(str(sp.pages)) || 1));
+  const pageLimit = 120 * pages;
 
   const me = await requireProfile();
   sendPhotographersToJobs(me);
@@ -61,7 +64,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
 
   const params = (over: Record<string, string | null>) => {
     const p = new URLSearchParams();
-    const base: Record<string, string | null> = { q, room, kind, tag, community: home ? null : communityId, home: homeId, builder: community || home ? null : builderId };
+    const base: Record<string, string | null> = { q, room, kind, tag, community: home ? null : communityId, home: homeId, builder: community || home ? null : builderId, pages: null };
     for (const [k, v] of Object.entries({ ...base, ...over })) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/media?${s}` : "/media";
@@ -70,8 +73,11 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   // Results grid (scoped to the current folder).
   let results: MediaRow[] = [];
   if (!atTop) {
-    let query = supabase.from("media").select(MEDIA_SELECT).is("deleted_at", null).order("sort_order").order("created_at").limit(160);
+    let query = supabase.from("media").select(MEDIA_SELECT).is("deleted_at", null).order("sort_order").order("created_at").limit(pageLimit);
     if (home) query = query.eq("home_id", home.id);
+    // A community folder (not searching) shows only the community's own items;
+    // each home's files stay in that home's folder.
+    else if (community && !filtering) query = query.eq("community_id", community.id).is("home_id", null);
     else if (community) query = query.eq("community_id", community.id);
     else if (builder) query = query.eq("builder_id", builder.id);
     if (room) query = query.eq("room", room);
@@ -113,11 +119,12 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   const { data: covers } = folderCommunities.length
     ? await supabase.from("media").select(MEDIA_SELECT).in("community_id", folderCommunities.map((c) => c.id)).is("home_id", null).eq("room", "entrance").is("deleted_at", null)
     : { data: null };
+  // File counts are added up in the database, so a folder page never pulls
+  // every media record just to count them.
   const { data: countRows } = folderCommunities.length
-    ? await supabase.from("media").select("community_id").in("community_id", folderCommunities.map((c) => c.id)).is("deleted_at", null)
+    ? await supabase.rpc("community_media_counts", { community_ids: folderCommunities.map((c) => c.id) })
     : { data: null };
-  const counts = new Map<string, number>();
-  (countRows ?? []).forEach((r) => counts.set(r.community_id as string, (counts.get(r.community_id as string) ?? 0) + 1));
+  const counts = new Map<string, number>(((countRows ?? []) as { community_id: string; items: number }[]).map((r) => [r.community_id, Number(r.items)]));
 
   // Inside a community: the homes as folders.
   const { data: homeFolders } = community && !home && !filtering
@@ -127,7 +134,12 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     ? await supabase.from("media").select(MEDIA_SELECT).in("home_id", homeFolders.map((h) => h.id)).eq("is_cover", true).is("deleted_at", null)
     : { data: null };
   const coverByHome = new Map(((homeCovers ?? []) as unknown as MediaRow[]).map((m) => [m.home_id, m]));
-  const communityOnly = community && !home && !filtering ? results.filter((m) => !m.home_id) : results;
+  const { data: homeCountRows } = homeFolders?.length
+    ? await supabase.rpc("home_media_counts", { home_ids: homeFolders.map((h) => h.id) })
+    : { data: null };
+  const homeCounts = new Map<string, number>(((homeCountRows ?? []) as { home_id: string; items: number }[]).map((r) => [r.home_id, Number(r.items)]));
+  const communityOnly = results;
+  const moreHref = results.length === pageLimit && pages < 8 ? params({ pages: String(pages + 1) }) : null;
 
   // Group top-level folders by builder for our staff.
   const byBuilder = new Map<string, typeof folderCommunities>();
@@ -295,6 +307,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
             <div className="mt-4">
               <MediaGrid>{communityOnly.map((m) => <MediaTile key={m.id} m={m} />)}</MediaGrid>
               {communityOnly.length === 0 && <Empty text="No community media yet." />}
+              <ShowMore href={moreHref} />
             </div>
           </section>
           <section className="mt-12">
@@ -302,7 +315,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
             <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
               {(homeFolders ?? []).map((h) => {
                 const cover = coverByHome.get(h.id);
-                const n = results.filter((m) => m.home_id === h.id).length;
+                const n = homeCounts.get(h.id) ?? 0;
                 return (
                   <Link key={h.id} href={`/media?home=${h.id}`} className="group block">
                     <div className="relative aspect-[3/2] overflow-hidden rounded-xl bg-soft">
@@ -330,9 +343,10 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
           )}
           <section>
             <h2 className="text-[22px] font-semibold">This home</h2>
-            <p className="mt-1 text-sm text-muted">{results.length} {results.length === 1 ? "file" : "files"} taken at {home.unparsed_address}.</p>
+            <p className="mt-1 text-sm text-muted">{moreHref ? `${results.length}+` : results.length} {results.length === 1 && !moreHref ? "file" : "files"} taken at {home.unparsed_address}.</p>
             <div className="mt-4">
               <MediaGrid>{results.map((m) => <MediaTile key={m.id} m={m} disclaimer={home.show_representative_disclaimer} />)}</MediaGrid>
+              <ShowMore href={moreHref} />
               {results.length === 0 && <Empty text={filtering ? "Nothing here matches." : "No photos of this home yet. The plan photos below can stand in until it’s built."} />}
             </div>
           </section>
@@ -361,9 +375,10 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
       {/* Any search or filter outside a home: the results */}
       {!home && (filtering || (builder && filtering)) && (
         <div className="mt-8">
-          <p className="mb-4 text-sm text-muted">{results.length === 160 ? "Showing the first 160 results" : `${results.length} ${results.length === 1 ? "file" : "files"}`}</p>
+          <p className="mb-4 text-sm text-muted">{moreHref ? `Showing the first ${results.length} results` : `${results.length} ${results.length === 1 ? "file" : "files"}`}</p>
           <MediaGrid>{results.map((m) => <MediaTile key={m.id} m={m} showPlace={!home} />)}</MediaGrid>
           {results.length === 0 && <Empty text="Nothing matches. Try another room or search word." />}
+          <ShowMore href={moreHref} />
         </div>
       )}
     </div>
@@ -374,6 +389,15 @@ function chip(on: boolean) {
   return cx(
     "shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition-colors",
     on ? "border-foreground bg-foreground font-semibold text-white" : "border-line hover:border-foreground",
+  );
+}
+
+function ShowMore({ href }: { href: string | null }) {
+  if (!href) return null;
+  return (
+    <div className="mt-8 text-center">
+      <Link href={href} scroll={false} className="inline-block rounded-full border border-foreground px-5 py-2.5 text-sm font-semibold hover:bg-soft">Show more</Link>
+    </div>
   );
 }
 
