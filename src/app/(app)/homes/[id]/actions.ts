@@ -75,7 +75,8 @@ export async function saveHome(formData: FormData) {
   if (!data?.length) back(id, { error: "You don’t have permission to edit this home." });
 
   revalidatePath("/homes");
-  back(id, { saved: "1" });
+  // NTREIS answers changed: reopen that folded section with the message.
+  back(id, patch.mls_fields ? { saved: "1", at: "ntreis" } : { saved: "1" });
 }
 
 export async function changeStatus(formData: FormData) {

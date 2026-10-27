@@ -665,21 +665,35 @@ async function HomeDetail({
               </section>
             ))}
             {home.mls_board === "NTREIS" && (
-              <div id="ntreis" className="scroll-mt-28">
-                <div className="pt-8">
-                  <h3 className="text-xl font-semibold">NTREIS details</h3>
-                  <p className="mt-1 text-sm text-muted">
-                    The rest of what NTREIS asks for this home, with NTREIS&rsquo;s own labels and choices. <b className="text-accent">MLS required</b> marks
-                    what NTREIS requires before the listing can go live. Our team fills in the listing paperwork, schools, HOA and showing setup.
-                  </p>
-                </div>
+              // Folded away until someone opens it to make a change; it opens on
+              // its own after saving or when a save has a problem with it. The
+              // answers inside still go with "Save changes" while it's closed.
+              <details id="ntreis" open={at === "ntreis"} className="group scroll-mt-28 py-8">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 hover:bg-soft">
+                  <span>
+                    <span className="block text-lg font-semibold">NTREIS details</span>
+                    <span className="block text-sm text-muted">
+                      {canEditMlsAnswers(me.role) ? "Open to add or change this home’s NTREIS answers." : "Open to see this home’s NTREIS answers."}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold">
+                    <span className="group-open:hidden">{canEditMlsAnswers(me.role) ? "Edit" : "View"}</span>
+                    <span className="hidden group-open:inline">Close</span>
+                    <span className="ml-1 inline-block text-muted transition-transform group-open:rotate-180" aria-hidden>▾</span>
+                  </span>
+                </summary>
+                {sectionNotice("ntreis")}
+                <p className="mt-4 text-sm text-muted">
+                  The rest of what NTREIS asks for this home, with NTREIS&rsquo;s own labels and choices. <b className="text-accent">MLS required</b> marks
+                  what NTREIS requires before the listing can go live. Our team fills in the listing paperwork, schools, HOA and showing setup.
+                </p>
                 <NtreisQuestions
                   mode="edit"
                   values={(home.mls_fields ?? {}) as Record<string, unknown>}
                   sources={sources}
                   canEdit={canEditMlsAnswers(me.role)}
                 />
-              </div>
+              </details>
             )}
             <div className="flex flex-wrap items-center gap-4 py-8">
               {editable.size > 0 || (home.mls_board === "NTREIS" && canEditMlsAnswers(me.role)) ? (
