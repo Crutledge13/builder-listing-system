@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
 import { canEditBranding, canRequestMedia, isStaff } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
@@ -24,8 +25,11 @@ async function Requests() {
   const supabase = await createClient();
   const staff = isStaff(me.role);
 
+  const focus = await builderFocus(me.role);
+  let rq = supabase.from("media_requests").select(MEDIA_REQUEST_SELECT).order("created_at", { ascending: false }).limit(200);
+  if (focus) rq = rq.eq("builder_id", focus);
   const [{ data: rows }, { data: communities }, { data: homes }, { data: photographers }] = await Promise.all([
-    supabase.from("media_requests").select(MEDIA_REQUEST_SELECT).order("created_at", { ascending: false }).limit(200),
+    rq,
     supabase.from("communities").select("id, name").order("name"),
     supabase.from("homes").select("id, community_id, unparsed_address").is("deleted_at", null).order("unparsed_address"),
     me.role === "platform_admin"

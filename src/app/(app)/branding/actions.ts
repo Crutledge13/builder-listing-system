@@ -169,3 +169,60 @@ export async function dismissScan(formData: FormData) {
   await supabase.from("builder_branding").update({ brand_guide_scan: null }).eq("builder_id", builderId);
   go(builderId, { saved: "Dismissed." }, "#guide");
 }
+
+// ---------------------------------------------------------------------------
+// Download sizes
+// ---------------------------------------------------------------------------
+const FORMATS = new Set(["original", "jpeg", "webp", "png"]);
+
+function readSize(formData: FormData, builderId: string) {
+  const name = String(formData.get("name") ?? "").trim().slice(0, 40);
+  if (!name) go(builderId, { error: "Give the size a name, like “Our website”." }, "#sizes");
+  const edgeRaw = String(formData.get("long_edge") ?? "").trim();
+  const longEdge = edgeRaw ? Math.round(Number(edgeRaw)) : null;
+  if (longEdge !== null && (Number.isNaN(longEdge) || longEdge < 200 || longEdge > 8000)) go(builderId, { error: "The longest side has to be between 200 and 8000 pixels, or blank for the original size." }, "#sizes");
+  const format = String(formData.get("format") ?? "jpeg");
+  const quality = Math.max(40, Math.min(100, Math.round(Number(formData.get("quality") ?? 85)) || 85));
+  return { name, long_edge: longEdge, format: FORMATS.has(format) ? (format === "original" && longEdge ? "jpeg" : format) : "jpeg", quality };
+}
+
+export async function addPreset(formData: FormData) {
+  await requireProfile();
+  const builderId = String(formData.get("builder_id"));
+  const supabase = await createClient();
+  const { error } = await supabase.from("download_presets").insert({ builder_id: builderId, ...readSize(formData, builderId) });
+  if (error) go(builderId, { error: "Your role can’t add download sizes." }, "#sizes");
+  revalidatePath("/branding");
+  go(builderId, { saved: "Download size added." }, "#sizes");
+}
+
+export async function savePreset(formData: FormData) {
+  await requireProfile();
+  const builderId = String(formData.get("builder_id"));
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("download_presets").update(readSize(formData, builderId)).eq("id", String(formData.get("id"))).eq("builder_id", builderId).select("id");
+  if (error || !data?.length) go(builderId, { error: "Your role can’t change download sizes." }, "#sizes");
+  revalidatePath("/branding");
+  go(builderId, { saved: "Download size saved." }, "#sizes");
+}
+
+export async function deletePreset(formData: FormData) {
+  await requireProfile();
+  const builderId = String(formData.get("builder_id"));
+  const supabase = await createClient();
+  const { error } = await supabase.from("download_presets").delete().eq("id", String(formData.get("id"))).eq("builder_id", builderId);
+  if (error) go(builderId, { error: "Your role can’t remove download sizes." }, "#sizes");
+  revalidatePath("/branding");
+  go(builderId, { saved: "Download size removed." }, "#sizes");
+}
+
+export async function setDefaultPreset(formData: FormData) {
+  await requireProfile();
+  const builderId = String(formData.get("builder_id"));
+  const id = String(formData.get("preset_id") ?? "") || null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("builder_branding").update({ default_download_preset: id }).eq("builder_id", builderId).select("builder_id");
+  if (error || !data?.length) go(builderId, { error: "Your role can’t change the default download size." }, "#sizes");
+  revalidatePath("/", "layout");
+  go(builderId, { saved: "Default download size saved." }, "#sizes");
+}

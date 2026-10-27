@@ -153,6 +153,14 @@ Stage triggers: a home going move-in ready automatically requests real photos; w
 
 On the step-by-step Add a home form, required questions show a pill instead of a red star ("Required" = needed to save the draft, "MLS required" = the MLS needs it before going live) and stay shaded in our blue until answered (`FormSteps` sets `data-empty`; styles in `globals.css`). "Save time: start from something" (`src/components/start-from.tsx`, under the community) fills every step at once from a floor plan (specs and layout answers from the latest home on that plan), a copy of an existing listing (everything except address, lot, parcel, legal description and lockbox), or a website home not yet added (`website_listings` with no `home_id`). Filled answers show green with "Filled from …"; anything the person typed or ticked is never replaced. On save, values still matching the website listing are marked source `website` (checked on the server) and the website listing is linked to the new home.
 
+## Download sizes, builder focus and reels
+
+Downloads (photo page, "Download all photos" on a home's media folder, our team's MLS photo pack) let people pick a size: built-in sizes in `download_presets` (full quality original, MLS 2048 px JPG, website 1920 px WebP, social 1080 px, email 1024 px), the builder's own sizes, or a custom size typed in. Owners, managers and marketing add sizes and pick the builder's default on `/branding` (`builder_branding.default_download_preset`); each person's last pick is remembered in their browser. Resizing happens in the browser (`src/lib/image-resize.ts`, `DownloadMenu`, `PhotoPackButton`), never on our server; pictures are never enlarged, and "Full quality" hands over the untouched original. The MLS photo pack always uses the MLS size.
+
+Our team can narrow every page to one builder with the picker in the top bar (`builder_focus` cookie, `src/lib/builder-focus.ts`): tasks (plus general tasks), communities, homes, media, approvals, compliance, photo requests, and the starting builder on website check and reports. It's only a view filter; the database still decides access.
+
+Photo requests can ask for a horizontal walkthrough video (`video`) and a vertical social reel (`vertical_video`, 9:16); video uploads have a "Vertical social reel" type (tagged "Vertical reel"), picked automatically when the video is taller than wide.
+
 ## Listing status and open houses
 
 `homes.market_status` (active, paused, under_contract, sold, withdrawn) can be set any time after a home is created (the "Home status" panel on each home, next to construction stage: To be built / Under construction / Completed); MLS tasks and deadlines only apply once it's live. Pausing, going under contract, selling or withdrawing ends repeating open houses, cancels future ones, and adds a task to update the MLS. Repeating open houses (`open_house_series`) create dates only as far ahead as the MLS allows (`app_settings.mls_open_house_window_days`, default 28); a daily pg_cron job adds the next dates and a task for each batch.
@@ -195,7 +203,7 @@ Three backup layers, set up per `docs/backups.md`: Supabase point-in-time recove
 
 - Turn on leaked-password protection in Supabase Auth before the live project goes out.
 - Move media storage to Cloudflare R2/Stream before launch, and add a 30-day job that purges trashed files.
-- Thumbnails and web-size copies of uploads; whole-home zip download (the MLS photo pack zip exists).
+- Thumbnails and web-size copies of uploads (downloads already resize in the browser).
 - Email or text notifications (new photo request, photographer assigned, delivered) once Resend is set up. Reverse prospecting and help emails are already wired (they log until Resend is set).
 - Real website feed and MLS read-only feed connectors (through the shared import door); the demo uses seeded rows.
 - Real photographer payouts (e.g. Stripe Connect); today it's tracking only.

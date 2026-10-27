@@ -9,6 +9,8 @@ import { ImageUpload } from "@/components/image-upload";
 import { ColorList } from "@/components/color-list";
 import { brandScanAvailable, type BrandScan } from "@/lib/brand-scan";
 import { dateTime } from "@/lib/format";
+import { addPreset, deletePreset, savePreset, setDefaultPreset } from "./actions";
+import { FORMAT_LABELS, PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
 import { applyScan, dismissScan, removeGuide, removeLogo, rescanGuide, saveBranding, saveGuide, saveLogo } from "./actions";
 
 // Reading a long brand guide with AI can take a little while.
@@ -40,6 +42,7 @@ type BrandingRow = {
   brand_guide_uploaded_at: string | null;
   brand_guide_scan: BrandScan | null;
   brand_guide_scanned_at: string | null;
+  default_download_preset: string | null;
   updated_at: string;
   builders: { name: string } | null;
 };
@@ -53,7 +56,7 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
   // Our team picks a builder; everyone else sees their own.
   const { data: rows } = await supabase
     .from("builder_branding")
-    .select("builder_id, logo_path, logo_updated_at, primary_color, secondary_color, website_url, tagline, brand_notes, colors, fonts, brand_guide_path, brand_guide_name, brand_guide_uploaded_at, brand_guide_scan, brand_guide_scanned_at, updated_at, builders(name)");
+    .select("builder_id, logo_path, logo_updated_at, primary_color, secondary_color, website_url, tagline, brand_notes, colors, fonts, brand_guide_path, brand_guide_name, brand_guide_uploaded_at, brand_guide_scan, brand_guide_scanned_at, default_download_preset, updated_at, builders(name)");
   const all = ((rows ?? []) as unknown as BrandingRow[]).sort((a, b) => (a.builders?.name ?? "").localeCompare(b.builders?.name ?? ""));
   const wanted = typeof sp.builder === "string" ? sp.builder : me.builder_id;
   const b = all.find((r) => r.builder_id === wanted) ?? (staff ? all[0] : null);
@@ -181,6 +184,8 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
           </p>
         )}
       </form>
+
+      <DownloadSizes b={b} edit={edit} />
     </>
   );
 }
@@ -238,5 +243,94 @@ function Tick({ name, label, value, checked = true, note, pre }: { name: string;
         <span className={pre ? "mt-1 block whitespace-pre-line" : "block"}>{value}</span>
       </span>
     </label>
+  );
+}
+
+// The sizes people can pick when downloading, and which one is the default.
+async function DownloadSizes({ b, edit }: { b: BrandingRow; edit: boolean }) {
+  const supabase = await createClient();
+  const { data } = await supabase.from("download_presets").select(PRESET_SELECT).or(`builder_id.is.null,builder_id.eq.${b.builder_id}`).order("sort").order("name");
+  const all = (data ?? []) as DownloadPreset[];
+  const own = all.filter((p) => p.builder_id === b.builder_id);
+  const builtIn = all.filter((p) => !p.builder_id);
+  const current = b.default_download_preset ?? builtIn.find((p) => p.is_default)?.id ?? "";
+  const describe = (p: Pick<DownloadPreset, "long_edge" | "format" | "quality">) =>
+    p.format === "original" && !p.long_edge ? "The original file, untouched" : `${p.long_edge ? `${p.long_edge} px on the longest side` : "Original size"}, ${FORMAT_LABELS[p.format]}${p.format === "png" ? "" : ` at ${p.quality}% quality`}`;
+
+  return (
+    <section id="sizes" className="mt-6 scroll-mt-28 rounded-2xl border border-line p-5">
+      <h2 className="font-semibold">Download sizes</h2>
+      <p className="mt-1 text-sm text-muted">
+        When anyone at your company downloads a photo, they pick a size: full quality for print and marketing, MLS size, website size and so on.
+        Add your own (for example, exactly what your website needs) and choose which one is picked first. Everyone can still choose a custom size.
+      </p>
+
+      <form action={setDefaultPreset} className="mt-4 flex flex-wrap items-end gap-2">
+        <input type="hidden" name="builder_id" value={b.builder_id} />
+        <label className="block min-w-[240px] flex-1">
+          <span className="mb-1 block text-sm font-medium">Picked first when downloading</span>
+          <select name="preset_id" defaultValue={current} disabled={!edit} className="field-input">
+            {own.length > 0 && <optgroup label="Your sizes">{own.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>}
+            <optgroup label="Standard sizes">{builtIn.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
+          </select>
+        </label>
+        {edit && <button className="rounded-xl bg-foreground px-4 py-2.5 font-semibold text-white hover:bg-black">Save</button>}
+      </form>
+      <p className="mt-1 text-xs text-muted">Each person’s last choice is remembered on their own computer, so they only need to change it once.</p>
+
+      <h3 className="mt-6 text-sm font-semibold">Standard sizes</h3>
+      <ul className="mt-2 divide-y divide-line rounded-xl border border-line text-sm">
+        {builtIn.map((p) => <li key={p.id} className="flex flex-wrap justify-between gap-2 px-3 py-2"><span className="font-medium">{p.name}</span><span className="text-muted">{describe(p)}</span></li>)}
+      </ul>
+
+      <h3 className="mt-6 text-sm font-semibold">Your sizes</h3>
+      {own.length === 0 && <p className="mt-2 text-sm text-muted">None yet.</p>}
+      <div className="mt-2 space-y-2">
+        {own.map((p) => (
+          <details key={p.id} className="rounded-xl border border-line">
+            <summary className="flex cursor-pointer list-none flex-wrap justify-between gap-2 px-3 py-2 text-sm hover:bg-soft">
+              <span className="font-medium">{p.name}</span>
+              <span className="text-muted">{describe(p)}{edit ? " · Edit" : ""}</span>
+            </summary>
+            {edit && (
+              <div className="border-t border-line p-3">
+                <SizeFields action={savePreset} builderId={b.builder_id} p={p} submit="Save" />
+                <form action={deletePreset} className="mt-2">
+                  <input type="hidden" name="builder_id" value={b.builder_id} />
+                  <input type="hidden" name="id" value={p.id} />
+                  <button className="text-sm font-semibold text-red-700 underline">Remove this size</button>
+                </form>
+              </div>
+            )}
+          </details>
+        ))}
+      </div>
+      {edit && (
+        <details className="mt-3 rounded-xl border border-dashed border-line">
+          <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold">+ Add a size</summary>
+          <div className="border-t border-line p-3">
+            <SizeFields action={addPreset} builderId={b.builder_id} submit="Add size" />
+          </div>
+        </details>
+      )}
+    </section>
+  );
+}
+
+function SizeFields({ action, builderId, p, submit }: { action: (fd: FormData) => Promise<void>; builderId: string; p?: DownloadPreset; submit: string }) {
+  return (
+    <form action={action} className="grid gap-3 sm:grid-cols-4">
+      <input type="hidden" name="builder_id" value={builderId} />
+      {p && <input type="hidden" name="id" value={p.id} />}
+      <label className="block sm:col-span-4"><span className="mb-1 block text-xs font-medium">Name</span><input name="name" required maxLength={40} defaultValue={p?.name ?? ""} placeholder="e.g. Our website" className="field-input py-2" /></label>
+      <label className="block sm:col-span-2"><span className="mb-1 block text-xs font-medium">Longest side, in pixels (blank = original size)</span><input name="long_edge" type="number" min={200} max={8000} defaultValue={p?.long_edge ?? ""} placeholder="e.g. 1600" className="field-input py-2" /></label>
+      <label className="block"><span className="mb-1 block text-xs font-medium">Format</span>
+        <select name="format" defaultValue={p?.format ?? "jpeg"} className="field-input py-2">
+          {(["jpeg", "webp", "png", "original"] as const).map((f) => <option key={f} value={f}>{FORMAT_LABELS[f]}</option>)}
+        </select>
+      </label>
+      <label className="block"><span className="mb-1 block text-xs font-medium">Quality (40-100)</span><input name="quality" type="number" min={40} max={100} defaultValue={p?.quality ?? 85} className="field-input py-2" /></label>
+      <div className="sm:col-span-4"><button className="rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-white hover:bg-black">{submit}</button></div>
+    </form>
   );
 }

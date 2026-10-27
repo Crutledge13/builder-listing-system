@@ -23,7 +23,8 @@ const MAX_MB = 50;
 
 // Videos don't have a room; pick what kind of video it is instead.
 const VIDEO_TYPES: { key: string; label: string; room: string | null; tag: string | null }[] = [
-  { key: "walkthrough", label: "Home walkthrough or tour", room: null, tag: "Video tour" },
+  { key: "walkthrough", label: "Walkthrough video (horizontal)", room: null, tag: "Video tour" },
+  { key: "reel", label: "Vertical social reel (9:16)", room: null, tag: "Vertical reel" },
   { key: "drone", label: "Drone or aerial", room: "aerial", tag: "Drone / aerial" },
   { key: "community", label: "Community or amenities", room: "amenity", tag: "Amenities" },
   { key: "other", label: "Something else", room: null, tag: null },
@@ -174,6 +175,17 @@ export function UploadForm({
           className="sr-only"
           onChange={(e) => {
             const ok = MODES[mode].accept.split(",");
+            // A taller-than-wide video is a social reel: pick that type for them.
+            const firstVideo = Array.from(e.target.files ?? []).find((f) => f.type.startsWith("video/"));
+            if (mode === "videos" && firstVideo) {
+              const v = document.createElement("video");
+              v.preload = "metadata";
+              v.onloadedmetadata = () => {
+                if (v.videoHeight > v.videoWidth) setVideoType("reel");
+                URL.revokeObjectURL(v.src);
+              };
+              v.src = URL.createObjectURL(firstVideo);
+            }
             const list = Array.from(e.target.files ?? []).filter((f) => !f.type || ok.includes(f.type) || (mode !== "videos" && /\.heic$/i.test(f.name)));
             setFiles(list);
             setProgress(Object.fromEntries(list.map((f) => [f.name, "waiting" as const])));

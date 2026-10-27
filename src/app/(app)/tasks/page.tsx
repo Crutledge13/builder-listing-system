@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
 import { isStaff, TASK_KIND_LABELS, TASK_STATUS_LABELS } from "@/lib/permissions";
 import { cx, dateTime } from "@/lib/format";
@@ -78,17 +79,24 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
     .select("id, kind, title, details, status, priority, due_at, home_id, builder_id, assignee_id, source_table, source_id, created_at, completed_at, changes, homes(unparsed_address), builders(name)");
   q = view === "done" ? q.in("status", ["done", "cancelled"]).order("completed_at", { ascending: false, nullsFirst: false }).limit(60) : q.in("status", ["todo", "in_progress"]);
   if (view === "mine") q = q.eq("assignee_id", me.id);
+  // One builder picked in the top bar: that builder's tasks plus general ones (like help reports).
+  const focus = await builderFocus(me.role);
+  if (focus) q = q.or(`builder_id.eq.${focus},builder_id.is.null`);
   if (kind) q = q.eq("kind", kind);
 
   const [{ data: rows }, { data: staff }, { data: openCounts }, { data: homes }, { data: builders }] = await Promise.all([
     q,
     supabase.from("profiles").select("id, full_name").in("role", ["platform_admin", "listing_coordinator"]).eq("is_active", true).order("full_name"),
-    supabase.from("tasks").select("kind, assignee_id").in("status", ["todo", "in_progress"]),
+    focus
+      ? supabase.from("tasks").select("kind, assignee_id").in("status", ["todo", "in_progress"]).or(`builder_id.eq.${focus},builder_id.is.null`)
+      : supabase.from("tasks").select("kind, assignee_id").in("status", ["todo", "in_progress"]),
     supabase.from("homes").select("id, unparsed_address").is("deleted_at", null).order("unparsed_address"),
     supabase.from("builders").select("id, name").order("name"),
   ]);
   const tasks = (rows ?? []) as unknown as Task[];
-  const { count: urgentAlerts } = await supabase.from("home_alerts").select("id", { count: "exact", head: true }).is("resolved_at", null).eq("severity", "urgent");
+  let uq = supabase.from("home_alerts").select("id", { count: "exact", head: true }).is("resolved_at", null).eq("severity", "urgent");
+  if (focus) uq = uq.eq("builder_id", focus);
+  const { count: urgentAlerts } = await uq;
   const ids = tasks.map((t) => t.id);
   const { data: notes } = ids.length
     ? await supabase.from("task_notes").select("id, task_id, author_id, body, created_at").in("task_id", ids).order("created_at")

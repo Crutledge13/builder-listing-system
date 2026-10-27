@@ -54,7 +54,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
       doneHref: "/jobs",
       cancelHref: "/jobs",
     };
-    const wantsVideo = !!job?.needs.some((n) => n === "video" || n === "virtual_tour");
+    const wantsVideo = !!job?.needs.some((n) => n === "video" || n === "vertical_video" || n === "virtual_tour");
     return (
       <div className="mx-auto max-w-3xl">
         <BackButton href="/jobs" label="Back to your jobs" />

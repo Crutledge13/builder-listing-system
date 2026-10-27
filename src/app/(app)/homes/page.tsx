@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
@@ -41,7 +42,10 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
   sendPhotographersToJobs(me);
   const supabase = await createClient();
 
-  const { data: communities } = await supabase.from("communities").select("id, name, builders(name)").order("name");
+  const focus = await builderFocus(me.role);
+  let cq = supabase.from("communities").select("id, name, builders(name)").order("name");
+  if (focus) cq = cq.eq("builder_id", focus);
+  const { data: communities } = await cq;
 
   let query = supabase
     .from("homes")
@@ -49,6 +53,7 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
     .is("deleted_at", null)
     .order("unparsed_address");
   if (community) query = query.eq("community_id", community);
+  if (focus) query = query.eq("builder_id", focus);
   const { data, error } = await query;
   const all = (data ?? []) as unknown as Row[];
   const homes = status ? all.filter((h) => h.workflow_status === status) : all;

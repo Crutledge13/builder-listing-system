@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { centralToUtc } from "@/lib/time";
 
-const NEEDS = new Set(["photos", "twilight", "video", "drone", "floor_plan", "virtual_tour"]);
+const NEEDS = new Set(["photos", "twilight", "video", "vertical_video", "drone", "floor_plan", "virtual_tour"]);
 
 function safeBack(raw: FormDataEntryValue | null, fallback: string) {
   const s = String(raw ?? "");

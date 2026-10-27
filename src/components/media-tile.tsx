@@ -37,7 +37,7 @@ export function MediaTile({ m, showPlace, disclaimer, direct }: { m: MediaRow; s
   const href = m.kind === "floor_plan" && plan && !direct ? planFolderHref(m.builder_id, plan) : `/media/${m.id}`;
   return (
     <Link href={href} className="group block">
-      <div className={cx("relative aspect-[3/2] overflow-hidden rounded-xl bg-soft", m.kind === "floor_plan" && "ring-1 ring-line")}>
+      <div data-media-id={m.id} className={cx("relative aspect-[3/2] overflow-hidden rounded-xl bg-soft", m.kind === "floor_plan" && "ring-1 ring-line")}>
         <MediaPicture m={m} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
         {m.kind === "video" && (
           <span className="absolute inset-0 flex items-center justify-center">

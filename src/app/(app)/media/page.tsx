@@ -1,12 +1,15 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canManageMedia, isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
 import { MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
 import { loadTagList, TAG_CATEGORIES } from "@/lib/tags";
-import { MediaGrid, MediaPicture, MediaTile, planFolderHref } from "@/components/media-tile";
+import { DISCLAIMER_TEXT, MediaGrid, MediaPicture, MediaTile, planFolderHref } from "@/components/media-tile";
+import { PhotoPackButton, type PackPhoto } from "@/components/photo-pack-button";
+import { PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
 
 export default function MediaPage(props: PageProps<"/media">) {
   return (
@@ -67,6 +70,8 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     return s ? `/media?${s}` : "/media";
   };
 
+  const staffFocus = await builderFocus(me.role);
+
   // Results grid (scoped to the current folder).
   let results: MediaRow[] = [];
   if (!atTop) {
@@ -74,6 +79,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     if (home) query = query.eq("home_id", home.id);
     else if (community) query = query.eq("community_id", community.id);
     else if (builder) query = query.eq("builder_id", builder.id);
+    else if (staffFocus) query = query.eq("builder_id", staffFocus);
     if (room) query = query.eq("room", room);
     if (kind) query = query.eq("kind", kind);
     if (tag) query = query.contains("tags", [tag]);
@@ -105,11 +111,23 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     planMedia = (p.data ?? []) as unknown as MediaRow[];
   }
 
+  // "Download all photos" on a home: its photos and floor plans, with the size to save them at.
+  const homePhotos: PackPhoto[] = home
+    ? results
+        .filter((m) => m.kind !== "video")
+        .map((m, i) => ({ id: m.id, file: m.source !== "demo", label: `${String(i + 1).padStart(2, "0")}-${(m.room ?? m.kind).replace(/_/g, "-")}` }))
+    : [];
+  const { data: presetRows } = home ? await supabase.from("download_presets").select(PRESET_SELECT).order("sort").order("name") : { data: null };
+  const presets = (presetRows ?? []) as DownloadPreset[];
+  const { data: brand } = home ? await supabase.from("builder_branding").select("default_download_preset").eq("builder_id", home.builder_id).maybeSingle() : { data: null };
+
   // Folders at the top level: one card per community you can see.
   const { data: communities } = atTop || (builder && !community)
     ? await supabase.from("communities").select("id, name, city, builder_id, builders(name)").order("name")
     : { data: null };
-  const folderCommunities = (communities ?? []).filter((c) => !builder || c.builder_id === builder.id);
+  // Our team can narrow the top level to one builder from the top bar.
+  const focus = staffFocus;
+  const folderCommunities = (communities ?? []).filter((c) => (!builder || c.builder_id === builder.id) && (!focus || builder || c.builder_id === focus));
   const { data: covers } = folderCommunities.length
     ? await supabase.from("media").select(MEDIA_SELECT).in("community_id", folderCommunities.map((c) => c.id)).is("home_id", null).eq("room", "entrance").is("deleted_at", null)
     : { data: null };
@@ -329,7 +347,20 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
             </p>
           )}
           <section>
-            <h2 className="text-[22px] font-semibold">This home</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="text-[22px] font-semibold">This home</h2>
+              {homePhotos.length > 0 && (
+                <PhotoPackButton
+                  name={`photos-${home.unparsed_address.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                  photos={homePhotos}
+                  readme={`Photos of ${home.unparsed_address}, downloaded from Builder Listings.\n`}
+                  label="Download all photos (.zip)"
+                  presets={presets}
+                  builderDefault={brand?.default_download_preset ?? null}
+                  disclaimer={home.show_representative_disclaimer ? DISCLAIMER_TEXT : undefined}
+                />
+              )}
+            </div>
             <p className="mt-1 text-sm text-muted">{results.length} {results.length === 1 ? "file" : "files"} taken at {home.unparsed_address}.</p>
             <div className="mt-4">
               <MediaGrid>{results.map((m) => <MediaTile key={m.id} m={m} disclaimer={home.show_representative_disclaimer} />)}</MediaGrid>

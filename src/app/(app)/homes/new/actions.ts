@@ -115,7 +115,7 @@ export async function createHome(formData: FormData) {
   redirect(`/homes/${data.id}?saved=created`);
 }
 
-const NEEDS = new Set(["photos", "twilight", "video", "drone", "floor_plan", "virtual_tour"]);
+const NEEDS = new Set(["photos", "twilight", "video", "vertical_video", "drone", "floor_plan", "virtual_tour"]);
 
 // The Photos and tours step: tour links, the community's photos and video,
 // and a request for our photographer. Returns anything that didn't work.

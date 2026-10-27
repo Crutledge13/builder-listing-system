@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { isStaff, TASK_KIND_LABELS, type Role, type WorkflowStatus } from "@/lib/permissions";
 import { whenCentral } from "@/lib/time";
@@ -50,21 +51,24 @@ async function Queues() {
   const me = await requireProfile();
   sendPhotographersToJobs(me);
   const supabase = await createClient();
-  const { data: homes } = await supabase
+  const focus = await builderFocus(me.role);
+  let hq = supabase
     .from("homes")
     .select("id, unparsed_address, city, plan_name, list_price, stories, workflow_status, updated_at, communities(name), builders(name)")
     .is("deleted_at", null)
     .in("workflow_status", ["draft", "in_review", "approved_for_mls"])
     .order("updated_at", { ascending: true });
+  if (focus) hq = hq.eq("builder_id", focus);
+  const { data: homes } = await hq;
   // Our team: open MLS work besides new listings (open houses, changes, status).
-  const { data: mlsWork } = isStaff(me.role)
-    ? await supabase
-        .from("tasks")
-        .select("id, kind, title, due_at, priority, source_table, home_id, changes")
-        .in("kind", ["open_house_mls", "listing_status", "mls_update", "mls_entry"])
-        .in("status", ["todo", "in_progress"])
-        .order("due_at", { ascending: true, nullsFirst: false })
-    : { data: null };
+  let wq = supabase
+    .from("tasks")
+    .select("id, kind, title, due_at, priority, source_table, home_id, changes")
+    .in("kind", ["open_house_mls", "listing_status", "mls_update", "mls_entry"])
+    .in("status", ["todo", "in_progress"])
+    .order("due_at", { ascending: true, nullsFirst: false });
+  if (focus) wq = wq.eq("builder_id", focus);
+  const { data: mlsWork } = isStaff(me.role) ? await wq : { data: null };
   // Readiness for listings waiting on approval (what would block "Ready for MLS").
   const reviewIds = (homes ?? []).filter((h) => h.workflow_status === "in_review").map((h) => h.id);
   const readinessList = await Promise.all(reviewIds.map((id) => supabase.rpc("mls_readiness", { p_home: id })));

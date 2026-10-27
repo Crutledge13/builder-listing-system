@@ -1035,5 +1035,5 @@ function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse,
 }
 
 const NEED_TEXT: Record<string, string> = {
-  photos: "photos", twilight: "twilight photos", video: "a video walkthrough", drone: "drone shots", floor_plan: "a floor plan", virtual_tour: "a 3D tour",
+  photos: "photos", twilight: "twilight photos", video: "a horizontal walkthrough video", vertical_video: "a vertical social reel", drone: "drone shots", floor_plan: "a floor plan", virtual_tour: "a 3D tour",
 };

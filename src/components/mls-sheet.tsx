@@ -138,7 +138,7 @@ function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeo
         </span>
         <span className="flex flex-wrap gap-3 text-sm">
           {list.length > 0 && (
-            <PhotoPackButton name={`mls-photos-${slug(sheet.home.unparsed_address)}`} photos={packPhotos(list)} readme={packReadme(sheet)} />
+            <PhotoPackButton name={`mls-photos-${slug(sheet.home.unparsed_address)}`} photos={packPhotos(list)} readme={packReadme(sheet)} size={{ long_edge: 2048, format: "jpeg", quality: 85 }} />
           )}
           <Link href={`/homes/${sheet.home.id}#listing-media`} className="font-semibold text-accent underline">Change what&rsquo;s on the listing</Link>
         </span>

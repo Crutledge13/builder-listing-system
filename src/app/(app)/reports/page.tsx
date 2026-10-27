@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BuilderLogo } from "@/components/avatar";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
 import { isStaff, MARKET_LABELS, type MarketStatus } from "@/lib/permissions";
 import { cx, money } from "@/lib/format";
@@ -39,7 +40,9 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
   const supabase = await createClient();
 
   const { data: builders } = staff ? await supabase.from("builders").select("id, name").order("name") : { data: null };
-  const builderId = staff ? (typeof sp.builder === "string" ? sp.builder : builders?.[0]?.id) : me.builder_id;
+  // Our team: the builder picked on this page, else the one picked in the top bar, else the first.
+  const focus = await builderFocus(me.role);
+  const builderId = staff ? (typeof sp.builder === "string" ? sp.builder : focus ?? builders?.[0]?.id) : me.builder_id;
   if (!builderId) return <p className="text-muted">No builders yet.</p>;
   const builderName = (staff ? builders?.find((b) => b.id === builderId)?.name : me.builder_name)?.replace(" (demo)", "") ?? "";
 

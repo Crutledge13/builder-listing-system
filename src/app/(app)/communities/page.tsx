@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddCommunities, isStaff } from "@/lib/permissions";
 import { money } from "@/lib/format";
@@ -24,9 +25,16 @@ async function CommunityList() {
   const supabase = await createClient();
   const staff = isStaff(me.role);
 
+  const focus = await builderFocus(me.role);
+  let cq = supabase.from("communities").select("id, name, city, county, builder_id, builders(name, builder_branding(logo_updated_at))").order("name");
+  let hq = supabase.from("homes").select("id, community_id, stories, list_price, workflow_status").is("deleted_at", null);
+  if (focus) {
+    cq = cq.eq("builder_id", focus);
+    hq = hq.eq("builder_id", focus);
+  }
   const [{ data: communities }, { data: homes }, { data: openHouses }] = await Promise.all([
-    supabase.from("communities").select("id, name, city, county, builder_id, builders(name, builder_branding(logo_updated_at))").order("name"),
-    supabase.from("homes").select("id, community_id, stories, list_price, workflow_status").is("deleted_at", null),
+    cq,
+    hq,
     supabase.from("open_houses").select("home_id").is("cancelled_at", null).gte("ends_at", new Date().toISOString()),
   ]);
 

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
 import { canAddHomes, canSeeWebsiteCheck, editableFields, isStaff, type HomeField, type WorkflowStatus } from "@/lib/permissions";
 import { cx, dateTime, money, num } from "@/lib/format";
@@ -45,7 +46,9 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
   const supabase = await createClient();
 
   const { data: builders } = staff ? await supabase.from("builders").select("id, name").order("name") : { data: null };
-  const builderId = staff ? (typeof sp.builder === "string" ? sp.builder : builders?.[0]?.id) : me.builder_id;
+  // Our team: the builder picked on this page, else the one picked in the top bar, else the first.
+  const focus = await builderFocus(me.role);
+  const builderId = staff ? (typeof sp.builder === "string" ? sp.builder : focus ?? builders?.[0]?.id) : me.builder_id;
   if (!builderId) return <p className="text-muted">No builders yet.</p>;
   const builderName = staff ? builders?.find((b) => b.id === builderId)?.name : me.builder_name;
 

@@ -9,6 +9,9 @@ import { switchDemoUser } from "./demo-actions";
 import { NavLinks } from "./nav-links";
 import { Logo } from "@/components/logo";
 import { PopoverCloser } from "@/components/popover-closer";
+import { BuilderFocusPicker } from "@/components/builder-focus-picker";
+import { builderFocus } from "@/lib/builder-focus";
+import { setBuilderFocus } from "./focus-actions";
 import { Avatar, BuilderLogo, initials } from "@/components/avatar";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
@@ -30,12 +33,17 @@ async function Header() {
   const showDemo = demoModeOn() && me.email.endsWith("@demo.test");
   const company = me.role === "photographer" ? "Contractor" : isStaff(me.role) ? "Our team" : me.builder_name?.replace(" (demo)", "");
 
-  // Open task count on the Tasks tab for our team.
+  // Open task count on the Tasks tab for our team, and the builder picker.
   let badges: Record<string, number> | undefined;
+  let focusBuilders: { id: string; name: string }[] = [];
+  const focus = await builderFocus(me.role);
   if (isStaff(me.role)) {
     const supabase = await createClient();
-    const { count } = await supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]);
+    let tq = supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]);
+    if (focus) tq = tq.eq("builder_id", focus);
+    const [{ count }, { data: bs }] = await Promise.all([tq, supabase.from("builders").select("id, name").order("name")]);
     badges = { "/tasks": count ?? 0 };
+    focusBuilders = bs ?? [];
   }
 
   return (
@@ -58,6 +66,7 @@ async function Header() {
         <div className="flex min-w-0 flex-1 justify-start md:justify-center">
           <NavLinks links={primaryTabs(me.role)} badges={badges} />
         </div>
+        {isStaff(me.role) && focusBuilders.length > 1 && <BuilderFocusPicker builders={focusBuilders} current={focus} action={setBuilderFocus} />}
 
         <details data-popover className="relative shrink-0">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-line py-1 pl-3 pr-1 transition-shadow hover:shadow-md">

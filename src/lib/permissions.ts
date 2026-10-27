@@ -139,7 +139,8 @@ export function canRequestMedia(role: Role) {
 export const NEED_LABELS: Record<string, string> = {
   photos: "Photos",
   twilight: "Twilight photos",
-  video: "Video walkthrough",
+  video: "Walkthrough video (horizontal)",
+  vertical_video: "Vertical social reel (9:16)",
   drone: "Drone or aerial",
   floor_plan: "Floor plan",
   virtual_tour: "3D virtual tour",

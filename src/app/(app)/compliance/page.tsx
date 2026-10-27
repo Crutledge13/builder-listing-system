@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
 import { cx, dateTime } from "@/lib/format";
@@ -24,10 +25,13 @@ async function Compliance({ searchParams }: { searchParams: PageProps<"/complian
   const sp = await searchParams;
   const kind = typeof sp.kind === "string" ? sp.kind : null;
   const supabase = await createClient();
+  const focus = await builderFocus(me.role);
+  let rq = supabase.from("home_alerts").select("id, kind, message, resolution, resolved_at, homes(unparsed_address)").not("resolved_at", "is", null).order("resolved_at", { ascending: false }).limit(10);
+  if (focus) rq = rq.eq("builder_id", focus);
   const [all, { data: boards }, { data: resolved }] = await Promise.all([
-    loadAlerts(),
+    loadAlerts(focus ? { builderId: focus } : {}),
     supabase.from("mls_boards").select("code, short_name, rules").eq("active", true).order("code"),
-    supabase.from("home_alerts").select("id, kind, message, resolution, resolved_at, homes(unparsed_address)").not("resolved_at", "is", null).order("resolved_at", { ascending: false }).limit(10),
+    rq,
   ]);
   const alerts = kind ? all.filter((a) => a.kind === kind) : all;
   const counts = new Map<string, number>();

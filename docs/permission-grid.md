@@ -65,6 +65,8 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Mark complete / send back | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | ➖ |
 | Set "who photographers call" (shoot contact, access notes) | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | See builder name, logo, shoot contact and requester contact on a job | ✅ | ✅ | own | own | ➖ | own | their jobs |
+| Download photos at any size (incl. custom) | all | all | own | own | assigned | own | jobs |
+| Add download sizes, set the builder's default size | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | See photographer pay | all | all | ➖ | ➖ | ➖ | ➖ | their own |
 | Approve / mark paid, change rates | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
 

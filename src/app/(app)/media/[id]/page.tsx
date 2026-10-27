@@ -6,7 +6,9 @@ import { requireProfile } from "@/lib/auth";
 import { canManageMedia, isStaff } from "@/lib/permissions";
 import { dateTime } from "@/lib/format";
 import { DemoArt, MEDIA_SELECT, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
-import { DownloadDrawn, DownloadWithDisclaimer, VideoPlayer } from "@/components/media-client";
+import { VideoPlayer } from "@/components/media-client";
+import { DownloadMenu } from "@/components/download-menu";
+import { PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
 import { DISCLAIMER_TEXT, DisclaimerOverlay, planFolderHref } from "@/components/media-tile";
 import { clearAiWarning, makeCover, requestTag, rerunAi, saveMedia, setTrashed } from "./actions";
 import { TagPicker } from "@/components/tag-picker";
@@ -65,6 +67,10 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
     ? await supabase.from("media_tag_requests").select("id, label, status, answer").eq("media_id", m.id).eq("requested_by", me.id).order("created_at", { ascending: false }).limit(5)
     : { data: null };
 
+  const { data: presetRows } = await supabase.from("download_presets").select(PRESET_SELECT).order("sort").order("name");
+  const presets = (presetRows ?? []) as DownloadPreset[];
+  const { data: brand } = await supabase.from("builder_branding").select("default_download_preset").eq("builder_id", m.builder_id).maybeSingle();
+
   const { data: uploader } = m.uploaded_by
     ? await supabase.from("profiles").select("full_name").eq("id", m.uploaded_by).maybeSingle()
     : { data: null };
@@ -121,22 +127,20 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
 
         <aside className="space-y-6">
           <div className="card-lift rounded-2xl border border-line bg-white p-5">
-            {m.source === "demo" && m.kind !== "video" ? (
-              <DownloadDrawn targetId="media-view" fileName={fileName} disclaimer={disclaimer ? DISCLAIMER_TEXT : undefined} />
-            ) : disclaimer ? (
-              <DownloadWithDisclaimer src={`/api/media/${m.id}`} fileName={fileName} disclaimer={DISCLAIMER_TEXT} />
-            ) : (
+            {m.kind === "video" || (m.source !== "demo" && !(m.mime_type ?? "").startsWith("image/")) ? (
               <a href={`/api/media/${m.id}?download=1`} className="block w-full rounded-xl bg-accent px-4 py-3 text-center font-semibold text-white hover:brightness-110">
                 Download
               </a>
-            )}
-            {offerDisclaimer && (
-              <div className="mt-2 [&_button]:border [&_button]:border-foreground [&_button]:bg-white [&_button]:text-foreground">
-                {m.source === "demo"
-                  ? <DownloadDrawn targetId="media-view" fileName={`${fileName}-representative`} disclaimer={DISCLAIMER_TEXT} label="Download with disclaimer" />
-                  : <DownloadWithDisclaimer src={`/api/media/${m.id}`} fileName={fileName} disclaimer={DISCLAIMER_TEXT} />}
-                <p className="mt-1 text-xs text-muted">This is a plan library photo. The second button adds the “representative” disclaimer to the file.</p>
-              </div>
+            ) : (
+              <DownloadMenu
+                mediaId={m.id}
+                fileName={fileName}
+                demoTargetId={m.source === "demo" ? "media-view" : undefined}
+                presets={presets}
+                builderDefault={brand?.default_download_preset ?? null}
+                disclaimer={disclaimer ? DISCLAIMER_TEXT : undefined}
+                offerDisclaimer={offerDisclaimer ? DISCLAIMER_TEXT : undefined}
+              />
             )}
             <dl className="mt-5 space-y-2 text-sm">
               <Row label="Type" value={m.kind === "floor_plan" ? "Floor plan" : m.kind === "video" ? "Video" : "Photo"} />
