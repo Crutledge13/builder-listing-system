@@ -4,7 +4,7 @@ import "@fontsource-variable/figtree";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Builder Listings",
+  title: "Builder Listing Services",
   description: "Private listing back office for builders and staff.",
   // Private system: keep it out of search engines.
   robots: { index: false, follow: false },
