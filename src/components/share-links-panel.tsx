@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { cx, dateTime } from "@/lib/format";
-import { CopyButton } from "@/components/mls-client";
 import { PendingButton } from "@/components/pending-button";
 import { deleteShareLink, extendShareLink, replaceShareLink, restoreShareLink } from "@/app/(app)/homes/[id]/share-actions";
 
@@ -23,19 +22,18 @@ type Link = {
 // highlight: the older link just changed, marked with the message next to it.
 // undo: the older link just deleted, offered back next to the message.
 export async function ShareLinksPanel({
-  homeId, canManage, notice, highlight, undo,
-}: { homeId: string; canManage: boolean; notice: React.ReactNode; highlight?: string | null; undo?: string | null }) {
+  homeId, token, canManage, notice, highlight, undo,
+}: { homeId: string; token: string | null; canManage: boolean; notice: React.ReactNode; highlight?: string | null; undo?: string | null }) {
+  // Everyone copies the link from the "Share link" button at the top of the
+  // home; this section is only the managing part.
+  if (!token || !canManage) return null;
   const supabase = await createClient();
-  const [{ data: token }, { data }] = await Promise.all([
-    supabase.rpc("home_share_link", { p_home: homeId }),
-    supabase
-      .from("share_links")
-      .select("id, token, recipient_name, recipient_email, expires_at, revoked_at, view_count, download_count, last_viewed_at, created_at, profiles!share_links_created_by_fkey(full_name)")
-      .eq("home_id", homeId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false }),
-  ]);
-  if (!token) return null;
+  const { data } = await supabase
+    .from("share_links")
+    .select("id, token, recipient_name, recipient_email, expires_at, revoked_at, view_count, download_count, last_viewed_at, created_at, profiles!share_links_created_by_fkey(full_name)")
+    .eq("home_id", homeId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
   const all = (data ?? []) as unknown as Link[];
   const standing = all.find((l) => l.token === token);
   const older = all.filter((l) => l.expires_at !== null);
@@ -48,8 +46,9 @@ export async function ShareLinksPanel({
     <section id="share" className="scroll-mt-28 border-b border-line py-8">
       <h3 className="text-lg font-semibold">Share with a realtor</h3>
       <p className="mt-1 max-w-2xl text-sm text-muted">
-        This home&rsquo;s link. Copy it and send it to anyone: it opens a page with the listing photos, walkthrough video, vertical reel and
-        tour links to download, plus a button to the builder&rsquo;s website for more information. No login needed.
+        Copy this home&rsquo;s link with the <b className="font-semibold text-foreground">Share link</b> button at the top and send it to anyone. It opens a
+        page with the listing photos, walkthrough video, vertical reel and tour links to download, plus a button to the builder&rsquo;s
+        website. No login needed.
       </p>
       {!highlight && notice}
       {undo && canManage && (
@@ -61,18 +60,16 @@ export async function ShareLinksPanel({
       )}
 
       <div className="mt-4 rounded-2xl border border-line p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <input readOnly value={url} className="field-input min-w-0 flex-1 py-2 font-mono text-xs" aria-label="This home's share link" />
-          <CopyButton value={url} label="Copy link" />
-          <a href={url} target="_blank" rel="noreferrer" className="shrink-0 text-sm font-semibold text-accent underline">Preview</a>
-        </div>
-        {canManage && standing && (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <a href={url} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">See what the realtor sees</a>
+          {standing && (
             <span className="text-muted">
               Opened {standing.view_count} {standing.view_count === 1 ? "time" : "times"}
               {standing.last_viewed_at ? ` (last ${dateTime(standing.last_viewed_at)})` : ""} · {standing.download_count}{" "}
               {standing.download_count === 1 ? "download" : "downloads"}
             </span>
+          )}
+          {standing && (
             <form action={replaceShareLink}>
               <input type="hidden" name="home_id" value={homeId} />
               <input type="hidden" name="id" value={standing.id} />
@@ -84,11 +81,11 @@ export async function ShareLinksPanel({
                 Replace link
               </PendingButton>
             </form>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {canManage && older.length > 0 && (
+      {older.length > 0 && (
         <details className="mt-4 rounded-2xl border border-line" open={!!highlight}>
           <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold">
             Older links made for one realtor ({older.length})

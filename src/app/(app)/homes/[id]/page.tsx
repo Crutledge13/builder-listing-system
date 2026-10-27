@@ -62,6 +62,8 @@ import { canEditMlsAnswers } from "@/lib/ntreis-form";
 import { loadListingMedia } from "@/lib/listing-media";
 import { ListingMediaPanel } from "@/components/listing-media-panel";
 import { ShareLinksPanel } from "@/components/share-links-panel";
+import { ShareLinkTile } from "@/components/share-link-tile";
+import { headers } from "next/headers";
 import { RoomsEditor } from "@/components/rooms-editor";
 import { IncentiveList } from "@/components/incentive-list";
 import type { Incentive } from "@/lib/incentives";
@@ -181,6 +183,12 @@ async function HomeDetail({
   const ownMls = !staff && (await enterOwnMls(me.role, me.builder_id));
   const mlsScore = staff || ownMls ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
   const alerts = await loadAlerts({ homeId: id });
+  // The home's standing realtor link (made on first open), for the Share link button at the top.
+  const { data: shareToken } = await supabase.rpc("home_share_link", { p_home: id });
+  const reqHeaders = await headers();
+  const shareUrl = typeof shareToken === "string" && shareToken
+    ? `${reqHeaders.get("x-forwarded-proto") ?? "https"}://${reqHeaders.get("host")}/s/${shareToken}`
+    : null;
   const canAnswerAlerts = ["platform_admin", "listing_coordinator", "builder_owner", "manager", "sales"].includes(me.role);
 
   // Which MLS, and is the listing ready for it?
@@ -372,7 +380,7 @@ async function HomeDetail({
             ))}
           </dl>
 
-          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} canRequestPhotos={canRequestMedia(me.role)} />
+          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} canRequestPhotos={canRequestMedia(me.role)} shareUrl={shareUrl} />
 
           {homeTasks && homeTasks.length > 0 && (
             <section className="border-b border-line py-6">
@@ -565,7 +573,7 @@ async function HomeDetail({
           />
 
           {(canShareLinks(me.role) || isStaff(me.role) || me.role === "sales") && (
-            <ShareLinksPanel homeId={home.id} canManage={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} undo={at === "share" && typeof sp.undo === "string" ? sp.undo : null} />
+            <ShareLinksPanel homeId={home.id} token={typeof shareToken === "string" ? shareToken : null} canManage={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} undo={at === "share" && typeof sp.undo === "string" ? sp.undo : null} />
           )}
 
           {canRequestMedia(me.role) && (
@@ -1142,7 +1150,7 @@ const REQUEST_STYLES: Record<string, string> = {
   declined: "bg-soft text-muted",
 };
 
-function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse, canRequestPhotos }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number; canRequestPhotos: boolean }) {
+function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse, canRequestPhotos, shareUrl }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number; canRequestPhotos: boolean; shareUrl: string | null }) {
   const items = [
     { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
     { href: "#open-houses", title: "Open houses", sub: upcomingOH ? `${upcomingOH} scheduled` : "Schedule one" },
@@ -1151,13 +1159,14 @@ function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse,
     { href: `/media?home=${homeId}`, title: canRequestPhotos ? "Media" : "Photos and video", sub: canRequestPhotos ? "Home, community, plan" : "View and download" },
   ];
   return (
-    <nav className="grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-3 xl:grid-cols-5" aria-label="On this home">
+    <nav className={cx("grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-3", items.length + (shareUrl ? 1 : 0) > 5 ? "xl:grid-cols-6" : "xl:grid-cols-5")} aria-label="On this home">
       {items.map((i) => (
         <Link key={i.title} href={i.href} className="rounded-2xl border border-line p-4 transition-shadow hover:shadow-md">
           <div className="font-semibold">{i.title}</div>
           <div className="mt-0.5 text-sm text-muted">{i.sub}</div>
         </Link>
       ))}
+      {shareUrl && <ShareLinkTile url={shareUrl} />}
     </nav>
   );
 }
