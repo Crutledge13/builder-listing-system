@@ -121,6 +121,11 @@ export function canAddHomes(role: Role) {
 }
 
 // Who may upload media and edit tags (matches the database's media rules).
+// The builder's own to-do board. Mirrors private.on_builder_board.
+export function canUseBuilderBoard(role: Role) {
+  return ["builder_owner", "manager", "marketing"].includes(role);
+}
+
 // Who can ask our team for comps. Mirrors the comp_requests rules.
 export function canRequestComps(role: Role) {
   return ["platform_admin", "builder_owner", "manager", "sales", "marketing"].includes(role);

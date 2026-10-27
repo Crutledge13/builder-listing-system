@@ -20,6 +20,7 @@ export function primaryTabs(role: Role): MenuLink[] {
     { href: "/media", label: "Media" },
   ];
   if (role === "builder_owner" || role === "manager") tabs.push({ href: "/reports", label: "Reports" });
+  if (role === "marketing") tabs.push({ href: "/todo", label: "To-do" });
   if (role === "sales" || role === "marketing") tabs.push({ href: "/comps/new", label: "Request comps" });
   return tabs;
 }
@@ -42,7 +43,11 @@ export function menuLinks(role: Role): MenuLink[] {
     links.push({ href: "/website-check", label: "Website check", hint: "Website, Builder Listings and MLS side by side" });
   }
   if (role === "builder_owner" || role === "manager") {
+    links.push({ href: "/todo", label: "To-do", hint: "Your team’s to-do list" });
     links.push({ href: "/team", label: "Your team", hint: "Add people and set their access" });
+  }
+  if (role === "platform_admin" || role === "listing_coordinator") {
+    links.push({ href: "/todo", label: "Builders’ to-do boards", hint: "What each builder’s team has open" });
   }
   if (["builder_owner", "manager", "marketing"].includes(role)) {
     links.push({ href: "/branding", label: "Company branding", hint: "Logo, colors and website" });

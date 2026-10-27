@@ -44,6 +44,9 @@ async function Header() {
     const [{ count }, { data: bs }] = await Promise.all([tq, supabase.from("builders").select("id, name").order("name")]);
     badges = { "/tasks": count ?? 0 };
     focusBuilders = bs ?? [];
+  } else if (me.role === "marketing") {
+    const { count } = await (await createClient()).from("builder_tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]);
+    badges = { "/todo": count ?? 0 };
   }
 
   // Unread notices for the bell.
