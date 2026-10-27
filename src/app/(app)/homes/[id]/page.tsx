@@ -553,7 +553,7 @@ async function HomeDetail({
           />
 
           {(canShareLinks(me.role) || isStaff(me.role)) && (
-            <ShareLinksPanel homeId={home.id} canShare={canShareLinks(me.role)} notice={sectionNotice("share")} />
+            <ShareLinksPanel homeId={home.id} canShare={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} />
           )}
 
           {canRequestMedia(me.role) && (

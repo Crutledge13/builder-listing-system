@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { cx, dateTime } from "@/lib/format";
 import { CopyButton } from "@/components/mls-client";
+import { PendingButton } from "@/components/pending-button";
 import { createShareLink, extendShareLink, turnOffShareLink } from "@/app/(app)/homes/[id]/share-actions";
 
 type Link = {
@@ -12,7 +13,8 @@ type Link = {
 
 // "Share with a realtor" on a home: make a private, expiring link to a page
 // with this home's photos, walkthrough and reel, and see who opened it.
-export async function ShareLinksPanel({ homeId, canShare, notice }: { homeId: string; canShare: boolean; notice: React.ReactNode }) {
+// highlight: the link just made or changed, marked in the list with the message next to it.
+export async function ShareLinksPanel({ homeId, canShare, notice, highlight }: { homeId: string; canShare: boolean; notice: React.ReactNode; highlight?: string | null }) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("share_links")
@@ -32,10 +34,10 @@ export async function ShareLinksPanel({ homeId, canShare, notice }: { homeId: st
         Make a private link to a page with this home’s listing photos, walkthrough video, vertical reel and tour links, so a realtor can
         download them for their own marketing. No login needed. The link expires, you can turn it off any time, and you’ll see when it’s opened.
       </p>
-      {notice}
+      {!highlight && notice}
 
       {canShare && (
-        <details className="mt-4 rounded-2xl border border-line" open={links.length === 0}>
+        <details className="mt-4 rounded-2xl border border-line" open={links.length === 0 && !highlight}>
           <summary className="cursor-pointer list-none px-4 py-3 font-semibold">+ Make a share link</summary>
           <form action={createShareLink} className="grid gap-3 border-t border-line p-4 sm:grid-cols-2">
             <input type="hidden" name="home_id" value={homeId} />
@@ -47,7 +49,7 @@ export async function ShareLinksPanel({ homeId, canShare, notice }: { homeId: st
                 <option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option>
               </select>
             </label>
-            <div className="flex items-end"><button className="rounded-xl bg-accent px-5 py-2.5 font-semibold text-white hover:brightness-110">Make link</button></div>
+            <div className="flex items-end"><PendingButton pending="Making link…" className="rounded-xl bg-accent px-5 py-2.5 font-semibold text-white hover:brightness-110">Make link</PendingButton></div>
             <p className="text-xs text-muted sm:col-span-2">The page shows only this home: what’s on its listing, plus its walkthrough and reel. Nothing else about your company, and no other homes.</p>
           </form>
         </details>
@@ -61,7 +63,7 @@ export async function ShareLinksPanel({ homeId, canShare, notice }: { homeId: st
             const live = !off && !expired;
             const url = `${origin}/s/${l.token}`;
             return (
-              <li key={l.id} className={cx("p-4", !live && "bg-soft/60")}>
+              <li key={l.id} id={`share-${l.id}`} className={cx("scroll-mt-28 p-4", !live && "bg-soft/60", l.id === highlight && "rounded-2xl ring-2 ring-accent ring-inset")}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-semibold">
                     {l.recipient_name ?? l.recipient_email ?? "Share link"}
@@ -87,16 +89,17 @@ export async function ShareLinksPanel({ homeId, canShare, notice }: { homeId: st
                       <form action={turnOffShareLink}>
                         <input type="hidden" name="home_id" value={homeId} />
                         <input type="hidden" name="id" value={l.id} />
-                        <button className="font-semibold text-red-700 underline">Turn off</button>
+                        <PendingButton pending="Turning off…" confirm="Turn off this link? Anyone who opens it will see it’s no longer available." className="font-semibold text-red-700 underline">Turn off</PendingButton>
                       </form>
                     )}
                     <form action={extendShareLink}>
                       <input type="hidden" name="home_id" value={homeId} />
                       <input type="hidden" name="id" value={l.id} />
-                      <button className="font-semibold underline">{live ? "Add 30 days" : "Turn back on for 30 days"}</button>
+                      <PendingButton pending={live ? "Adding 30 days…" : "Turning back on…"} className="font-semibold underline">{live ? "Add 30 days" : "Turn back on for 30 days"}</PendingButton>
                     </form>
                   </div>
                 )}
+                {l.id === highlight && <div className="-mt-1">{notice}</div>}
               </li>
             );
           })}
