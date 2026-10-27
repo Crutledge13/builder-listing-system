@@ -5,6 +5,7 @@ import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
+import { cardIncentive, INCENTIVE_SELECT, type Incentive } from "@/lib/incentives";
 import { StatusChips } from "@/components/status-chips";
 
 export default function HomesPage(props: PageProps<"/homes">) {
@@ -57,6 +58,9 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
   const { data, error } = await query;
   const all = (data ?? []) as unknown as Row[];
   const homes = status ? all.filter((h) => h.workflow_status === status) : all;
+  let iq = supabase.from("incentives").select(INCENTIVE_SELECT).eq("status", "active");
+  if (focus) iq = iq.eq("builder_id", focus);
+  const incentives = ((await iq).data ?? []) as Incentive[];
 
   const counts = new Map<string, number>();
   all.forEach((h) => counts.set(h.workflow_status, (counts.get(h.workflow_status) ?? 0) + 1));
@@ -118,7 +122,7 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
       <div className="mt-8">
         <HomeGrid>
           {homes.map((h) => (
-            <HomeCard key={h.id} h={h} showBuilder={staff} />
+            <HomeCard key={h.id} h={h} showBuilder={staff} incentive={cardIncentive(incentives, h)} />
           ))}
         </HomeGrid>
       </div>

@@ -105,6 +105,8 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Inbox (own notices) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | See floor plans and room sizes | all | all | own | own | own | own | ➖ |
 | Set up floor plans, upload plan files | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| See incentives | all | all | own | own | assigned + builder-wide | own | ➖ |
+| Add, extend, reword or end incentives | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | Change a home's room sizes | ✅ | ➖ | own | own | ➖ | when adding | ➖ |
 
 ## Always true

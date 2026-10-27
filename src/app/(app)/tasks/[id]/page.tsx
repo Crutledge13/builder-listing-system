@@ -256,9 +256,10 @@ async function UpdateWork({ t, sheet, check, feedStatus }: { t: Task; sheet: Mls
                     <div className="text-sm">
                       <span className="font-medium">{f?.label ?? c.label}</span>
                       {f && <span className="block text-[11px] text-muted">{f.key}</span>}
+                      {key.startsWith("incentive:") && <span className="block text-[11px] text-muted">In the remarks (no agent pay)</span>}
                     </div>
                     <div className="col-start-2 whitespace-pre-line text-[15px] text-muted line-through decoration-red-400 sm:col-start-auto">{showValue(key, c.from) || "—"}</div>
-                    <div className="col-start-2 whitespace-pre-line text-[15px] font-semibold sm:col-start-auto">{to || "(clear it)"}</div>
+                    <div className="col-start-2 whitespace-pre-line text-[15px] font-semibold sm:col-start-auto">{to || (key.startsWith("incentive:") ? "(take it out: it ended)" : "(clear it)")}</div>
                     <div className="col-start-2 sm:col-start-auto"><CopyButton value={to} /></div>
                   </div>
                 );

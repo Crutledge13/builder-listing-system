@@ -1,3 +1,4 @@
+import { endsText } from "@/lib/incentives";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +31,7 @@ type Shared = {
   builder: { id: string; name: string; logo_updated_at: string | null; primary_color: string | null; website_url: string | null };
   media: (Omit<MediaRow, "homes" | "communities" | "builders"> & { vertical: boolean })[];
   tours: { url: string; provider: string; title: string | null; branded: boolean }[];
+  incentives?: { title: string; details: string | null; ends_on: string; scope: string }[];
 };
 
 const STAGE: Record<string, string> = { to_be_built: "To be built", under_construction: "Under construction", move_in_ready: "Move-in ready" };
@@ -120,6 +122,24 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
           </blockquote>
         )}
         {h.public_remarks && <p className="mt-6 max-w-3xl whitespace-pre-line text-[15px] leading-relaxed">{h.public_remarks}</p>}
+
+        {(s.incentives ?? []).length > 0 && (
+          <section className="mt-8 max-w-3xl">
+            <h2 className="text-[22px] font-semibold">Current incentives</h2>
+            <ul className="mt-3 space-y-2">
+              {(s.incentives ?? []).map((i, n) => (
+                <li key={n} className="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <span className="font-semibold">{i.title}</span>
+                    <span className="text-xs text-muted">{endsText(i.ends_on)}</span>
+                  </div>
+                  {i.details && <p className="mt-0.5 whitespace-pre-line text-sm text-muted">{i.details}</p>}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-muted">Offered by {builderName}. Terms and end dates can change; check with {builderName} before writing an offer.</p>
+          </section>
+        )}
 
         {photos.length > 0 && (
           <section className="mt-10">

@@ -8,7 +8,7 @@ import { cx } from "@/lib/format";
 import { formatMls, resolveField, sheetRuleProblems, type MlsField } from "@/lib/mls-fields";
 import { loadMlsSheet, type MlsSheet } from "@/lib/mls-sheet";
 import { Notice } from "@/components/notice";
-import { MlsScore, RoomList } from "@/components/mls-sheet";
+import { IncentiveSheet, MlsScore, RoomList } from "@/components/mls-sheet";
 import { saveMlsSheet } from "./actions";
 
 export default function MlsSheetPage(props: PageProps<"/homes/[id]/mls">) {
@@ -68,6 +68,7 @@ async function Sheet({ params }: { params: PageProps<"/homes/[id]/mls">["params"
           </section>
         ))}
         <RoomList sheet={sheet} />
+        <IncentiveSheet sheet={sheet} />
         <div className="sticky bottom-4 flex justify-end">
           <button className="rounded-xl bg-accent px-6 py-3 font-semibold text-white shadow-lg hover:brightness-110">Save MLS sheet</button>
         </div>

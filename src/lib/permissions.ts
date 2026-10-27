@@ -137,6 +137,11 @@ export function canRequestComps(role: Role) {
 }
 
 // Realtor share links for a home. Mirrors private.can_share.
+// Add, extend and end incentives (builder, community or home).
+export function canManageIncentives(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
+}
+
 export function canShareLinks(role: Role) {
   return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }

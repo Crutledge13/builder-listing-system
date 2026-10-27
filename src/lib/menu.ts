@@ -38,6 +38,7 @@ export function menuLinks(role: Role): MenuLink[] {
     links.push({ href: "/attention", label: "Needs your attention", hint: "Homes waiting on an answer from your team" });
   }
   if (role !== "sales") links.push({ href: "/media/requests", label: "Photo requests", hint: "Shoots and deliveries" });
+  links.push({ href: "/incentives", label: "Incentives", hint: role === "sales" ? "Current incentives for your communities" : "Builder, community and home incentives with end dates" });
   links.push({ href: "/plans", label: "Floor plans", hint: role === "platform_admin" || role === "listing_coordinator" ? "Set up each builder’s plans and room sizes" : "Your plans and their room sizes" });
   links.push({ href: "/comps", label: "Comps", hint: role === "platform_admin" || role === "listing_coordinator" ? "Comp requests to pull and send" : "Ask for comps and see what's been sent" });
   if (["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role)) {

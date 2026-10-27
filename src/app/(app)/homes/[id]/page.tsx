@@ -39,6 +39,7 @@ import {
 import { nextSaturdayCentral, openHouseWhen } from "@/lib/time";
 import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
 import {
+  canManageIncentives,
   canManageMedia,
   canShareLinks,
   canRequestComps,
@@ -61,6 +62,8 @@ import { loadListingMedia } from "@/lib/listing-media";
 import { ListingMediaPanel } from "@/components/listing-media-panel";
 import { ShareLinksPanel } from "@/components/share-links-panel";
 import { RoomsEditor } from "@/components/rooms-editor";
+import { IncentiveList } from "@/components/incentive-list";
+import type { Incentive } from "@/lib/incentives";
 import { cleanRooms, levelLabel, roomSize } from "@/lib/rooms";
 import { Deliverables } from "@/components/deliverables";
 import { loadDeliverables } from "@/lib/deliverables";
@@ -209,6 +212,8 @@ async function HomeDetail({
     : { data: null };
   const planRooms = cleanRooms(planRow?.rooms);
   const canEditRooms = canEditMlsAnswers(me.role);
+  const { data: incentiveRows } = await supabase.rpc("home_incentives", { p_home: home.id });
+  const incentives = (incentiveRows ?? []) as Incentive[];
 
   const { data: mediaRows, count: mediaCount } = await supabase
     .from("media")
@@ -374,6 +379,17 @@ async function HomeDetail({
               </ul>
             </section>
           )}
+
+          <section id="incentives" className="scroll-mt-28 border-b border-line py-8">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <h2 className="text-[22px] font-semibold">Incentives</h2>
+              {canManageIncentives(me.role) && <Link href={`/incentives?home=${home.id}`} className="text-sm font-semibold underline">+ Add one for this home</Link>}
+            </div>
+            <p className="mt-1 text-sm text-muted">What a buyer gets on this home right now: its own incentives, its community&rsquo;s, and any that cover every community.</p>
+            <div className="mt-4">
+              {incentives.length ? <IncentiveList items={incentives} manageHref={canManageIncentives(me.role) ? "/incentives" : undefined} /> : <p className="text-sm text-muted">No current incentives.</p>}
+            </div>
+          </section>
 
           <section id="open-houses" className="scroll-mt-28 border-b border-line py-8">
             <h3 className="text-lg font-semibold">Open houses</h3>
@@ -1003,6 +1019,15 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
   if (action === "media_added") return `added ${(changes as unknown as { title: string }).title} to the media library`;
   if (action === "media_trashed") return `moved ${(changes as unknown as { title: string }).title} to the trash`;
   if (action === "media_restored") return `restored ${(changes as unknown as { title: string }).title}`;
+  if (action.startsWith("incentive_")) {
+    const c = (changes as unknown as { incentive?: { from: string | null; to: string | null } }).incentive;
+    const what = c?.to ?? c?.from ?? "an incentive";
+    return action === "incentive_added" ? `added an incentive: ${what}`
+      : action === "incentive_ended" ? `ended an incentive: ${what}`
+      : action === "incentive_expired" ? `incentive reached its end date: ${what}`
+      : action === "incentive_extended" ? `extended an incentive: ${what}`
+      : `changed an incentive: ${what}`;
+  }
   if (action === "moved_to_trash") return "moved it to the trash";
   if (action === "restored") return "restored it from the trash";
   const keys = Object.keys(changes ?? {});

@@ -8,6 +8,7 @@ import { TOUR_PROVIDERS } from "@/lib/listing-media";
 import { PhotoPackButton } from "@/components/photo-pack-button";
 import type { MediaRow } from "@/lib/demo-media";
 import { levelLabel } from "@/lib/rooms";
+import { endsText } from "@/lib/incentives";
 
 function slug(s: string) {
   return s.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase().slice(0, 40) || "photo";
@@ -99,6 +100,7 @@ export function MlsSheetView({
         );
       })}
       <RoomList sheet={sheet} check={check} />
+      <IncentiveSheet sheet={sheet} />
       <PhotoList sheet={sheet} check={check} />
     </div>
   );
@@ -223,6 +225,30 @@ export function RoomList({ sheet, check }: { sheet: MlsSheet; check?: Parameters
           })}
         </dl>
       )}
+    </section>
+  );
+}
+
+// Current incentives for this home, to mention in the remarks (buyer incentives only).
+export function IncentiveSheet({ sheet }: { sheet: MlsSheet }) {
+  if (!sheet.incentives.length) return null;
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line">
+      <h3 className="bg-soft px-4 py-2.5 font-semibold">Incentives <span className="text-xs font-normal text-muted">for the remarks</span></h3>
+      <dl className="divide-y divide-line">
+        {sheet.incentives.map((i) => {
+          const text = `${i.title}${i.details ? `: ${i.details}` : ""}`;
+          return (
+            <div key={i.id} className="grid grid-cols-[1fr_auto] items-start gap-x-3 px-4 py-2.5">
+              <div>
+                <dt className="text-[15px] font-medium">{i.title}</dt>
+                <dd className="text-sm text-muted">{i.details ? `${i.details} · ` : ""}{endsText(i.ends_on)}</dd>
+              </div>
+              <CopyButton value={text} />
+            </div>
+          );
+        })}
+      </dl>
     </section>
   );
 }

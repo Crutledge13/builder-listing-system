@@ -6,6 +6,8 @@ import { HomeArt } from "@/components/home-art";
 
 export type HomeCardData = {
   id: string;
+  builder_id?: string;
+  community_id?: string | null;
   unparsed_address: string;
   city: string;
   plan_name: string | null;
@@ -24,9 +26,9 @@ export type HomeCardData = {
 };
 
 export const HOME_CARD_SELECT =
-  "id, unparsed_address, city, plan_name, lot_number, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, stories, build_stage, workflow_status, mls_number, market_status, community_id, communities(name), builders(name)";
+  "id, unparsed_address, city, plan_name, lot_number, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, stories, build_stage, workflow_status, mls_number, market_status, community_id, builder_id, communities(name), builders(name)";
 
-export function HomeCard({ h, showBuilder, showCommunity = true }: { h: HomeCardData; showBuilder?: boolean; showCommunity?: boolean }) {
+export function HomeCard({ h, showBuilder, showCommunity = true, incentive }: { h: HomeCardData; showBuilder?: boolean; showCommunity?: boolean; incentive?: { title: string; more: number } }) {
   return (
     <Link href={`/homes/${h.id}`} className="group block">
       <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-soft">
@@ -56,6 +58,11 @@ export function HomeCard({ h, showBuilder, showCommunity = true }: { h: HomeCard
           {h.plan_name} plan{showCommunity ? ` in ${h.communities?.name}` : ""}
           {showBuilder ? `, ${h.builders?.name.replace(" (demo)", "")}` : ""}
         </div>
+        {incentive && (
+          <div className="mt-1.5 truncate text-sm font-medium text-violet-800" title={incentive.title}>
+            <span aria-hidden>★ </span>{incentive.title}{incentive.more > 0 ? ` +${incentive.more} more` : ""}
+          </div>
+        )}
       </div>
     </Link>
   );

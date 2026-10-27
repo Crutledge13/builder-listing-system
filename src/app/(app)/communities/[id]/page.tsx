@@ -6,6 +6,9 @@ import { requireProfile } from "@/lib/auth";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
+import { cardIncentive, forHome, INCENTIVE_SELECT, type Incentive } from "@/lib/incentives";
+import { IncentiveList } from "@/components/incentive-list";
+import { canManageIncentives } from "@/lib/permissions";
 import { StatusChips } from "@/components/status-chips";
 import { HomeArt } from "@/components/home-art";
 import { openHouseWhen } from "@/lib/time";
@@ -53,6 +56,10 @@ async function CommunityDetail({
     .order("unparsed_address");
   const all = (homeRows ?? []) as unknown as HomeCardData[];
   const homes = status ? all.filter((h) => h.workflow_status === status) : all;
+  const { data: incentiveRows } = await supabase.from("incentives").select(INCENTIVE_SELECT).eq("builder_id", community.builder_id).eq("status", "active").order("ends_on");
+  const incentives = (incentiveRows ?? []) as Incentive[];
+  // What the community page lists: this community's and the builder-wide ones.
+  const communityIncentives = forHome(incentives, { id: "", builder_id: community.builder_id, community_id: community.id });
   const homeIds = all.map((h) => h.id);
   const addressOf = new Map(all.map((h) => [h.id, h.unparsed_address]));
 
@@ -153,6 +160,22 @@ async function CommunityDetail({
         ))}
       </dl>
 
+      {(communityIncentives.length > 0 || canManageIncentives(me.role)) && (
+        <section className="mt-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-[22px] font-semibold">Incentives</h2>
+            {canManageIncentives(me.role) && <Link href={`/incentives?community=${community.id}`} className="text-sm font-semibold underline">+ Add one for {community.name}</Link>}
+          </div>
+          <div className="mt-4 max-w-3xl">
+            {communityIncentives.length ? (
+              <IncentiveList items={communityIncentives} manageHref={canManageIncentives(me.role) ? "/incentives" : undefined} />
+            ) : (
+              <p className="text-sm text-muted">No current incentives for this community.</p>
+            )}
+          </div>
+        </section>
+      )}
+
       {openHouses && openHouses.length > 0 && (
         <section className="mt-8">
           <h2 className="text-[22px] font-semibold">Upcoming open houses</h2>
@@ -180,7 +203,7 @@ async function CommunityDetail({
         />
         <div className="mt-8">
           <HomeGrid>
-            {homes.map((h) => <HomeCard key={h.id} h={h} showCommunity={false} />)}
+            {homes.map((h) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} />)}
           </HomeGrid>
           {homes.length === 0 && (
             <p className="rounded-2xl border border-dashed border-line px-6 py-12 text-center text-muted">No homes with this status here.</p>
