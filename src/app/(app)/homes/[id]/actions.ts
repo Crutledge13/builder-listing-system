@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { missingBuyerAgent, readBuyerAgent } from "@/lib/buyer-agent";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
@@ -241,12 +242,15 @@ export async function setMarketStatus(formData: FormData) {
   const supabase = await createClient();
   // The database ends repeating open houses, cancels future ones, and adds a
   // task for our team to update the MLS.
-  const patch: Record<string, string | number | null> = { market_status: to };
+  const patch: Record<string, string | number | boolean | null> = { market_status: to };
   // The sale details the MLS needs for these statuses.
   if (to === "under_contract") {
     const d = String(formData.get("purchase_contract_date") ?? "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) back(id, { error: "Enter the contract date." });
     patch.purchase_contract_date = d;
+    // The buyer's agent the MLS needs (the database checks this too).
+    if (missingBuyerAgent(formData)) back(id, { error: "Enter the buyer’s agent and their brokerage, or tick “The buyer has no agent”.", at: "home-status" });
+    Object.assign(patch, readBuyerAgent(formData));
   }
   if (to === "sold") {
     const d = String(formData.get("close_date") ?? "");

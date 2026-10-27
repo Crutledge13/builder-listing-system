@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BuyerAgentFields } from "@/components/buyer-agent-fields";
 import { createClient } from "@/lib/supabase/server";
 import { cx, dateTime } from "@/lib/format";
 import { answerAvailability, resolveAlert } from "@/app/(app)/compliance/actions";
@@ -76,6 +77,7 @@ export function AlertCard({ a, back, canAnswer, staff, showHome = true }: { a: A
                 <input type="hidden" name="home_id" value={a.home_id} />
                 <input type="hidden" name="answer" value="under_contract" />
                 <label className="text-sm"><span className="mb-1 block font-medium">Contract date</span><input type="date" name="date" required className="field-input py-1.5" /></label>
+                <div className="w-full sm:w-80"><BuyerAgentFields compact /></div>
                 <button className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white">Save</button>
               </form>
             </details>

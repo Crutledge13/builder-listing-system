@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BuyerAgentFields } from "@/components/buyer-agent-fields";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -694,6 +695,11 @@ async function HomeDetail({
               <p className="mt-1 text-sm">
                 <b>{SALE_LABELS[(home.market_status ?? "active") as MarketStatus]}</b>
                 {home.market_status === "under_contract" && home.purchase_contract_date ? `, since ${new Date(home.purchase_contract_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                {home.market_status === "under_contract" && (home.buyer_unrepresented || home.buyer_agent_full_name) && (
+                  <span className="block text-xs text-muted">
+                    {home.buyer_unrepresented ? "Buyer has no agent" : `Buyer’s agent: ${home.buyer_agent_full_name}${home.buyer_office_name ? `, ${home.buyer_office_name}` : ""}${home.co_buyer_agent_full_name ? ` and ${home.co_buyer_agent_full_name}` : ""}`}
+                  </span>
+                )}
                 {home.market_status === "sold" && home.close_price ? `, ${money(home.close_price)}` : ""}
               </p>
               {saleChoices.length > 0 && (
@@ -706,10 +712,13 @@ async function HomeDetail({
                           <input type="hidden" name="id" value={home.id} />
                           <input type="hidden" name="market_status" value={m} />
                           {m === "under_contract" ? (
-                            <label className="block text-sm">
-                              <span className="mb-1 block font-medium">Contract date</span>
-                              <input type="date" name="purchase_contract_date" required className="field-input py-2" />
-                            </label>
+                            <>
+                              <label className="block text-sm">
+                                <span className="mb-1 block font-medium">Contract date</span>
+                                <input type="date" name="purchase_contract_date" required className="field-input py-2" />
+                              </label>
+                              <BuyerAgentFields />
+                            </>
                           ) : (
                             <>
                               <label className="block text-sm">
