@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { makePreviews } from "@/lib/previews";
 import { recordUploads, type UploadedFile } from "./actions";
 import { TagPicker } from "@/components/tag-picker";
 import type { ListTag } from "@/lib/tags";
@@ -98,7 +99,15 @@ export function UploadForm({
         setProgress((p) => ({ ...p, [f.name]: "failed" }));
         continue;
       }
-      done.push({ path, name: f.name, size: f.size, type: f.type });
+      // Small copies for grids and the photo's page. Best effort: if one fails,
+      // the app simply shows the original for that file.
+      const extra: { thumbPath?: string; webPath?: string } = {};
+      for (const p of await makePreviews(f)) {
+        const previewPath = path.replace(/\.[^./]+$/, "") + `.${p.suffix}.webp`;
+        const { error: pErr } = await supabase.storage.from("media").upload(previewPath, p.blob, { contentType: "image/webp", upsert: false });
+        if (!pErr) extra[p.suffix === "thumb" ? "thumbPath" : "webPath"] = previewPath;
+      }
+      done.push({ path, name: f.name, size: f.size, type: f.type, ...extra });
       setProgress((p) => ({ ...p, [f.name]: "done" }));
     }
 

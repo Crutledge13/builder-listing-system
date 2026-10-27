@@ -4,16 +4,21 @@ import { cx } from "@/lib/format";
 
 // The picture for a media item, whatever its source. Demo pictures are drawn;
 // uploads load through the private file route, which checks access first.
+//
+// Grids and cards get the small preview (size "thumb", ~640 px), never the
+// original, and only once they scroll into view. Pass size="web" for a photo's
+// own page. Videos show their still frame; only videos uploaded before stills
+// existed fall back to loading the video's first moments.
 // fileBase: where files come from (the signed-in route, or a share link's).
-export function MediaPicture({ m, className, fileBase = "/api/media/" }: { m: MediaRow; className?: string; fileBase?: string }) {
+export function MediaPicture({ m, className, size = "thumb", fileBase = "/api/media/" }: { m: MediaRow; className?: string; size?: "thumb" | "web"; fileBase?: string }) {
   if (m.source === "demo") return <DemoArt m={m} className={className} />;
-  if (m.kind === "video") {
+  if (m.kind === "video" && !m.thumb_path) {
     return (
       <video src={`${fileBase}${m.id}#t=0.5`} preload="metadata" muted playsInline className={cx("object-cover", className)} />
     );
   }
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={`${fileBase}${m.id}`} alt={m.title} loading="lazy" className={cx("object-cover", className)} />;
+  return <img src={`${fileBase}${m.id}?size=${size}`} alt={m.title} loading="lazy" decoding="async" className={cx("object-cover", className)} />;
 }
 
 export const DISCLAIMER_TEXT = "Representative photo. Actual home, features and finishes may vary.";

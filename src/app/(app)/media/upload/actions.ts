@@ -6,7 +6,7 @@ import { requireProfile } from "@/lib/auth";
 import { after } from "next/server";
 import { aiTaggingAvailable, tagMedia } from "@/lib/ai-tagging";
 
-export type UploadedFile = { path: string; name: string; size: number; type: string };
+export type UploadedFile = { path: string; name: string; size: number; type: string; thumbPath?: string; webPath?: string };
 
 const ROOMS = new Set(["exterior", "kitchen", "living", "dining", "primary_bedroom", "bedroom", "primary_bath", "bath", "backyard", "floor_plan", "amenity", "entrance", "aerial", "site_map", "model_home", "other"]);
 
@@ -63,6 +63,9 @@ export async function recordUploads(input: {
       tags: input.tags.slice(0, 30),
       source: "upload",
       storage_path: f.path,
+      // Preview copies must sit in the same folder as the original.
+      thumb_path: f.thumbPath && f.thumbPath.startsWith(prefix) ? f.thumbPath : null,
+      web_path: f.webPath && f.webPath.startsWith(prefix) ? f.webPath : null,
       mime_type: f.type || null,
       size_bytes: f.size,
       mls_ready: false,

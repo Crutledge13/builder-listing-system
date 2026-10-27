@@ -98,6 +98,8 @@ White canvas, Figtree type, "bluebonnet" blue (#3452c7) as the single accent. Im
 
 ## Media
 
+**Photo speed rules (keep these on every new screen):** grids, cards and folder covers use `MediaPicture` (default `size="thumb"`), never the original file; a photo's own page uses `size="web"`; only downloads and the MLS photo pack fetch the original. Pictures load lazily as they scroll into view. Lists that can grow (media results, folders) are paged, and counts come from the database (`community_media_counts`, `home_media_counts`), never by loading every row. Uploads make the preview copies in the browser (`src/lib/previews.ts`): `thumb_path` (~640 px WebP, or a video's still frame) and `web_path` (~1600 px WebP), saved next to the original with `.thumb.webp` / `.web.webp`; if the browser can't read a file the original is used. `/api/media/[id]?size=thumb|web` serves them, falling back to the original, and lets the browser reuse the link for 50 minutes. AI labeling reads `web_path` when there is one.
+
 `media` rows belong to a builder, optionally a community, optionally a home (a home's builder and community are filled in automatically). Each has a room label and tags; the address, plan, community and room are added as tags automatically, and `search_text` powers search. Who sees media follows homes: staff all, builders their own, sales only their communities (plus builder-wide items). Owners, managers, marketing and our admins upload and edit. Nothing is hard-deleted; `deleted_at` is the trash.
 
 ## Listing photos, video and tours (what goes on the MLS)
@@ -232,7 +234,8 @@ Three backup layers, set up per `docs/backups.md`: Supabase point-in-time recove
 
 - Turn on leaked-password protection in Supabase Auth before the live project goes out.
 - Move media storage to Cloudflare R2/Stream before launch, and add a 30-day job that purges trashed files.
-- Thumbnails and web-size copies of uploads (downloads already resize in the browser).
+- Whole-home zip download (the MLS photo pack zip exists). Previews exist for new uploads; uploads made before `20261027000034_media_previews` have none and show the original until re-uploaded or backfilled.
+- When moving to Cloudflare, video stills can come from Cloudflare Stream instead of the browser; keep `thumb_path` as the column the app reads.
 - Email or text notifications (new photo request, photographer assigned, delivered) once Resend is set up. Reverse prospecting and help emails are already wired (they log until Resend is set).
 - Real website feed and MLS read-only feed connectors (through the shared import door); the demo uses seeded rows.
 - Real photographer payouts (e.g. Stripe Connect); today it's tracking only.

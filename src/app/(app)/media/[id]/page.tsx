@@ -98,7 +98,7 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
                 <DemoArt m={m} className="h-full w-full" />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={`/api/media/${m.id}`} alt={m.title} className="h-full w-full object-contain" />
+                <img src={`/api/media/${m.id}?size=web`} alt={m.title} decoding="async" className="h-full w-full object-contain" />
               )}
             </div>
           </div>
