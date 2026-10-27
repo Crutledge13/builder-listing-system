@@ -13,46 +13,24 @@ function back(homeId: string, params: Record<string, string>, linkId?: string): 
   redirect(`/homes/${homeId}?${q.toString()}#${linkId ? `share-${linkId}` : "share"}`);
 }
 
-const DAYS = new Set([7, 14, 30, 60, 90]);
-
-// A new realtor share link for this home.
-export async function createShareLink(formData: FormData) {
-  const me = await requireProfile();
+// Replace the home's standing link: the current one stops working at once
+// (it goes to the trash) and a new one is made in its place.
+export async function replaceShareLink(formData: FormData) {
+  await requireProfile();
   const homeId = String(formData.get("home_id"));
-  const days = Number(formData.get("days"));
-  const email = String(formData.get("recipient_email") ?? "").trim().slice(0, 200);
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) back(homeId, { error: "That email address doesn’t look right." });
-  const name = String(formData.get("recipient_name") ?? "").trim().slice(0, 120) || null;
+  const id = String(formData.get("id"));
   const supabase = await createClient();
-
-  // A second click (or a double tap) on the same form: hand back the link
-  // this person just made instead of making a copy.
-  let recent = supabase
+  const { data } = await supabase
     .from("share_links")
-    .select("id")
-    .eq("home_id", homeId)
-    .eq("created_by", me.id)
-    .is("revoked_at", null)
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("expires_at", null)
     .is("deleted_at", null)
-    .gte("created_at", new Date(Date.now() - 60_000).toISOString());
-  recent = name ? recent.eq("recipient_name", name) : recent.is("recipient_name", null);
-  recent = email ? recent.eq("recipient_email", email) : recent.is("recipient_email", null);
-  const { data: dupe } = await recent.order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (dupe) back(homeId, { saved: "Share link made. Copy it here and send it to the realtor." }, dupe.id);
-
-  const { data: made, error } = await supabase
-    .from("share_links")
-    .insert({
-      home_id: homeId,
-      recipient_name: name,
-      recipient_email: email || null,
-      message: String(formData.get("message") ?? "").trim().slice(0, 1000) || null,
-      expires_at: new Date(Date.now() + (DAYS.has(days) ? days : 30) * 86_400_000).toISOString(),
-    })
-    .select("id")
-    .single();
-  if (error || !made) back(homeId, { error: error?.message.includes("row-level security") ? "Owners, managers and marketing can make share links." : `Couldn’t make the link: ${error?.message ?? "unknown problem"}` });
-  back(homeId, { saved: "Share link made. Copy it here and send it to the realtor." }, made.id);
+    .select("id");
+  if (!data?.length) back(homeId, { error: "Your role can’t replace this home’s link." });
+  const { data: token } = await supabase.rpc("home_share_link", { p_home: homeId });
+  if (!token) back(homeId, { error: "The old link is off, but a new one couldn’t be made. Reload the page to try again." });
+  back(homeId, { saved: "New link made. The old one no longer works, so send this one from now on." });
 }
 
 // Delete a link: it stops working at once and leaves the list. It goes to the

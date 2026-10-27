@@ -11,7 +11,7 @@ import { ShareGallery, SHARE_SIZES } from "./share-gallery";
 // The page a builder shares with a realtor: one home's listing photos,
 // walkthrough video, vertical reel and tour links, ready to download for the
 // realtor's own marketing. No login; the link's code is checked by the
-// database (public.share_page), it expires, and the builder can turn it off.
+// database (public.share_page). Each home has one standing link with no end date (older one-off links expire); the builder can replace or delete it.
 
 export const metadata: Metadata = {
   title: "Listing media",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 type Shared = {
-  link: { recipient_name: string | null; message: string | null; expires_at: string };
+  link: { recipient_name: string | null; message: string | null; expires_at: string | null };
   home: {
     id: string; address: string; city: string; postal_code: string; plan_name: string | null; list_price: number | null;
     bedrooms_total: number | null; bathrooms_full: number | null; bathrooms_half: number | null; living_area: number | null;
@@ -48,8 +48,13 @@ export default function SharePage(props: PageProps<"/s/[token]">) {
 async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) {
   const { token } = await params;
   const supabase = await createClient();
-  const { data } = await supabase.rpc("share_page", { p_token: token });
+  const [{ data }, { data: websiteData }] = await Promise.all([
+    supabase.rpc("share_page", { p_token: token }),
+    supabase.rpc("share_website", { p_token: token }),
+  ]);
   const s = data as Shared | null;
+  // The home's own page on the builder's website when we know it, otherwise their main site.
+  const website = typeof websiteData === "string" && /^https?:\/\//i.test(websiteData) ? websiteData : null;
 
   if (!s) {
     return (
@@ -76,7 +81,20 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
   const walkthroughs = rows.filter((m) => m.kind === "video" && !m.vertical);
   const hero = photos[0];
   const accent = s.builder.primary_color ?? "#3452c7";
-  const expires = new Date(s.link.expires_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Chicago" });
+  const expires = s.link.expires_at
+    ? new Date(s.link.expires_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Chicago" })
+    : null;
+  const websiteButton = website ? (
+    <a
+      href={website}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110"
+      style={{ background: accent }}
+    >
+      More info on {builderName}&rsquo;s website <span aria-hidden>↗</span>
+    </a>
+  ) : null;
 
   return (
     <div className="min-h-screen bg-white">
@@ -112,7 +130,10 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
               {h.stories != null && <span><b>{h.stories}</b> {h.stories === 1 ? "story" : "stories"}</span>}
             </p>
           </div>
-          {h.list_price != null && <p className="text-[28px] font-bold tabular-nums">{money(h.list_price)}</p>}
+          <div className="flex flex-col items-start gap-3 sm:items-end">
+            {h.list_price != null && <p className="text-[28px] font-bold tabular-nums">{money(h.list_price)}</p>}
+            {websiteButton}
+          </div>
         </div>
 
         {s.link.message && (
@@ -218,8 +239,8 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
 
         <footer className="mt-16 border-t border-line pt-6 text-sm text-muted">
           <p>
-            Shared by {builderName} for marketing this home. Please don’t pass this link on. It works until {expires}.
-            {s.builder.website_url && <> More from the builder at <a href={s.builder.website_url} target="_blank" rel="noreferrer noopener" className="underline">{s.builder.website_url.replace(/^https?:\/\//, "")}</a>.</>}
+            Shared by {builderName} for marketing this home.{expires && <> This link works until {expires}.</>}
+            {website && <> For more information, visit <a href={website} target="_blank" rel="noreferrer noopener" className="underline">{website.replace(/^https?:\/\//, "").replace(/\/$/, "")}</a>.</>}
           </p>
         </footer>
       </main>

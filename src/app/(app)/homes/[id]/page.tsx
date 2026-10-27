@@ -564,8 +564,8 @@ async function HomeDetail({
             notice={sectionNotice("listing-media")}
           />
 
-          {(canShareLinks(me.role) || isStaff(me.role)) && (
-            <ShareLinksPanel homeId={home.id} canShare={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} undo={at === "share" && typeof sp.undo === "string" ? sp.undo : null} />
+          {(canShareLinks(me.role) || isStaff(me.role) || me.role === "sales") && (
+            <ShareLinksPanel homeId={home.id} canManage={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} undo={at === "share" && typeof sp.undo === "string" ? sp.undo : null} />
           )}
 
           {canRequestMedia(me.role) && (
