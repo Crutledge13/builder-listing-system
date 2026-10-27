@@ -121,6 +121,11 @@ export function canAddHomes(role: Role) {
 }
 
 // Who may upload media and edit tags (matches the database's media rules).
+// Who can ask our team for comps. Mirrors the comp_requests rules.
+export function canRequestComps(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "sales", "marketing"].includes(role);
+}
+
 // Realtor share links for a home. Mirrors private.can_share.
 export function canShareLinks(role: Role) {
   return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
@@ -224,6 +229,7 @@ export const TASK_KIND_LABELS: Record<string, string> = {
   change_request: "Change request",
   photo_request: "Photographer",
   reverse_prospecting: "Reverse prospecting",
+  comps: "Comps",
   issue: "Help request",
   other: "Other",
 };

@@ -20,6 +20,7 @@ export function primaryTabs(role: Role): MenuLink[] {
     { href: "/media", label: "Media" },
   ];
   if (role === "builder_owner" || role === "manager") tabs.push({ href: "/reports", label: "Reports" });
+  if (role === "sales" || role === "marketing") tabs.push({ href: "/comps/new", label: "Request comps" });
   return tabs;
 }
 
@@ -36,6 +37,7 @@ export function menuLinks(role: Role): MenuLink[] {
     links.push({ href: "/attention", label: "Needs your attention", hint: "Homes waiting on an answer from your team" });
   }
   if (role !== "sales") links.push({ href: "/media/requests", label: "Photo requests", hint: "Shoots and deliveries" });
+  links.push({ href: "/comps", label: "Comps", hint: role === "platform_admin" || role === "listing_coordinator" ? "Comp requests to pull and send" : "Ask for comps and see what's been sent" });
   if (["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role)) {
     links.push({ href: "/website-check", label: "Website check", hint: "Website, Builder Listings and MLS side by side" });
   }

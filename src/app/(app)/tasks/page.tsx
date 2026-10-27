@@ -47,6 +47,7 @@ const KIND_STYLE: Record<string, string> = {
   change_request: "bg-amber-50 text-amber-900",
   photo_request: "bg-emerald-50 text-emerald-800",
   reverse_prospecting: "bg-rose-50 text-rose-800",
+  comps: "bg-teal-50 text-teal-800",
   issue: "bg-red-50 text-red-800",
   other: "bg-soft text-muted",
 };
@@ -58,6 +59,7 @@ function centralDay(d: Date) {
 // Where a task came from, so one click takes our team to the right screen.
 function sourceLink(t: Task) {
   if (t.source_table === "media_requests") return { href: "/media/requests", label: "Open photo request" };
+  if (t.source_table === "comp_requests" && t.source_id) return { href: `/comps/${t.source_id}`, label: "Open comp request" };
   if (t.source_table === "change_requests" && t.home_id) return { href: `/homes/${t.home_id}#change-requests`, label: "Open change request" };
   if (t.source_table === "reverse_prospect_requests" && t.home_id) return { href: `/homes/${t.home_id}#reverse-prospecting`, label: "Open request" };
   if (t.source_table?.startsWith("open_house")) return t.home_id ? { href: `/homes/${t.home_id}#open-houses`, label: "Open houses" } : null;

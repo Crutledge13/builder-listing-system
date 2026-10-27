@@ -39,6 +39,7 @@ import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } fro
 import {
   canManageMedia,
   canShareLinks,
+  canRequestComps,
   canRequestMedia,
   canRequestReverseProspecting,
   canScheduleOpenHouses,
@@ -57,6 +58,8 @@ import { canEditMlsAnswers } from "@/lib/ntreis-form";
 import { loadListingMedia } from "@/lib/listing-media";
 import { ListingMediaPanel } from "@/components/listing-media-panel";
 import { ShareLinksPanel } from "@/components/share-links-panel";
+import { Deliverables } from "@/components/deliverables";
+import { loadDeliverables } from "@/lib/deliverables";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -191,6 +194,7 @@ async function HomeDetail({
   const activeSeries = (series ?? []).filter((x) => !x.ended_at);
   const mlsWindow = Number(windowSetting?.value ?? 28);
   const openReverse = (reverse ?? []).filter((r) => r.status === "requested" || r.status === "in_progress");
+  const reverseFiles = await loadDeliverables(supabase, "reverse_prospect_requests", (reverse ?? []).map((r) => r.id));
   const canResolve = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const openRequests = (requests ?? []).filter((r) => r.status === "open");
 
@@ -464,7 +468,7 @@ async function HomeDetail({
               Reverse prospecting {openReverse.length > 0 && <span className="font-normal text-muted">{openReverse.length} in progress</span>}
             </h3>
             <p className="mt-1 text-sm text-muted">
-              A list of buyers’ agents whose clients are searching for a home like this one. Our team pulls it from the MLS by hand and sends it to you.
+              A list of buyers’ agents whose clients are searching for a home like this one. Our team pulls it from the MLS by hand and sends it back to whoever asked, here and in their inbox.
             </p>
             {sectionNotice("reverse-prospecting")}
             <ul className="mt-4 space-y-3">
@@ -476,13 +480,16 @@ async function HomeDetail({
                   </div>
                   {r.notes && <p className="mt-1 text-sm">“{r.notes}”</p>}
                   {r.result_note && <p className="mt-2 rounded-lg bg-white px-3 py-2 text-sm"><b>From our team:</b> {r.result_note}</p>}
+                  {(staff || r.status === "delivered") && r.status !== "cancelled" && (
+                    <Deliverables files={reverseFiles.get(r.id) ?? []} table="reverse_prospect_requests" requestId={r.id} builderId={home.builder_id} staff={staff && r.status !== "delivered"} back={`/homes/${home.id}`} />
+                  )}
                   {staff && (r.status === "requested" || r.status === "in_progress") && (
                     <form action={updateReverseProspecting} className="mt-3 flex flex-wrap items-center gap-2">
                       <input type="hidden" name="id" value={home.id} />
                       <input type="hidden" name="request_id" value={r.id} />
-                      <input name="result_note" placeholder="Note for the builder, e.g. 14 agents, emailed to Dana" className="field-input min-w-0 flex-1 py-2 text-sm" />
+                      <input name="result_note" placeholder="Note for them, e.g. 14 agents; top 3 are starred" className="field-input min-w-0 flex-1 py-2 text-sm" />
                       {r.status === "requested" && <button name="status" value="in_progress" className="rounded-lg border border-foreground px-3 py-2 text-sm font-semibold hover:bg-white">Start</button>}
-                      <button name="status" value="delivered" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Mark delivered</button>
+                      <button name="status" value="delivered" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Send to {r.requester_name ?? "the builder"}</button>
                     </form>
                   )}
                   {!staff && r.status === "requested" && (
@@ -495,6 +502,11 @@ async function HomeDetail({
                 </li>
               ))}
             </ul>
+            {canRequestComps(me.role) && (
+              <p className="mt-4 text-sm">
+                Need to check the price? <Link href={`/comps/new?home=${home.id}`} className="font-semibold text-accent underline">Request comps for this home</Link>
+              </p>
+            )}
             {canRequestReverseProspecting(me.role) && openReverse.length === 0 && (
               <form action={requestReverseProspecting} className="mt-4 space-y-3">
                 <input type="hidden" name="id" value={home.id} />
@@ -968,7 +980,7 @@ const SAVED_MESSAGES: Record<string, string> = {
   "disclaimer-off": "Disclaimer off.",
   "reverse-requested": "Requested. Our team has a task and an email, and will send the list when it’s ready.",
   "reverse-in_progress": "Marked in progress.",
-  "reverse-delivered": "Marked delivered. The builder can see your note.",
+  "reverse-delivered": "Sent. They have a notice in Builder Listings and an email, with your note and the files.",
   "reverse-cancelled": "Request cancelled.",
 };
 

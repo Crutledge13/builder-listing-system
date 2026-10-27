@@ -46,6 +46,9 @@ async function Header() {
     focusBuilders = bs ?? [];
   }
 
+  // Unread notices for the bell.
+  const { count: unread } = await (await createClient()).from("notifications").select("id", { count: "exact", head: true }).is("read_at", null);
+
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur print:hidden">
       {showDemo && (
@@ -68,6 +71,14 @@ async function Header() {
         </div>
         {isStaff(me.role) && focusBuilders.length > 1 && <BuilderFocusPicker builders={focusBuilders} current={focus} action={setBuilderFocus} />}
 
+        <Link href="/inbox" className="relative shrink-0 rounded-full p-2 hover:bg-soft" aria-label={unread ? `Inbox, ${unread} new` : "Inbox"} title="Inbox">
+          <svg viewBox="0 0 20 20" className="h-5 w-5" aria-hidden>
+            <path d="M10 2.5a5 5 0 0 0-5 5v3l-1.5 3h13L15 10.5v-3a5 5 0 0 0-5-5zM8 15.5a2 2 0 0 0 4 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+          </svg>
+          {!!unread && (
+            <span className="absolute -right-0.5 -top-0.5 min-w-[18px] rounded-full bg-accent px-1 text-center text-[11px] font-bold leading-[18px] text-white">{unread > 99 ? "99+" : unread}</span>
+          )}
+        </Link>
         <details data-popover className="relative shrink-0">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full border border-line py-1 pl-3 pr-1 transition-shadow hover:shadow-md">
             <svg viewBox="0 0 16 16" className="h-4 w-4 text-foreground" aria-hidden>

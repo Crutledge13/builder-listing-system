@@ -311,6 +311,8 @@ export async function updateReverseProspecting(formData: FormData) {
   const { data, error } = await supabase.from("reverse_prospect_requests").update(patch).eq("id", requestId).select("id");
   if (error) back(id, { error: friendly(error.message), at: "reverse-prospecting" });
   if (!data?.length) back(id, { error: "You can’t change that request.", at: "reverse-prospecting" });
+  // Delivered: the person who asked gets an email (their inbox notice is added by the database).
+  if (status === "delivered") after(() => sendQueuedEmails("reverse_prospect_requests", requestId));
   revalidatePath("/", "layout");
   back(id, { saved: `reverse-${status}`, at: "reverse-prospecting" });
 }

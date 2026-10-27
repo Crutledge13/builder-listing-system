@@ -394,6 +394,7 @@ async function OpenHouseWork({ t, check }: { t: Task; check: Check }) {
 function OtherWork({ t }: { t: Task }) {
   const link =
     t.source_table === "media_requests" ? { href: "/media/requests", label: "Open the photo request" }
+    : t.source_table === "comp_requests" && t.source_id ? { href: `/comps/${t.source_id}`, label: "Open the comp request" }
     : t.source_table === "change_requests" && t.home_id ? { href: `/homes/${t.home_id}#requests`, label: "Open the change request" }
     : t.source_table === "reverse_prospect_requests" && t.home_id ? { href: `/homes/${t.home_id}#reverse-prospecting`, label: "Open the request" }
     : t.home_id ? { href: `/homes/${t.home_id}`, label: "Open the home" } : null;
