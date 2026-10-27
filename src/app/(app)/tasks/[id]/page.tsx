@@ -311,8 +311,13 @@ function PhotoStrip({ title, ids, media, faded }: { title: string; ids: string[]
 }
 
 // Status change (pending, closed, hold, withdrawn) with the details the MLS requires.
+// The order lines appear on a status change, matching the MLS form.
+const STATUS_ORDER = ["standard_status", "purchase_contract_date", "close_date", "close_price", "buyer_agent_full_name", "buyer_agent_mls_id",
+  "buyer_agent_state_license", "buyer_office_name", "co_buyer_agent_full_name", "co_buyer_office_name"];
+
 function StatusWork({ t, sheet, check }: { t: Task; sheet: MlsSheet; check: Check }) {
-  const entries = Object.entries(t.changes ?? {});
+  const rank = (k: string) => (STATUS_ORDER.indexOf(k) + 1 || 99);
+  const entries = Object.entries(t.changes ?? {}).sort(([a], [b]) => rank(a) - rank(b));
   const status = t.changes?.standard_status;
   return (
     <div className="space-y-6">
