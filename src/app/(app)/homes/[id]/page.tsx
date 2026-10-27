@@ -291,11 +291,6 @@ async function HomeDetail({
             {isStaff(me.role) ? `. Built by ${home.builders?.name.replace(" (demo)", "")}` : ""}
           </p>
         </div>
-        {canRequestComps(me.role) && (
-          <Link href={`/comps/new?home=${home.id}`} className="shrink-0 rounded-full border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">
-            Request comps
-          </Link>
-        )}
       </div>
 
       {error && !at && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
@@ -380,7 +375,7 @@ async function HomeDetail({
             ))}
           </dl>
 
-          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} canRequestPhotos={canRequestMedia(me.role)} shareUrl={shareUrl} />
+          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} canRequestPhotos={canRequestMedia(me.role)} shareUrl={shareUrl} canComps={canRequestComps(me.role)} />
 
           {homeTasks && homeTasks.length > 0 && (
             <section className="border-b border-line py-6">
@@ -1150,16 +1145,18 @@ const REQUEST_STYLES: Record<string, string> = {
   declined: "bg-soft text-muted",
 };
 
-function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse, canRequestPhotos, shareUrl }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number; canRequestPhotos: boolean; shareUrl: string | null }) {
+function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse, canRequestPhotos, shareUrl, canComps }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number; canRequestPhotos: boolean; shareUrl: string | null; canComps: boolean }) {
   const items = [
     { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
     { href: "#open-houses", title: "Open houses", sub: upcomingOH ? `${upcomingOH} scheduled` : "Schedule one" },
     { href: "#reverse-prospecting", title: "Reverse prospecting", sub: openReverse ? "In progress" : "Request a list" },
+    ...(canComps ? [{ href: `/comps/new?home=${homeId}`, title: "Request comps", sub: "Check the price" }] : []),
     ...(canRequestPhotos ? [{ href: "#photo-requests", title: "Request photos", sub: openShoots ? `${openShoots} in progress` : "Send a photographer" }] : []),
     { href: `/media?home=${homeId}`, title: canRequestPhotos ? "Media" : "Photos and video", sub: canRequestPhotos ? "Home, community, plan" : "View and download" },
   ];
+  const tiles = items.length + (shareUrl ? 1 : 0);
   return (
-    <nav className={cx("grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-3", items.length + (shareUrl ? 1 : 0) > 5 ? "xl:grid-cols-6" : "xl:grid-cols-5")} aria-label="On this home">
+    <nav className={cx("grid grid-cols-2 gap-3 border-b border-line py-6 sm:grid-cols-3", tiles > 6 ? "xl:grid-cols-4" : tiles > 5 ? "xl:grid-cols-6" : "xl:grid-cols-5")} aria-label="On this home">
       {items.map((i) => (
         <Link key={i.title} href={i.href} className="rounded-2xl border border-line p-4 transition-shadow hover:shadow-md">
           <div className="font-semibold">{i.title}</div>

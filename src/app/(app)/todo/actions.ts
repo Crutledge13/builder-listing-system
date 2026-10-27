@@ -16,7 +16,7 @@ function back(formData: FormData, params: Record<string, string>): never {
 export async function addTodo(formData: FormData) {
   const me = await requireProfile();
   const title = String(formData.get("title") ?? "").trim().slice(0, 200);
-  if (!title) back(formData, { error: "Give the to-do a title." });
+  if (!title) back(formData, { error: "Give the task a title." });
   const builderId = me.role === "platform_admin" ? String(formData.get("builder_id") ?? "") : me.builder_id;
   if (!builderId) back(formData, { error: "Pick the builder." });
   const due = String(formData.get("due") ?? "");
@@ -31,7 +31,7 @@ export async function addTodo(formData: FormData) {
     priority: formData.get("priority") === "high" ? "high" : "normal",
     created_by: me.id,
   });
-  if (error) back(formData, { error: error.message.includes("Assign it") ? error.message : error.message.includes("row-level") ? "Your role can’t add to-dos." : `Couldn’t add it: ${error.message}` });
+  if (error) back(formData, { error: error.message.includes("Assign it") ? error.message : error.message.includes("row-level") ? "Your role can’t add tasks." : `Couldn’t add it: ${error.message}` });
   back(formData, { saved: "Added." });
 }
 
@@ -43,6 +43,6 @@ export async function updateTodo(formData: FormData) {
   if (formData.has("assignee_id")) patch.assignee_id = String(formData.get("assignee_id") ?? "") || null;
   const supabase = await createClient();
   const { data, error } = await supabase.from("builder_tasks").update(patch).eq("id", String(formData.get("id"))).select("id");
-  if (error || !data?.length) back(formData, { error: error?.message.includes("Assign it") ? error.message : "Couldn’t change that to-do." });
+  if (error || !data?.length) back(formData, { error: error?.message.includes("Assign it") ? error.message : "Couldn’t change that task." });
   back(formData, { saved: status === "done" ? "Done. Nice." : "Saved." });
 }

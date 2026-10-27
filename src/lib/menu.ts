@@ -20,7 +20,7 @@ export function primaryTabs(role: Role, enterOwnMls = false): MenuLink[] {
     { href: "/media", label: "Media" },
   ];
   if (enterOwnMls) tabs.unshift({ href: "/tasks", label: "MLS work" });
-  if (role === "builder_owner" || role === "manager" || role === "marketing") tabs.push({ href: "/todo", label: "To-do" });
+  if (role === "builder_owner" || role === "manager" || role === "marketing") tabs.push({ href: "/todo", label: "Tasks" });
   if (role === "builder_owner" || role === "manager" || role === "sales") tabs.push({ href: "/reports", label: "Reports" });
   return tabs;
 }
@@ -48,7 +48,7 @@ export function menuLinks(role: Role): MenuLink[] {
     links.push({ href: "/team", label: "Your team", hint: "Add people and set their access" });
   }
   if (role === "platform_admin" || role === "listing_coordinator") {
-    links.push({ href: "/todo", label: "Builders’ to-do boards", hint: "What each builder’s team has open" });
+    links.push({ href: "/todo", label: "Builders’ tasks", hint: "What each builder’s team has open" });
   }
   if (["builder_owner", "manager", "marketing"].includes(role)) {
     links.push({ href: "/branding", label: "Company branding", hint: "Logo, colors and website" });
