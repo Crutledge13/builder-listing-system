@@ -553,7 +553,7 @@ async function HomeDetail({
           />
 
           {(canShareLinks(me.role) || isStaff(me.role)) && (
-            <ShareLinksPanel homeId={home.id} canShare={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} />
+            <ShareLinksPanel homeId={home.id} canShare={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} undo={at === "share" && typeof sp.undo === "string" ? sp.undo : null} />
           )}
 
           {canRequestMedia(me.role) && (
@@ -1041,6 +1041,11 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
       : action === "incentive_expired" ? `incentive reached its end date: ${what}`
       : action === "incentive_extended" ? `extended an incentive: ${what}`
       : `changed an incentive: ${what}`;
+  }
+  if (action.startsWith("share_link_")) {
+    const who = (changes as unknown as { for?: string }).for ?? "a realtor";
+    const did = { created: "made a share link for", turned_off: "turned off the share link for", deleted: "deleted the share link for", restored: "put back the share link for" }[action.replace("share_link_", "")];
+    if (did) return `${did} ${who}`;
   }
   if (action === "moved_to_trash") return "moved it to the trash";
   if (action === "restored") return "restored it from the trash";

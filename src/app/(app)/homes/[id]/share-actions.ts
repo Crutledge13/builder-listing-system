@@ -33,6 +33,7 @@ export async function createShareLink(formData: FormData) {
     .eq("home_id", homeId)
     .eq("created_by", me.id)
     .is("revoked_at", null)
+    .is("deleted_at", null)
     .gte("created_at", new Date(Date.now() - 60_000).toISOString());
   recent = name ? recent.eq("recipient_name", name) : recent.is("recipient_name", null);
   recent = email ? recent.eq("recipient_email", email) : recent.is("recipient_email", null);
@@ -54,14 +55,26 @@ export async function createShareLink(formData: FormData) {
   back(homeId, { saved: "Share link made. Copy it here and send it to the realtor." }, made.id);
 }
 
-export async function turnOffShareLink(formData: FormData) {
+// Delete a link: it stops working at once and leaves the list. It goes to the
+// trash, so "Undo" right after puts it back as it was.
+export async function deleteShareLink(formData: FormData) {
   await requireProfile();
   const homeId = String(formData.get("home_id"));
-  const supabase = await createClient();
   const id = String(formData.get("id"));
-  const { data } = await supabase.from("share_links").update({ revoked_at: new Date().toISOString() }).eq("id", id).select("id");
-  if (!data?.length) back(homeId, { error: "Your role can’t change share links." }, id);
-  back(homeId, { saved: "Link turned off. Anyone who opens it now sees that it’s no longer available." }, id);
+  const supabase = await createClient();
+  const { data } = await supabase.from("share_links").update({ deleted_at: new Date().toISOString() }).eq("id", id).is("deleted_at", null).select("id");
+  if (!data?.length) back(homeId, { error: "That link was already deleted, or your role can’t delete share links." });
+  back(homeId, { saved: "Link deleted. Anyone who opens it now sees that it’s no longer available.", undo: id });
+}
+
+export async function restoreShareLink(formData: FormData) {
+  await requireProfile();
+  const homeId = String(formData.get("home_id"));
+  const id = String(formData.get("id"));
+  const supabase = await createClient();
+  const { data } = await supabase.from("share_links").update({ deleted_at: null }).eq("id", id).not("deleted_at", "is", null).select("id");
+  if (!data?.length) back(homeId, { error: "Couldn’t put that link back." });
+  back(homeId, { saved: "Link is back." }, id);
 }
 
 // Give a link 30 more days (from today), or turn a turned-off link back on.

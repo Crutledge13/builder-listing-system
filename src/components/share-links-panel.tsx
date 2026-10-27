@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cx, dateTime } from "@/lib/format";
 import { CopyButton } from "@/components/mls-client";
 import { PendingButton } from "@/components/pending-button";
-import { createShareLink, extendShareLink, turnOffShareLink } from "@/app/(app)/homes/[id]/share-actions";
+import { createShareLink, deleteShareLink, extendShareLink, restoreShareLink } from "@/app/(app)/homes/[id]/share-actions";
 
 type Link = {
   id: string; token: string; recipient_name: string | null; recipient_email: string | null; message: string | null;
@@ -14,12 +14,14 @@ type Link = {
 // "Share with a realtor" on a home: make a private, expiring link to a page
 // with this home's photos, walkthrough and reel, and see who opened it.
 // highlight: the link just made or changed, marked in the list with the message next to it.
-export async function ShareLinksPanel({ homeId, canShare, notice, highlight }: { homeId: string; canShare: boolean; notice: React.ReactNode; highlight?: string | null }) {
+// undo: the link just deleted, offered back next to the message.
+export async function ShareLinksPanel({ homeId, canShare, notice, highlight, undo }: { homeId: string; canShare: boolean; notice: React.ReactNode; highlight?: string | null; undo?: string | null }) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("share_links")
     .select("id, token, recipient_name, recipient_email, message, expires_at, revoked_at, view_count, download_count, last_viewed_at, created_at, profiles!share_links_created_by_fkey(full_name)")
     .eq("home_id", homeId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   const links = (data ?? []) as unknown as Link[];
   if (!canShare && links.length === 0) return null;
@@ -35,6 +37,13 @@ export async function ShareLinksPanel({ homeId, canShare, notice, highlight }: {
         download them for their own marketing. No login needed. The link expires, you can turn it off any time, and you’ll see when it’s opened.
       </p>
       {!highlight && notice}
+      {undo && canShare && (
+        <form action={restoreShareLink} className="mt-2">
+          <input type="hidden" name="home_id" value={homeId} />
+          <input type="hidden" name="id" value={undo} />
+          <PendingButton pending="Putting it back…" className="text-sm font-semibold underline">Undo</PendingButton>
+        </form>
+      )}
 
       {canShare && (
         <details className="mt-4 rounded-2xl border border-line" open={links.length === 0 && !highlight}>
@@ -85,13 +94,17 @@ export async function ShareLinksPanel({ homeId, canShare, notice, highlight }: {
                 </p>
                 {canShare && (
                   <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                    {live && (
-                      <form action={turnOffShareLink}>
-                        <input type="hidden" name="home_id" value={homeId} />
-                        <input type="hidden" name="id" value={l.id} />
-                        <PendingButton pending="Turning off…" confirm="Turn off this link? Anyone who opens it will see it’s no longer available." className="font-semibold text-red-700 underline">Turn off</PendingButton>
-                      </form>
-                    )}
+                    <form action={deleteShareLink}>
+                      <input type="hidden" name="home_id" value={homeId} />
+                      <input type="hidden" name="id" value={l.id} />
+                      <PendingButton
+                        pending="Deleting…"
+                        confirm={live ? "Delete this link? It stops working right away, so the realtor won’t be able to open it." : "Delete this link?"}
+                        className="font-semibold text-red-700 underline"
+                      >
+                        Delete
+                      </PendingButton>
+                    </form>
                     <form action={extendShareLink}>
                       <input type="hidden" name="home_id" value={homeId} />
                       <input type="hidden" name="id" value={l.id} />
