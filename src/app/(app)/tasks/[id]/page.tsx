@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BackButton } from "@/components/back-button";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -76,7 +77,7 @@ async function Work({ params }: { params: PageProps<"/tasks/[id]">["params"] }) 
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link href="/tasks" className="text-sm font-medium text-muted hover:text-foreground">← {ownMls ? "MLS work" : "Task board"}</Link>
+      <BackButton variant="text" href="/tasks" label={ownMls ? "MLS work" : "Task board"} />
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         <span className="rounded-full bg-accent-soft px-2.5 py-1 font-semibold text-accent">{TASK_KIND_LABELS[t.kind]}</span>

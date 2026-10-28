@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BackButton } from "@/components/back-button";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -34,7 +35,7 @@ async function Sheet({ params }: { params: PageProps<"/homes/[id]/mls">["params"
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link href={`/homes/${id}`} className="text-sm font-medium text-muted hover:text-foreground">← {h.unparsed_address}</Link>
+      <BackButton variant="text" href={`/homes/${id}`} label={h.unparsed_address} />
       <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight">MLS sheet{sheet.board ? `: ${sheet.board.short_name}` : ""}</h1>
       <p className="mt-1 text-muted">
         Everything the MLS asks for, in the order you enter it. The builder’s fields come from the home; our team fills in the rest here.

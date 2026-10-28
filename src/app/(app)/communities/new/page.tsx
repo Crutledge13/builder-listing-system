@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BackButton } from "@/components/back-button";
 import { SetupNav } from "@/components/setup-nav";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -12,7 +13,7 @@ export default function NewCommunityPage(props: PageProps<"/communities/new">) {
   return (
     <Suspense fallback={<div className="mt-16 h-64 animate-pulse rounded-2xl bg-soft" />}>
       <div className="mx-auto max-w-xl">
-        <Link href="/communities" className="text-sm text-muted hover:text-foreground">← Communities</Link>
+        <BackButton variant="text" href="/communities" label="Communities" />
         <h1 className="mt-3 text-[28px] font-bold leading-tight tracking-tight">Add a community</h1>
         <p className="mt-1 text-muted">A community holds homes, its own photos and its sales team.</p>
         <div className="mt-6"><Notice searchParams={props.searchParams} /></div>

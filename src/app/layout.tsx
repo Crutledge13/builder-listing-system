@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ClickFeedback } from "@/components/click-feedback";
+import { NavTrail } from "@/components/nav-trail";
 import { GeistMono } from "geist/font/mono";
 import "@fontsource-variable/figtree";
 import "./globals.css";
@@ -25,6 +26,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         <Suspense>
           <ClickFeedback />
+        </Suspense>
+        <Suspense>
+          <NavTrail />
         </Suspense>
       </body>
     </html>

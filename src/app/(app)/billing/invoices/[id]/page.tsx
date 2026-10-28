@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BackButton } from "@/components/back-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
@@ -26,7 +27,7 @@ async function Page({ params }: { params: PageProps<"/billing/invoices/[id]">["p
   return (
     <div className="mx-auto max-w-4xl">
       <div className="flex items-center justify-between gap-3 print:hidden">
-        <Link href="/billing" className="text-sm text-muted hover:text-foreground">← Billing</Link>
+        <BackButton variant="text" href="/billing" label="Billing" />
         <PrintButton />
       </div>
       <div className="mt-4">

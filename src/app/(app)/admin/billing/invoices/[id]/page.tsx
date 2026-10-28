@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BackButton } from "@/components/back-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isPlatformAdmin } from "@/lib/auth";
@@ -36,7 +37,7 @@ async function Page({ params }: { params: PageProps<"/admin/billing/invoices/[id
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="text-sm">
-          <Link href="/admin/billing" className="text-muted hover:text-foreground">← Billing</Link>
+          <BackButton variant="text" href="/admin/billing" label="Billing" />
           <span className="text-muted"> · </span>
           <Link href={`/admin/billing/builders/${i.builder_id}`} className="text-muted hover:text-foreground">{data.builderName}</Link>
         </div>

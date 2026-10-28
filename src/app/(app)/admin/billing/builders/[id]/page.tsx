@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { BackButton } from "@/components/back-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isPlatformAdmin } from "@/lib/auth";
@@ -57,7 +58,7 @@ async function Page({ params }: { params: PageProps<"/admin/billing/builders/[id
 
   return (
     <div>
-      <Link href="/admin/billing" className="text-sm text-muted hover:text-foreground">← Billing</Link>
+      <BackButton variant="text" href="/admin/billing" label="Billing" />
       <div className="mt-2 flex flex-wrap items-baseline gap-3">
         <h2 className="text-2xl font-bold tracking-tight">{builder.name}</h2>
         <span className="rounded-full bg-soft px-2.5 py-1 text-xs font-semibold">{planLabel(b.plan, b.includes_photos)}</span>
