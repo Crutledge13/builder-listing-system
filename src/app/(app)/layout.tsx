@@ -84,7 +84,8 @@ async function Header() {
           )}
         </div>
       )}
-      <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-8">
+      {/* Phones and upright tablets: logo, picker, bell and menu on one row; the tabs get their own row below (swipe sideways if there are many). */}
+      <div className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-8 sm:py-3">
         <Link href={me.role === "photographer" ? "/jobs" : isStaff(me.role) ? "/tasks" : "/communities"} className="shrink-0">
           <Logo compact />
         </Link>
@@ -94,9 +95,10 @@ async function Header() {
             <BuilderLogo builderId={me.builder_id} name={me.builder_name ?? ""} version={me.builder_logo_at} className="h-7 max-w-[120px]" />
           </span>
         )}
-        <div className="flex min-w-0 flex-1 justify-start md:justify-center">
+        <div className="hidden min-w-0 flex-1 justify-center lg:flex">
           <NavLinks links={primaryTabs(me.role, ownMls, off, openSetup)} badges={badges} />
         </div>
+        <div className="flex-1 lg:hidden" aria-hidden />
         {isStaff(me.role) && focusBuilders.length > 1 && <BuilderFocusPicker builders={focusBuilders} current={focus} action={setBuilderFocus} />}
 
         <Link href="/inbox" className="relative shrink-0 rounded-full p-2 hover:bg-soft" aria-label={unread ? `Inbox, ${unread} new` : "Inbox"} title="Inbox">
@@ -115,7 +117,7 @@ async function Header() {
             <Avatar id={me.id} name={me.full_name} version={me.avatar_updated_at} />
             <span className="sr-only">Menu</span>
           </summary>
-          <div className="card-lift absolute right-0 z-40 mt-2 max-h-[80vh] w-80 overflow-y-auto rounded-2xl border border-line bg-white">
+          <div className="card-lift absolute right-0 z-40 mt-2 max-h-[80vh] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-2xl border border-line bg-white">
             <Link href="/account" className="flex items-center gap-3 border-b border-line px-4 py-3 hover:bg-soft">
               <Avatar id={me.id} name={me.full_name} version={me.avatar_updated_at} className="h-10 w-10 text-sm" />
               <span className="min-w-0">
@@ -168,6 +170,9 @@ async function Header() {
             </form>
           </div>
         </details>
+      </div>
+      <div className="mx-auto max-w-7xl border-t border-line px-2 py-1 sm:px-6 lg:hidden">
+        <NavLinks links={primaryTabs(me.role, ownMls, off, openSetup)} badges={badges} />
       </div>
     </header>
   );

@@ -15,7 +15,7 @@ export function BuilderFocusPicker({
 }) {
   const form = useRef<HTMLFormElement>(null);
   return (
-    <form ref={form} action={action} className="shrink-0">
+    <form ref={form} action={action} className="min-w-0 shrink">
       <label className="sr-only" htmlFor="builder-focus">Show one builder</label>
       <select
         id="builder-focus"
@@ -23,7 +23,7 @@ export function BuilderFocusPicker({
         defaultValue={current ?? ""}
         onChange={() => form.current?.requestSubmit()}
         className={cx(
-          "max-w-[180px] cursor-pointer truncate rounded-full border py-1.5 pl-3 pr-7 text-sm font-semibold",
+          "w-full max-w-[180px] cursor-pointer truncate rounded-full border py-1.5 pl-3 pr-7 text-sm font-semibold",
           current ? "border-accent bg-accent-soft text-accent" : "border-line bg-white",
         )}
         title="Show one builder on every page"

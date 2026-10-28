@@ -88,14 +88,14 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
           </p>
         </div>
 
-        <form action="/homes" className="flex items-center gap-2">
+        <form action="/homes" className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
           {status && <input type="hidden" name="status" value={status} />}
           <label className="sr-only" htmlFor="community">Community</label>
           <select
             id="community"
             name="community"
             defaultValue={community ?? ""}
-            className="rounded-full border border-line bg-white px-4 py-2.5 text-sm font-medium shadow-sm hover:shadow-md"
+            className="min-w-0 flex-1 truncate rounded-full border border-line bg-white px-4 py-2.5 text-sm font-medium shadow-sm hover:shadow-md sm:max-w-xs sm:flex-none"
           >
             <option value="">All communities</option>
             {communities?.map((c) => (
@@ -105,7 +105,7 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
               </option>
             ))}
           </select>
-          <button className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">Show</button>
+          <button className="shrink-0 rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">Show</button>
         </form>
         {canAddHomes(me.role) && (
           <Link href={community ? `/homes/new?community=${community}` : "/homes/new"} className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">

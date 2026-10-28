@@ -345,7 +345,7 @@ async function HomeDetail({
 
       {(usingPlanPhotos || showDisclaimer || canToggleDisclaimer(me.role)) && (
         <div id="photos-note" className="mt-3 flex scroll-mt-28 flex-wrap items-center gap-3 rounded-xl bg-soft px-4 py-3 text-sm">
-          <span className="min-w-0 flex-1">
+          <span className="min-w-[14rem] flex-1">
             {usingPlanPhotos
               ? `Not enough photos of this home yet, so ${home.plan_name} plan photos fill in automatically. `
               : ""}
@@ -446,7 +446,7 @@ async function HomeDetail({
             {activeSeries.map((x) => (
               <div key={x.id} className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl border border-accent/30 bg-accent-soft/40 p-4">
                 <svg viewBox="0 0 20 20" className="h-6 w-6 shrink-0 text-accent" aria-hidden><path d="M4 10a6 6 0 0 1 10.3-4.2M16 10a6 6 0 0 1-10.3 4.2M14 3v3h-3M6 17v-3h3" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[14rem] flex-1">
                   <div className="font-semibold">
                     Repeats every {WEEKDAYS[x.weekday]}, {clock(x.start_time)} to {clock(x.end_time)}
                   </div>
@@ -491,7 +491,7 @@ async function HomeDetail({
                 </label>
                 <fieldset className="sm:col-span-3">
                   <legend className="mb-2 text-sm font-medium">Repeat this?</legend>
-                  <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="grid gap-2 lg:grid-cols-3">
                     <label className="flex items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-sm has-[:checked]:border-accent">
                       <input type="radio" name="repeat" value="once" defaultChecked className="h-4 w-4 accent-[#3452c7]" /> Just this date
                     </label>

@@ -36,6 +36,33 @@ body {
   font-feature-settings: "tnum" 0;
 }
 
+/* Phones and tablets: 16px or larger text in boxes, so iPhone Safari doesn't
+   zoom in when someone taps one (smaller sizes trigger the zoom). */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
+/* A grid with no column setting of its own (most of ours on phones: one
+   column, more from tablet size up) keeps that column inside the screen, so a
+   long line that doesn't wrap (a builder name, an email) can't stretch it.
+   Any grid-cols-* class still wins, since utilities come after this layer. */
+@layer base {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Nothing should ever make the page scroll sideways on a phone. Wide things
+   (tables, rows of buttons) scroll inside their own box instead. */
+html,
+body {
+  overflow-x: clip;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
