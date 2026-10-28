@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
 import { renameBuilder, setBuilderMarkets } from "../actions";
 import { FEATURES } from "@/lib/features";
+import { planLabel } from "@/lib/billing";
+import { BuilderListTools } from "@/components/builder-list-tools";
+import { Chevron } from "@/components/chevron";
 
 export default function BuildersAdmin(props: PageProps<"/admin/builders">) {
   return (
@@ -27,17 +30,31 @@ async function Builders() {
     supabase.from("mls_boards").select("code, short_name, region").eq("active", true).order("code"),
     supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked, mls_entry, features_off"),
   ]);
+  const { data: billing } = await supabase.from("builder_billing").select("builder_id, plan, includes_photos");
+  const planFor = (id: string) => (billing ?? []).find((x) => x.builder_id === id);
   const settingsFor = (id: string) => (settings ?? []).find((x) => x.builder_id === id);
   const tally = (rows: { builder_id: string | null }[] | null, id: string) => (rows ?? []).filter((r) => r.builder_id === id).length;
 
   return (
     <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
-      <div className="divide-y divide-line rounded-2xl border border-line">
+      <div className="min-w-0 space-y-3">
+        <BuilderListTools count={(builders ?? []).length} />
+        <div className="divide-y divide-line rounded-2xl border border-line">
         {(builders ?? []).map((b) => (
-          <div key={b.id} className="flex flex-wrap items-center gap-4 p-4">
-            <Link href={`/branding?builder=${b.id}`} title="Logo, colors and website" className="shrink-0">
-              <BuilderLogo builderId={b.id} name={b.name} version={(b.builder_branding as unknown as { logo_updated_at: string | null } | null)?.logo_updated_at} className="h-10 max-w-[100px]" />
-            </Link>
+          <details key={b.id} id={b.id} data-builder-fold data-name={b.name} className="group scroll-mt-28">
+            <summary className="flex flex-wrap items-center gap-4 p-4 hover:bg-soft">
+              <BuilderLogo builderId={b.id} name={b.name} version={(b.builder_branding as unknown as { logo_updated_at: string | null } | null)?.logo_updated_at} className="h-9 max-w-[100px]" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-semibold">{b.name}</div>
+                <div className="text-sm text-muted">
+                  {planLabel(planFor(b.id)?.plan, planFor(b.id)?.includes_photos)}
+                  {` · ${tally(communities, b.id)} communities · ${tally(homes, b.id)} homes · ${tally(people, b.id)} people`}
+                  {(settingsFor(b.id)?.mls_boards ?? []).length > 0 && ` · ${(settingsFor(b.id)?.mls_boards ?? []).join(", ")}`}
+                </div>
+              </div>
+              <Chevron />
+            </summary>
+          <div className="flex flex-wrap items-center gap-4 border-t border-line p-4">
             <form action={renameBuilder} className="flex min-w-0 flex-1 items-center gap-2">
               <input type="hidden" name="id" value={b.id} />
               <label className="sr-only" htmlFor={`b-${b.id}`}>Builder name</label>
@@ -49,6 +66,8 @@ async function Builders() {
               <span><b className="text-foreground">{tally(homes, b.id)}</b> homes</span>
               <Link href={`/admin/people#${b.id}`} className="hover:text-foreground"><b className="text-foreground">{tally(people, b.id)}</b> people</Link>
               <Link href={`/branding?builder=${b.id}`} className="hover:text-foreground">Branding</Link>
+              <Link href={`/admin/onboarding#b-${b.id}`} className="hover:text-foreground">Onboarding</Link>
+              <Link href={`/admin/billing/builders/${b.id}`} className="hover:text-foreground">Billing</Link>
             </div>
             <form action={setBuilderMarkets} className="w-full rounded-xl bg-soft p-3">
               <input type="hidden" name="builder_id" value={b.id} />
@@ -91,7 +110,9 @@ async function Builders() {
               <button className="mt-2 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save builder settings</button>
             </form>
           </div>
+          </details>
         ))}
+        </div>
       </div>
 
       <div className="h-fit rounded-2xl border border-line p-5">

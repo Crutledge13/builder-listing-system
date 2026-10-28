@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
 import { ProgressBar } from "@/components/progress-bar";
 import { cx } from "@/lib/format";
+import { BuilderListTools } from "@/components/builder-list-tools";
+import { Chevron } from "@/components/chevron";
 import { loadOnboarding, STAGES, STAGE_LABELS, type Onboarding, type Stage } from "@/lib/onboarding";
 import { addBuilder, invitePerson, saveOnboarding } from "../actions";
 import { pendingInvites } from "@/lib/invite-links";
@@ -62,10 +64,12 @@ async function OnboardingList() {
 
   return (
     <div className="grid gap-10 lg:grid-cols-[1fr_340px]">
-      <div className="space-y-4">
+      <div className="space-y-3">
         <p className="text-sm text-muted">
           Each builder&rsquo;s path: we record the agreement and invite the owner, then their checklist ticks itself off as they add their team, communities and homes.
+          Click a builder to see and change everything.
         </p>
+        <BuilderListTools count={sorted.length} />
         {sorted.map((ob) => (
           <BuilderCard
             key={ob.builderId}
@@ -126,19 +130,23 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, fromBuilder, pending
   const ownerMissing = ob.ourSteps.find((s) => s.key === "owner" && !s.done);
   const nextForThem = ob.steps.find((s) => !s.done);
   return (
-    <section id={`b-${ob.builderId}`} className="scroll-mt-28 rounded-2xl border border-line p-5">
-      <div className="flex flex-wrap items-center gap-4">
-        <BuilderLogo builderId={ob.builderId} name={ob.builderName} version={logoAt} className="h-10 max-w-[100px]" />
+    <details id={`b-${ob.builderId}`} data-builder-fold data-name={ob.builderName} className="group scroll-mt-28 rounded-2xl border border-line">
+      <summary className="flex flex-wrap items-center gap-4 rounded-2xl p-4 hover:bg-soft group-open:rounded-b-none">
+        <BuilderLogo builderId={ob.builderId} name={ob.builderName} version={logoAt} className="h-9 max-w-[100px]" />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-lg font-semibold">{ob.builderName}</h2>
+          <h2 className="truncate font-semibold">{ob.builderName}</h2>
           <p className="text-sm text-muted">
             {ob.finishedAt ? "Setup marked done" : nextForThem ? `Their next step: ${nextForThem.title.toLowerCase()}` : "Every step done"}
+            {` · ${ob.done} of ${ob.total} steps`}
+            {ourOpen.length > 0 && <span className="text-amber-800"> · waiting on us</span>}
           </p>
         </div>
         <span className={cx("rounded-full px-3 py-1 text-xs font-semibold", STAGE_STYLES[ob.stage])}>{STAGE_LABELS[ob.stage]}</span>
-      </div>
+        <Chevron />
+      </summary>
+      <div className="border-t border-line p-5">
 
-      <ProgressBar className="mt-4" done={ob.done} total={ob.total} label="Their checklist" />
+      <ProgressBar done={ob.done} total={ob.total} label="Their checklist" />
 
       {ourOpen.length > 0 && (
         <div className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -148,7 +156,7 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, fromBuilder, pending
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Link href={`/setup?builder=${ob.builderId}`} className="rounded-lg border border-foreground px-3 py-1.5 text-sm font-semibold hover:bg-soft">Open their checklist</Link>
-        <Link href="/admin/builders" className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">Markets and features</Link>
+        <Link href={`/admin/builders#${ob.builderId}`} className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">Markets and features</Link>
         <Link href={`/admin/people#${ob.builderId}`} className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">People</Link>
         <Link href={`/admin/billing/builders/${ob.builderId}`} className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">Billing plan</Link>
       </div>
@@ -178,7 +186,8 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, fromBuilder, pending
           <button className="mt-4 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-white hover:bg-black">Save details</button>
         </form>
       </details>
-    </section>
+      </div>
+    </details>
   );
 }
 

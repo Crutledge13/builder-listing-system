@@ -65,13 +65,19 @@ export function sendPhotographersToJobs(me: Profile) {
 export const DEMO_USERS = [
   { email: "admin@demo.test", label: "Conner Rutledge", detail: "Admin: sees everything" },
   { email: "coordinator@demo.test", label: "Casey Coordinator", detail: "Listing coordinator (our staff)" },
-  { email: "owner.mesquite@demo.test", label: "Morgan Reyes", detail: "Owner, Mesquite Creek" },
+  { email: "owner.mesquite@demo.test", label: "Morgan Reyes", detail: "Owner, Mesquite Creek (Listing Service+ and Photos)" },
   { email: "manager.mesquite@demo.test", label: "Jordan Ellis", detail: "Manager, Mesquite Creek" },
   { email: "sales.mesquite@demo.test", label: "Taylor Brooks", detail: "Sales, Oak Creek only" },
   { email: "sales2.mesquite@demo.test", label: "Jamie Ortiz", detail: "Sales, Willow Bend Ranch only" },
   { email: "marketing.mesquite@demo.test", label: "Riley Chen", detail: "Marketing, Mesquite Creek" },
-  { email: "owner.prairie@demo.test", label: "Avery Patel", detail: "Owner, Prairie Lantern" },
+  { email: "owner.prairie@demo.test", label: "Avery Patel", detail: "Owner, Prairie Lantern (Software and Photos)" },
   { email: "marketing.prairie@demo.test", label: "Quinn Harper", detail: "Marketing, Prairie Lantern" },
+  { email: "owner.cedar@demo.test", label: "Drew Coleman", detail: "Owner, Cedar Hollow (Software only, enters own MLS)" },
+  { email: "marketing.cedar@demo.test", label: "Parker Lane", detail: "Marketing, Cedar Hollow" },
+  { email: "sales.cedar@demo.test", label: "Sam Whitfield", detail: "Sales, Cedar Hollow" },
+  { email: "owner.redbud@demo.test", label: "Elena Marsh", detail: "Owner, Redbud Ridge (Listing Service+ only)" },
+  { email: "marketing.redbud@demo.test", label: "Chris Vega", detail: "Marketing, Redbud Ridge" },
+  { email: "sales.redbud@demo.test", label: "Dana Fields", detail: "Sales, Redbud Ridge" },
   { email: "photographer@demo.test", label: "Sky Navarro", detail: "Photographer (contractor)" },
 ] as const;
 
