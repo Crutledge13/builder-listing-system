@@ -45,6 +45,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Opened an invite link but hasn't chosen a password yet: finish that first,
+  // or they'd have no way back in once this sign-in runs out.
+  const path = request.nextUrl.pathname;
+  if (user?.user_metadata?.needs_password && path !== "/welcome" && !isConfirm && !path.startsWith("/signed-out") && !path.startsWith("/api/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/welcome";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   if (user && isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/communities";

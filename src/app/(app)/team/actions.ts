@@ -2,10 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient as createAdminSupabase } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { SUPABASE_URL } from "@/lib/supabase/config";
+import { createInvitedLogin, deleteLogin, invitesOn } from "@/lib/invite-links";
 import { rolesICanGive } from "@/lib/permissions";
 
 function go(params: Record<string, string>): never {
@@ -29,25 +28,24 @@ export async function inviteTeammate(formData: FormData) {
   if (!email || !fullName) go({ error: "Enter a name and email." });
   if (!rolesICanGive(me.role).includes(role as never)) go({ error: "Your role can’t add that kind of user." });
 
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) go({ error: "Adding people isn’t switched on yet. Our team needs to finish one setup step." });
+  if (!invitesOn()) go({ error: "Adding people isn’t switched on yet. Our team needs to finish one setup step." });
 
-  const admin = createAdminSupabase(SUPABASE_URL, serviceKey, { auth: { persistSession: false } });
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName } });
-  if (error || !data.user) go({ error: `Couldn’t invite: ${error?.message ?? "unknown error"}` });
+  // Makes the login without sending an email; the inviter copies the link and sends it.
+  const made = await createInvitedLogin(email, fullName);
+  if ("error" in made) go({ error: made.error });
 
   // The profile is saved with the inviter's own access, so the database rules decide.
   const supabase = await createClient();
-  const { error: pErr } = await supabase.from("profiles").insert({ id: data.user.id, email, full_name: fullName, role, builder_id: me.builder_id });
+  const { error: pErr } = await supabase.from("profiles").insert({ id: made.userId, email, full_name: fullName, role, builder_id: me.builder_id });
   if (pErr) {
-    await admin.auth.admin.deleteUser(data.user.id); // undo the login so nothing is half set up
+    await deleteLogin(made.userId); // undo the login so nothing is half set up
     go({ error: friendly(pErr.message) });
   }
   if (role === "sales" && communityIds.length) {
-    await supabase.from("community_assignments").insert(communityIds.map((c) => ({ profile_id: data.user.id, community_id: c })));
+    await supabase.from("community_assignments").insert(communityIds.map((c) => ({ profile_id: made.userId, community_id: c })));
   }
   revalidatePath("/team");
-  go({ saved: `Invited ${fullName}. They’ll get an email to set a password.` });
+  go({ saved: `Added ${fullName}. Copy their invite link next to their name and send it to them.` });
 }
 
 export async function updateTeammate(formData: FormData) {

@@ -2,12 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient as createAdminSupabase } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { SUPABASE_URL } from "@/lib/supabase/config";
 import { FEATURES } from "@/lib/features";
 import { readTitleCompany } from "@/lib/title-company";
+import { createInvitedLogin, deleteLogin, invitesOn } from "@/lib/invite-links";
 
 // Every action here is for our platform admins. The database rules enforce
 // this too; the check below just gives a clear message.
@@ -64,7 +63,7 @@ export async function addBuilder(formData: FormData) {
   let invited = "";
   if (ownerEmail) {
     const problem = await inviteOne({ email: ownerEmail, fullName: ownerName, role: "builder_owner", builderId: created.id });
-    invited = problem ? ` The owner invite didn’t go out: ${problem}` : ` Invited ${ownerName}; they’ll get an email to set a password and see their setup checklist.`;
+    invited = problem ? ` The owner’s login wasn’t made: ${problem}` : ` ${ownerName} is set up as the owner: copy their invite link from their card below and send it to them.`;
   }
   revalidatePath("/", "layout");
   go("/admin/onboarding", {
@@ -208,23 +207,23 @@ export async function setAssignments(formData: FormData) {
 // Sends one invite and sets up the person's account. Returns a problem in
 // plain words, or null when it worked. Callers check the admin role first.
 async function inviteOne(p: { email: string; fullName: string; role: string; builderId: string | null }): Promise<string | null> {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) return "inviting people needs the SUPABASE_SERVICE_ROLE_KEY setting in Vercel. Invite them later from Admin > Onboarding.";
-
-  // Creating a login needs Supabase's admin key, which stays on the server.
-  const admin = createAdminSupabase(SUPABASE_URL, serviceKey, { auth: { persistSession: false } });
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(p.email, { data: { full_name: p.fullName } });
-  if (error || !data.user) return `couldn’t invite: ${error?.message ?? "unknown error"}`;
+  if (!invitesOn()) return "invite links need the SUPABASE_SERVICE_ROLE_KEY setting in Vercel. Invite them later from Admin > Onboarding.";
+  // Makes the login without sending an email; we copy the invite link from the page and send it ourselves.
+  const made = await createInvitedLogin(p.email, p.fullName);
+  if ("error" in made) return made.error.charAt(0).toLowerCase() + made.error.slice(1);
 
   const supabase = await createClient();
   const { error: pErr } = await supabase.from("profiles").insert({
-    id: data.user.id,
+    id: made.userId,
     email: p.email,
     full_name: p.fullName,
     role: p.role,
     builder_id: STAFF_ROLES.includes(p.role) ? null : p.builderId,
   });
-  if (pErr) return `the invite went out, but the account setup failed: ${friendly(pErr.message)}`;
+  if (pErr) {
+    await deleteLogin(made.userId);
+    return `the account setup failed: ${friendly(pErr.message)}`;
+  }
   return null;
 }
 
@@ -242,7 +241,7 @@ export async function invitePerson(formData: FormData) {
   const problem = await inviteOne({ email, fullName, role, builderId });
   if (problem) go(back, { error: problem[0].toUpperCase() + problem.slice(1) });
   revalidatePath("/", "layout");
-  go(back, { saved: `Invited ${fullName}. They’ll get an email to set a password.` });
+  go(back, { saved: `Added ${fullName}. Copy their invite link next to their name and send it to them.` });
 }
 
 // ---------------------------------------------------------------------------

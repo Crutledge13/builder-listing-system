@@ -9,6 +9,8 @@ import { Notice } from "@/components/notice";
 import { setAssignments } from "@/app/(app)/admin/actions";
 import { AccessHistory } from "@/components/access-history";
 import { inviteTeammate, setTeammateActive, updateTeammate } from "./actions";
+import { pendingInvites } from "@/lib/invite-links";
+import { InviteLink } from "@/components/invite-link";
 
 export default function TeamPage(props: PageProps<"/team">) {
   return (
@@ -39,6 +41,8 @@ async function Team() {
   const canGive = rolesICanGive(me.role);
   const canInvite = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
   const active = (people ?? []).filter((p) => p.is_active);
+  // People who haven't opened their invite and chosen a password yet.
+  const pending = await pendingInvites(active.map((p) => p.id));
   const inactive = (people ?? []).filter((p) => !p.is_active);
 
   return (
@@ -58,6 +62,7 @@ async function Team() {
               const mine = new Set((assignments ?? []).filter((a) => a.profile_id === p.id).map((a) => a.community_id));
               return (
                 <div key={p.id} className="p-4">
+                  {pending.has(p.id) && editable && <div className="mb-3"><InviteLink profileId={p.id} name={p.full_name} /></div>}
                   <div className="flex flex-wrap items-center gap-3">
                     <Avatar id={p.id} name={p.full_name} version={p.avatar_updated_at} className="h-10 w-10 text-sm" />
                     <div className="min-w-0 flex-1">
@@ -135,7 +140,7 @@ async function Team() {
 
         <form action={inviteTeammate} className="h-fit rounded-2xl border border-line p-5 lg:sticky lg:top-28">
           <h2 className="text-lg font-semibold">Add a person</h2>
-          <p className="mt-1 text-sm text-muted">They’ll get an email to set their own password.</p>
+          <p className="mt-1 text-sm text-muted">You’ll get an invite link to send them (text or email). It opens a page where they choose their password.</p>
           {!canInvite && (
             <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
               Adding people switches on once our team finishes one setup step. You can still change roles and access below.
@@ -177,7 +182,7 @@ async function Team() {
                 </div>
               </fieldset>
             )}
-            <button className="mt-5 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Send invite</button>
+            <button className="mt-5 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Add and get invite link</button>
           </fieldset>
         </form>
       </div>

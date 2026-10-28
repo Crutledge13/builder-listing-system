@@ -50,6 +50,8 @@ async function LoginError({ searchParams }: { searchParams: PageProps<"/login">[
         ? "Your login works, but no account is set up for it yet. Ask your account owner to add you."
         : error === "inactive"
           ? "Your access has been turned off. Ask your account owner if that’s a mistake."
+          : error === "invite-expired"
+            ? "That invite link has expired or was already used. Ask whoever invited you for a new one; they can make it in a few seconds."
           : "That email and password don’t match. Check the password’s capital letters and try again."}
     </p>
   );

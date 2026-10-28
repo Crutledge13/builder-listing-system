@@ -8,6 +8,8 @@ import { ProgressBar } from "@/components/progress-bar";
 import { cx } from "@/lib/format";
 import { loadOnboarding, STAGES, STAGE_LABELS, type Onboarding, type Stage } from "@/lib/onboarding";
 import { addBuilder, invitePerson, saveOnboarding } from "../actions";
+import { pendingInvites } from "@/lib/invite-links";
+import { InviteLink } from "@/components/invite-link";
 import { TitleCompanyFields } from "@/components/title-company-fields";
 import { TITLE_COMPANY_SELECT, type TitleCompany } from "@/lib/mls-fields";
 
@@ -52,6 +54,10 @@ async function OnboardingList() {
     supabase.from("builder_branding").select("builder_id, logo_updated_at"),
     supabase.from("builder_settings").select(`builder_id, ${TITLE_COMPANY_SELECT}`),
   ]);
+  // Owners who haven't opened their invite yet get a copyable invite link on their card.
+  const { data: owners } = await supabase.from("profiles").select("id, full_name, builder_id").eq("role", "builder_owner").eq("is_active", true);
+  const pending = await pendingInvites((owners ?? []).map((o) => o.id));
+  const pendingOwners = (owners ?? []).filter((o) => pending.has(o.id));
   const list = await loadOnboarding(supabase, (builders ?? []).map((b) => b.id), { staff: true });
   // Builders still onboarding first, earliest stage first; finished ones last.
   const sorted = [...list].sort((a, b) =>
@@ -71,6 +77,7 @@ async function OnboardingList() {
             legalName={(builders ?? []).find((b) => b.id === ob.builderId)?.legal_name ?? ""}
             d={(details ?? []).find((x) => x.builder_id === ob.builderId) as Details | undefined}
             logoAt={(branding ?? []).find((x) => x.builder_id === ob.builderId)?.logo_updated_at ?? null}
+            pendingOwners={pendingOwners.filter((o) => o.builder_id === ob.builderId)}
             title={(titles ?? []).find((x) => (x as { builder_id: string }).builder_id === ob.builderId) as TitleCompany | undefined}
             canInvite={canInvite}
           />
@@ -95,7 +102,7 @@ async function OnboardingList() {
           </div>
         </fieldset>
         <h3 className="mt-6 text-sm font-semibold">Owner</h3>
-        <p className="text-xs text-muted">{canInvite ? "They get an email to set a password, then see their setup checklist." : "Invites are off until SUPABASE_SERVICE_ROLE_KEY is set in Vercel. You can invite them later."}</p>
+        <p className="text-xs text-muted">{canInvite ? "You get an invite link on their card to send them. It opens a page where they choose a password, then their setup checklist." : "Invites are off until SUPABASE_SERVICE_ROLE_KEY is set in Vercel. You can add the owner later."}</p>
         <Field label="Owner’s name" name="owner_name" />
         <Field label="Owner’s email" name="owner_email" type="email" />
         <DetailFields />
@@ -105,7 +112,10 @@ async function OnboardingList() {
   );
 }
 
-function BuilderCard({ ob, legalName, d, logoAt, canInvite, title }: { ob: Onboarding; legalName: string; d?: Details; logoAt: string | null; canInvite: boolean; title?: TitleCompany }) {
+function BuilderCard({ ob, legalName, d, logoAt, canInvite, title, pendingOwners }: {
+  ob: Onboarding; legalName: string; d?: Details; logoAt: string | null; canInvite: boolean; title?: TitleCompany;
+  pendingOwners: { id: string; full_name: string }[];
+}) {
   const ourOpen = ob.ourSteps.filter((s) => !s.done);
   const ownerMissing = ob.ourSteps.find((s) => s.key === "owner" && !s.done);
   const nextForThem = ob.steps.find((s) => !s.done);
@@ -136,6 +146,8 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, title }: { ob: Onboa
         <Link href={`/admin/people#${ob.builderId}`} className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">People</Link>
       </div>
 
+      {pendingOwners.map((o) => <div key={o.id} className="mt-4"><InviteLink profileId={o.id} name={o.full_name} /></div>)}
+
       {ownerMissing && (
         <form action={invitePerson} className="mt-4 grid gap-2 rounded-xl border border-line p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <input type="hidden" name="role" value="builder_owner" />
@@ -143,7 +155,7 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, title }: { ob: Onboa
           <input type="hidden" name="back" value="/admin/onboarding" />
           <label className="block text-sm"><span className="mb-1 block font-medium">Owner&rsquo;s name</span><input name="full_name" required className="field-input" /></label>
           <label className="block text-sm"><span className="mb-1 block font-medium">Owner&rsquo;s email</span><input name="email" type="email" required className="field-input" /></label>
-          <button disabled={!canInvite} className="rounded-lg bg-foreground px-3 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-40">Invite owner</button>
+          <button disabled={!canInvite} className="rounded-lg bg-foreground px-3 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-40">Add owner</button>
           {!canInvite && <p className="text-xs text-muted sm:col-span-3">Invites need SUPABASE_SERVICE_ROLE_KEY set in Vercel.</p>}
         </form>
       )}

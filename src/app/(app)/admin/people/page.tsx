@@ -5,6 +5,8 @@ import { ROLE_LABELS, type Role } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { invitePerson, setAssignments, updatePerson } from "../actions";
 import { AccessHistory } from "@/components/access-history";
+import { pendingInvites } from "@/lib/invite-links";
+import { InviteLink } from "@/components/invite-link";
 
 export default function PeopleAdmin(props: PageProps<"/admin/people">) {
   return (
@@ -28,6 +30,7 @@ async function People() {
     supabase.from("community_assignments").select("profile_id, community_id"),
   ]);
   const canInvite = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const pending = await pendingInvites((people ?? []).map((p) => p.id));
   const groups = [
     { id: "staff", name: "Our team and photographers", list: (people ?? []).filter((p) => !p.builder_id) },
     ...(builders ?? []).map((b) => ({ id: b.id, name: b.name.replace(" (demo)", ""), list: (people ?? []).filter((p) => p.builder_id === b.id) })),
@@ -45,6 +48,7 @@ async function People() {
                 const mine = new Set((assignments ?? []).filter((a) => a.profile_id === p.id).map((a) => a.community_id));
                 return (
                   <div key={p.id} className="p-4">
+                    {pending.has(p.id) && <div className="mb-3"><InviteLink profileId={p.id} name={p.full_name} /></div>}
                     <form action={updatePerson} className="grid gap-3 sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-end">
                       <input type="hidden" name="id" value={p.id} />
                       <div className="min-w-0">
@@ -98,7 +102,7 @@ async function People() {
 
       <form action={invitePerson} className="h-fit rounded-2xl border border-line p-5 lg:sticky lg:top-28">
         <h2 className="font-semibold">Invite a person</h2>
-        <p className="mt-1 text-sm text-muted">They get an email to set their own password.</p>
+        <p className="mt-1 text-sm text-muted">You get an invite link to send them. It opens a page where they choose their password.</p>
         {!canInvite && (
           <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
             Turned off until the Supabase admin key is added in Vercel as SUPABASE_SERVICE_ROLE_KEY. That key creates logins, so it stays on the server and never goes in the code.
@@ -126,7 +130,7 @@ async function People() {
               {(builders ?? []).map((b) => <option key={b.id} value={b.id}>{b.name.replace(" (demo)", "")}</option>)}
             </select>
           </label>
-          <button className="mt-4 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Send invite</button>
+          <button className="mt-4 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Add and get invite link</button>
         </fieldset>
       </form>
     </div>
