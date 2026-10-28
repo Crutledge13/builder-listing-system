@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SetupNav } from "@/components/setup-nav";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
@@ -22,6 +23,7 @@ export default function BrandingPage(props: PageProps<"/branding">) {
       <Suspense fallback={<div className="mt-8 h-96 animate-pulse rounded-2xl bg-soft" />}>
         <Branding searchParams={props.searchParams} />
       </Suspense>
+      <SetupNav steps={["logo", "brand_guide"]} path="/branding" />
     </div>
   );
 }
@@ -126,14 +128,16 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
       <section className="rounded-2xl border border-line p-5">
         <h2 className="font-semibold">Logo</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="flex h-28 items-center justify-center rounded-xl border border-line bg-white p-4">
-            <BuilderLogo builderId={b.builder_id} name={name} version={b.logo_updated_at} className="h-16 max-w-full" />
+          <div className="flex h-36 items-center justify-center rounded-xl border border-line bg-white p-4">
+            <div className="flex h-28 w-28 items-center justify-center rounded-lg border border-dashed border-line">
+              <BuilderLogo builderId={b.builder_id} name={name} version={b.logo_updated_at} className="h-28 w-28 max-w-full" />
+            </div>
           </div>
-          <div className="flex h-28 items-center justify-center rounded-xl p-4" style={{ background: primary }}>
-            <BuilderLogo builderId={b.builder_id} name={name} version={b.logo_updated_at} className="h-16 max-w-full" />
+          <div className="flex h-36 items-center justify-center rounded-xl p-4" style={{ background: primary }}>
+            <BuilderLogo builderId={b.builder_id} name={name} version={b.logo_updated_at} className="h-28 w-28 max-w-full" />
           </div>
         </div>
-        <p className="mt-2 text-xs text-muted">How it looks on white and on your main color. A logo with a see-through background (PNG or SVG) works best.</p>
+        <p className="mt-2 text-xs text-muted">Your logo sits in a square everywhere it shows. Upload any shape: we center it on a square without cutting anything off. A see-through background (PNG) works best; 1000 × 1000 px or larger looks sharpest.</p>
         {edit && (
           <div className="mt-4">
             <ImageUpload
@@ -141,6 +145,7 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
               folder={b.builder_id}
               accept="image/png,image/svg+xml,image/jpeg,image/webp"
               label="logo"
+              square
               hasImage={!!b.logo_path}
               save={saveLogo.bind(null, b.builder_id)}
               remove={removeLogo.bind(null, b.builder_id)}

@@ -2,7 +2,10 @@ import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { canEditPlans, isStaff } from "@/lib/permissions";
+import { canEditPlans, canManageMedia, isStaff } from "@/lib/permissions";
+import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
+import { MediaGrid, MediaTile, planFolderHref } from "@/components/media-tile";
+import { PlanPhotoUpload } from "../plan-photo-upload";
 import { AiCreditMeter } from "@/components/ai-credit-meter";
 import { dateTime } from "@/lib/format";
 import { levelLabel, roomSize, type Room } from "@/lib/rooms";
@@ -96,6 +99,8 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
         )}
       </section>
 
+      <PlanPhotos planId={p.id} name={p.name} builderId={p.builder_id} canUpload={canManageMedia(me.role) && (staff || me.builder_id === p.builder_id)} />
+
       {canEdit ? (
         <form action={savePlan} className="mt-6 space-y-6">
           <input type="hidden" name="id" value={p.id} />
@@ -133,6 +138,27 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
         </section>
       )}
     </>
+  );
+}
+
+// The plan's own photos (model home pictures and video). Homes on this plan
+// show them until they have five photos of their own.
+async function PlanPhotos({ planId, name, builderId, canUpload }: { planId: string; name: string; builderId: string; canUpload: boolean }) {
+  const supabase = await createClient();
+  const { data } = await supabase.from("media").select(MEDIA_SELECT).eq("builder_id", builderId).eq("plan_name", name)
+    .is("home_id", null).is("community_id", null).is("deleted_at", null).order("sort_order").limit(60);
+  const list = (data ?? []) as unknown as MediaRow[];
+  return (
+    <section id="photos" className="mt-6 scroll-mt-28 rounded-2xl border border-line p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-semibold">Photos of this plan</h2>
+        {list.length > 0 && <a href={planFolderHref(builderId, name)} className="text-sm font-semibold underline">Open the {name} folder</a>}
+      </div>
+      <p className="mt-1 text-sm text-muted">Model home photos. Homes built on this plan show them, marked “representative”, until they have photos of their own.</p>
+      {list.length > 0 && <div className="mt-4"><MediaGrid>{list.map((m) => <MediaTile key={m.id} m={m} direct />)}</MediaGrid></div>}
+      {list.length === 0 && !canUpload && <p className="mt-3 text-sm text-muted">No photos of this plan yet.</p>}
+      {canUpload && <div className="mt-4"><PlanPhotoUpload planId={planId} builderId={builderId} /></div>}
+    </section>
   );
 }
 

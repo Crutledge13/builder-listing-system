@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
 import { SKIPPABLE, type SkippableStep } from "@/lib/onboarding";
+import { safePath } from "@/lib/safe-path";
 
 function back(builderId: string, staff: boolean, p: Record<string, string>): never {
   const q = new URLSearchParams(staff ? { builder: builderId, ...p } : p);
@@ -21,7 +22,7 @@ async function target(formData: FormData) {
   return { builderId, staff };
 }
 
-const friendly = (m: string) => (m.includes("owner or a manager") ? "Only the owner or a manager can change the setup checklist." : m);
+const friendly = (m: string) => (m.includes("can change the setup checklist") ? "Only the owner, a manager or marketing can change the setup checklist." : m);
 
 export async function skipStep(formData: FormData) {
   const { builderId, staff } = await target(formData);
@@ -32,6 +33,9 @@ export async function skipStep(formData: FormData) {
   const { error } = await supabase.rpc("set_setup_skip", { p_builder: builderId, p_step: step, p_skip: skip });
   if (error) back(builderId, staff, { error: friendly(error.message) });
   revalidatePath("/", "layout");
+  // Skipped from the Back / Next bar on a step's own page: carry on to the next step.
+  const next = safePath(String(formData.get("next") ?? ""), "");
+  if (next && next !== "/setup") redirect(next);
   back(builderId, staff, { saved: skip ? "Skipped. You can come back to it any time." : "Back on the list." });
 }
 

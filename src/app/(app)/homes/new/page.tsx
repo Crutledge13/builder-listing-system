@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SetupNav } from "@/components/setup-nav";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { WEBSITE_PAGE_HELP } from "@/lib/website-page";
@@ -17,6 +18,7 @@ export default function NewHomePage(props: PageProps<"/homes/new">) {
   return (
     <Suspense fallback={<div className="mt-16 h-96 animate-pulse rounded-2xl bg-soft" />}>
       <NewHomeForm searchParams={props.searchParams} />
+      <div className="mx-auto max-w-3xl"><SetupNav steps={["first_home"]} path="/homes/new" /></div>
     </Suspense>
   );
 }

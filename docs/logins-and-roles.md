@@ -125,7 +125,7 @@ The owner, managers and marketing see a **Setup** tab and a banner until they're
 - **Communities**, each with its **community setup** (below)
 - **Salespeople on communities**
 - **Floor plans** (AI reads the plan file for room sizes)
-- **First home**, then **first approval**
+- **First home** (communities and floor plans can be skipped for later)
 
 They can skip the optional steps, and they click **We're all set** at the end. You can open any builder's checklist from **Builder setup** in the menu, or with **Open their checklist** on their Onboarding card. Each card shows the builder's stage (Getting ready → Invited → Setting up → First community ready → First listing approved → Live on the MLS) and anything **Waiting on us**.
 

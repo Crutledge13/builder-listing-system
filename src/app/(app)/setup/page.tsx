@@ -10,6 +10,8 @@ import { Notice } from "@/components/notice";
 import { ProgressBar } from "@/components/progress-bar";
 import { canRunSetup, GROUP_TITLES, loadOnboarding, STAGE_LABELS, type Onboarding, type Step } from "@/lib/onboarding";
 import { finishSetup, skipStep } from "./actions";
+import { PhotoContactForm, type PhotoContact } from "@/components/photo-contact-form";
+import { PendingButton } from "@/components/pending-button";
 
 export default function SetupPage(props: PageProps<"/setup">) {
   return (
@@ -35,8 +37,19 @@ async function Setup({ searchParams }: { searchParams: PageProps<"/setup">["sear
   const [ob] = await loadOnboarding(supabase, [builderId], { staff });
   if (!ob || (staff && !ob.builderName)) return <PickBuilder />;
 
+  // Builders fill in who photographers call right here (our team opens Photo requests).
+  const contact = staff ? null : {
+    c: (await supabase.from("builder_photo_info").select("contact_name, contact_phone, contact_email, access_notes").eq("builder_id", builderId).maybeSingle()).data as PhotoContact,
+  };
+
   const groups = (["company", "communities", "homes"] as const).map((g) => ({ g, steps: ob.steps.filter((s) => s.group === g) }));
   const allDone = ob.done === ob.total;
+  // Every step done: setup counts as finished, so the Setup tab leaves the top
+  // bar (the checklist stays in the menu).
+  if (allDone && !ob.finishedAt && !staff) {
+    const { error } = await supabase.rpc("finish_setup", { p_builder: builderId, p_done: true });
+    if (!error) ob.finishedAt = new Date().toISOString();
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -52,7 +65,7 @@ async function Setup({ searchParams }: { searchParams: PageProps<"/setup">["sear
       <ProgressBar className="mt-6" done={ob.done} total={ob.total} label={allDone ? "Everything’s done" : "Steps done"} />
 
       {staff && <StepGroup title={GROUP_TITLES.ours} steps={ob.ourSteps} ob={ob} staff />}
-      {groups.map(({ g, steps }) => <StepGroup key={g} title={GROUP_TITLES[g]} steps={steps} ob={ob} staff={staff} />)}
+      {groups.map(({ g, steps }) => <StepGroup key={g} title={GROUP_TITLES[g]} steps={steps} ob={ob} staff={staff} contact={contact} />)}
 
       <div className="mt-10 rounded-2xl bg-soft p-5">
         {ob.finishedAt ? (
@@ -79,7 +92,7 @@ async function Setup({ searchParams }: { searchParams: PageProps<"/setup">["sear
   );
 }
 
-function StepGroup({ title, steps, ob, staff }: { title: string; steps: Step[]; ob: Onboarding; staff: boolean }) {
+function StepGroup({ title, steps, ob, staff, contact }: { title: string; steps: Step[]; ob: Onboarding; staff: boolean; contact?: { c: PhotoContact } | null }) {
   return (
     <section className="mt-10">
       <h2 className="text-lg font-semibold">{title}</h2>
@@ -96,6 +109,18 @@ function StepGroup({ title, steps, ob, staff }: { title: string; steps: Step[]; 
               </div>
               <p className="mt-0.5 text-sm text-muted">{s.why}</p>
               {s.detail && <p className="mt-1 text-sm">{s.detail}</p>}
+              {s.key === "photo_contact" && contact && (
+                <details className="group mt-3 rounded-xl border border-line" open={!s.done}>
+                  <summary className="cursor-pointer list-none px-3 py-2 text-sm font-semibold text-accent">
+                    <span className="group-open:hidden">{s.done ? "Change it" : "Add a contact"}</span>
+                    <span className="hidden group-open:inline">{s.done ? "Change who photographers call" : "Who should photographers call?"}</span>
+                  </summary>
+                  <div className="border-t border-line p-3">
+                    <PhotoContactForm c={contact.c} back="/setup#step-photo_contact" />
+                    <p className="mt-2 text-xs text-muted">You can change this any time under Photo requests.</p>
+                  </div>
+                </details>
+              )}
               {s.key === "community_setup" && ob.communities.length > 0 && (
                 <ul className="mt-3 space-y-2">
                   {ob.communities.map((c) => (
@@ -110,15 +135,15 @@ function StepGroup({ title, steps, ob, staff }: { title: string; steps: Step[]; 
               )}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
-              {(!s.done || s.key === "community_setup" || s.key === "team") && (
+              {!(s.key === "photo_contact" && contact) && (!s.done || s.key === "community_setup" || s.key === "team") && (
                 <Link href={staff ? staffHref(s.href, ob.builderId) : s.href} className={cx("rounded-lg px-3 py-1.5 text-sm font-semibold", s.done ? "border border-line hover:border-foreground" : "bg-foreground text-white hover:bg-black")}>
                   {s.done ? "Open" : s.cta}
                 </Link>
               )}
-              {s.optional && !s.done && (
-                <SkipButton builderId={ob.builderId} step={s.key} skip label={s.skipLabel ?? "Skip"} />
+              {s.skipKey && !s.done && (
+                <SkipButton builderId={ob.builderId} step={s.skipKey} skip label={s.skipLabel ?? "Skip this for later"} />
               )}
-              {s.skipped && <SkipButton builderId={ob.builderId} step={s.key} skip={false} label="Put it back" />}
+              {s.skipped && s.skipKey && <SkipButton builderId={ob.builderId} step={s.skipKey} skip={false} label="Put it back" />}
             </div>
           </li>
         ))}
@@ -141,7 +166,7 @@ function SkipButton({ builderId, step, skip, label }: { builderId: string; step:
       <input type="hidden" name="builder_id" value={builderId} />
       <input type="hidden" name="step" value={step} />
       <input type="hidden" name="skip" value={String(skip)} />
-      <button className="text-xs font-medium text-muted underline hover:text-foreground">{label}</button>
+      <PendingButton pending="Saving…" className="text-xs font-medium text-muted underline hover:text-foreground">{label}</PendingButton>
     </form>
   );
 }

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SetupNav } from "@/components/setup-nav";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -157,6 +158,7 @@ async function CommunitySetup({
           </div>
         )}
       </form>
+      <SetupNav steps={["community_setup"]} path={`/communities/${id}/setup`} sticky={false} />
     </div>
   );
 }

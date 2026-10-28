@@ -12,10 +12,11 @@ export type StepKey =
   | "agreement" | "legal_name" | "markets" | "owner"
   | "team" | "logo" | "brand_guide" | "website" | "billing" | "photo_contact" | "title_company"
   | "communities" | "community_setup" | "sales"
-  | "plans" | "first_home" | "first_approval";
+  | "plans" | "first_home";
 
-export type SkippableStep = "team" | "brand_guide" | "title_company";
-export const SKIPPABLE: readonly SkippableStep[] = ["team", "brand_guide", "title_company"];
+// What can be put off. "communities" skips the whole communities section.
+export type SkippableStep = "team" | "brand_guide" | "title_company" | "communities" | "plans";
+export const SKIPPABLE: readonly SkippableStep[] = ["team", "brand_guide", "title_company", "communities", "plans"];
 
 export type Step = {
   key: StepKey;
@@ -25,7 +26,8 @@ export type Step = {
   done: boolean;
   skipped?: boolean;
   optional?: boolean;
-  skipLabel?: string;      // the button for skipping an optional step
+  skipKey?: SkippableStep; // the stored choice that skips this step
+  skipLabel?: string;      // the button for skipping it
   ourTeam?: boolean;       // our team does this one, not the builder
   detail?: string;
   href: string;
@@ -131,6 +133,10 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
     const b = (builders.data ?? []).find((x) => x.id === id);
     const st = states.get(id) ?? { skipped: [], finished_at: null, agreement_signed: false, billing_set: false };
     const skipped = new Set(st.skipped);
+    // A required step put off for later: counts as done until they come back to it.
+    const later = (key: SkippableStep, done: boolean) => ({
+      done: done || skipped.has(key), skipped: skipped.has(key) && !done, skipKey: key, skipLabel: "Skip this for later",
+    });
     const brand = by(branding.data as Row[], id)[0] as { logo_path?: string; brand_guide_path?: string; website_url?: string } | undefined;
     const contact = by(photo.data as Row[], id)[0] as { contact_name?: string; contact_phone?: string } | undefined;
     const team = by(people.data as Row[], id).filter((p) => p.is_active) as unknown as { id: string; role: string }[];
@@ -164,14 +170,14 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
     ];
 
     const steps: Step[] = [
-      { key: "team", group: "company", title: "Add your team", optional: true, skipLabel: "It’s just me for now",
+      { key: "team", group: "company", title: "Add your team", optional: true, skipKey: "team", skipLabel: "It’s just me for now",
         why: "Add each person who needs access and pick their role. Marketing runs listings day to day; salespeople see only their communities.",
         done: team.length > 1 || skipped.has("team"), skipped: skipped.has("team") && team.length <= 1,
         detail: `${team.length} ${team.length === 1 ? "person" : "people"} can sign in`, href: "/team", cta: "Add people" },
       { key: "logo", group: "company", title: "Upload your logo",
         why: "Shows on your screens, photographer jobs and realtor share pages. It never goes on MLS photos.",
         done: !!brand?.logo_path, href: "/branding", cta: "Upload logo" },
-      { key: "brand_guide", group: "company", title: "Upload your brand guide", optional: true, skipLabel: "We don’t have one",
+      { key: "brand_guide", group: "company", title: "Upload your brand guide", optional: true, skipKey: "brand_guide", skipLabel: "We don’t have one",
         why: "We read it for your colors, fonts and voice, so listing descriptions sound like you.",
         done: !!brand?.brand_guide_path || skipped.has("brand_guide"), skipped: skipped.has("brand_guide") && !brand?.brand_guide_path,
         href: "/branding#guide", cta: "Upload guide" },
@@ -181,42 +187,34 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
       { key: "billing", group: "company", title: "Billing contact",
         why: "Who we send invoices to. Your company’s owner adds this.",
         done: st.billing_set, href: "/company#billing", cta: "Add billing contact" },
+      { key: "title_company", group: "company", title: "Your default title company", optional: true, skipKey: "title_company", skipLabel: "We don’t use one",
+        why: "Goes on every listing as the preferred title company. A community that uses a different one can set its own.",
+        done: !!titleCompany || skipped.has("title_company"), skipped: skipped.has("title_company") && !titleCompany,
+        detail: titleCompany ?? undefined, href: "/company#title-company", cta: "Add title company" },
       { key: "photo_contact", group: "company", title: "Who photographers call",
         why: "A name and phone number photographers see on every shoot, plus any access notes.",
         done: !!contact?.contact_name && !!contact?.contact_phone,
         detail: contact?.contact_name ? `${contact.contact_name}${contact.contact_phone ? `, ${contact.contact_phone}` : ""}` : undefined,
-        href: "/media/requests#photo-contact", cta: "Add a contact" },
-      { key: "title_company", group: "company", title: "Your default title company", optional: true, skipLabel: "We don’t use one",
-        why: "Goes on every listing as the preferred title company. A community that uses a different one can set its own.",
-        done: !!titleCompany || skipped.has("title_company"), skipped: skipped.has("title_company") && !titleCompany,
-        detail: titleCompany ?? undefined, href: "/company#title-company", cta: "Add title company" },
-      { key: "communities", group: "communities", title: "Add your communities",
-        why: "Each community holds its homes, its own photos and its sales team.",
-        done: comms.length > 0, detail: comms.length ? `${comms.length} ${comms.length === 1 ? "community" : "communities"}` : undefined,
+        href: "/media/requests?open=photo-contact#photo-contact", cta: "Add a contact" },
+      { key: "communities", group: "communities", title: "Add your communities", ...later("communities", comms.length > 0),
+        why: "Each community holds its homes, its own photos and its sales team.", detail: comms.length ? `${comms.length} ${comms.length === 1 ? "community" : "communities"}` : undefined,
         href: "/communities/new", cta: "Add a community" },
-      { key: "community_setup", group: "communities", title: "Set up each community",
+      { key: "community_setup", group: "communities", title: "Set up each community", ...later("communities", comms.length > 0 && commsReady === comms.length),
         why: "Schools, HOA, utilities, showing setup and driving directions. Answer once and every home in the community uses them.",
-        done: comms.length > 0 && commsReady === comms.length,
         detail: comms.length ? `${commsReady} of ${comms.length} ready for the MLS` : "Add a community first",
         href: commSetup.find((c) => c.filled < c.required) ? `/communities/${commSetup.find((c) => c.filled < c.required)!.id}/setup` : comms[0] ? `/communities/${comms[0].id}/setup` : "/communities/new",
         cta: "Set up" },
-      { key: "sales", group: "communities", title: "Put salespeople on their communities",
+      { key: "sales", group: "communities", title: "Put salespeople on their communities", ...later("communities", unassigned === 0 && (sales.length === 0 || comms.length > 0)),
         why: "Salespeople only see the communities they’re on.",
-        done: unassigned === 0 && (sales.length === 0 || comms.length > 0),
         detail: sales.length === 0 ? "No salespeople yet" : unassigned ? `${unassigned} of ${sales.length} not on a community yet` : `All ${sales.length} assigned`,
         href: "/team", cta: "Assign" },
-      { key: "plans", group: "homes", title: "Add your floor plans",
-        why: "Upload each plan's PDF and we read the room sizes for you to check, so every new home can start from its plan.",
-        done: planCount > 0, detail: planCount ? `${planCount} ${planCount === 1 ? "plan" : "plans"} set up` : undefined,
+      { key: "plans", group: "homes", title: "Add your floor plans", ...later("plans", planCount > 0),
+        why: "Upload each plan’s PDF and we read the room sizes for you to check, so every new home can start from its plan. Add photos of the model home too.", detail: planCount ? `${planCount} ${planCount === 1 ? "plan" : "plans"} set up` : undefined,
         href: "/plans", cta: "Add plans" },
       { key: "first_home", group: "homes", title: "Add your first home",
         why: "Start from a floor plan and only fill in what’s different: lot, price, build stage.",
         done: homeRows.length > 0, detail: homeRows.length ? `${homeRows.length} ${homeRows.length === 1 ? "home" : "homes"}` : undefined,
         href: "/homes/new", cta: "Add a home" },
-      { key: "first_approval", group: "homes", title: "Approve your first listing for the MLS",
-        why: "Marketing, a manager or the owner approves it, then our team enters it into the MLS.",
-        done: approved > 0, detail: approved ? `${approved} approved` : undefined,
-        href: "/approvals", cta: "Open approvals" },
     ];
 
     const done = steps.filter((s) => s.done).length;

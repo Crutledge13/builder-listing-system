@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SetupNav } from "@/components/setup-nav";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -7,18 +8,19 @@ import { requireProfile } from "@/lib/auth";
 import { canEditBranding, canRequestMedia, isStaff } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
-import { saveShootContact } from "./actions";
+import { PhotoContactForm } from "@/components/photo-contact-form";
 
 export default function MediaRequestsPage(props: PageProps<"/media/requests">) {
   return (
     <Suspense fallback={<div className="mt-16 h-64 animate-pulse rounded-2xl bg-soft" />}>
       <Notice searchParams={props.searchParams} />
-      <Requests />
+      <Requests searchParams={props.searchParams} />
     </Suspense>
   );
 }
 
-async function Requests() {
+async function Requests({ searchParams }: { searchParams: PageProps<"/media/requests">["searchParams"] }) {
+  const sp = await searchParams;
   const me = await requireProfile();
   if (me.role === "sales") redirect("/media");
   if (me.role === "photographer") redirect("/jobs");
@@ -67,7 +69,7 @@ async function Requests() {
         </details>
       )}
 
-      {!staff && canEditBranding(me.role) && me.builder_id && <ShootContact builderId={me.builder_id} />}
+      {!staff && canEditBranding(me.role) && me.builder_id && <ShootContact builderId={me.builder_id} open={sp.open === "photo-contact"} />}
 
       <div className="mt-10 space-y-12">
         {groups.map((g) => (
@@ -85,33 +87,25 @@ async function Requests() {
           </section>
         ))}
       </div>
+      <SetupNav steps={["photo_contact"]} path="/media/requests" />
     </div>
   );
 }
 
 // The contact and access notes photographers see on every job for this builder.
-async function ShootContact({ builderId }: { builderId: string }) {
+async function ShootContact({ builderId, open }: { builderId: string; open: boolean }) {
   const supabase = await createClient();
   const { data: c } = await supabase.from("builder_photo_info").select("contact_name, contact_phone, contact_email, access_notes").eq("builder_id", builderId).maybeSingle();
   const missing = !c?.contact_name && !c?.contact_phone;
   return (
-    <details id="photo-contact" className="mt-6 max-w-3xl scroll-mt-28 rounded-2xl border border-line" open={missing}>
+    <details id="photo-contact" className="mt-6 max-w-3xl scroll-mt-28 rounded-2xl border border-line" open={missing || open}>
       <summary className="cursor-pointer list-none px-5 py-4">
         <span className="font-semibold">Who photographers call</span>
         <span className="mt-0.5 block text-sm text-muted">
           {missing ? "Not set yet. Photographers see this on every job, so they can reach you if something’s wrong at a home." : `${c?.contact_name ?? ""}${c?.contact_phone ? `, ${c.contact_phone}` : ""}`}
         </span>
       </summary>
-      <form action={saveShootContact} className="grid gap-3 border-t border-line px-5 py-4 sm:grid-cols-3">
-        <label className="block"><span className="mb-1 block text-sm font-medium">Name</span><input name="contact_name" defaultValue={c?.contact_name ?? ""} maxLength={80} className="field-input" /></label>
-        <label className="block"><span className="mb-1 block text-sm font-medium">Phone</span><input name="contact_phone" type="tel" defaultValue={c?.contact_phone ?? ""} maxLength={30} className="field-input" /></label>
-        <label className="block"><span className="mb-1 block text-sm font-medium">Email</span><input name="contact_email" type="email" defaultValue={c?.contact_email ?? ""} maxLength={200} className="field-input" /></label>
-        <label className="block sm:col-span-3">
-          <span className="mb-1 block text-sm font-medium">Getting in (optional)</span>
-          <input name="access_notes" defaultValue={c?.access_notes ?? ""} maxLength={1000} placeholder="e.g. Check in at the model home first. Don’t put lockbox codes here; send those per shoot." className="field-input" />
-        </label>
-        <div className="sm:col-span-3"><button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save</button></div>
-      </form>
+      <PhotoContactForm c={c} back="/media/requests#photo-contact" className="grid gap-3 border-t border-line px-5 py-4 sm:grid-cols-3" />
     </details>
   );
 }

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SetupNav } from "@/components/setup-nav";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -16,6 +17,7 @@ export default function NewCommunityPage(props: PageProps<"/communities/new">) {
         <p className="mt-1 text-muted">A community holds homes, its own photos and its sales team.</p>
         <div className="mt-6"><Notice searchParams={props.searchParams} /></div>
         <NewCommunityForm />
+        <SetupNav steps={["communities"]} path="/communities/new" />
       </div>
     </Suspense>
   );

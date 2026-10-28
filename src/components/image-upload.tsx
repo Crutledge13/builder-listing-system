@@ -18,7 +18,9 @@ export function ImageUpload({
   maxMb = 5,
   typesLabel = "a JPG, PNG or WebP image",
   busyLabel = "Uploading…",
+  square = false,
 }: {
+  square?: boolean; // pad the image onto a square (nothing is cut off), e.g. logos
   maxMb?: number;
   typesLabel?: string;
   busyLabel?: string;
@@ -35,12 +37,14 @@ export function ImageUpload({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function pick(file: File | undefined) {
+  async function pick(picked: File | undefined) {
+    let file = picked;
     if (!file) return;
     setError(null);
     if (file.size > maxMb * 1_048_576) return setError(`That file is over ${maxMb} MB. Try a smaller one.`);
     if (!accept.split(",").includes(file.type)) return setError(`Use ${typesLabel}.`);
     setBusy(true);
+    if (square) file = await toSquare(file);
     const ext = file.type === "image/svg+xml" ? "svg" : file.type === "application/pdf" ? "pdf" : (file.name.split(".").pop() ?? "jpg").toLowerCase();
     const path = `${folder}/${crypto.randomUUID()}.${ext}`;
     const { error: upError } = await createBrowserSupabase().storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
@@ -58,7 +62,8 @@ export function ImageUpload({
   return (
     <div>
       <div className="flex flex-wrap gap-2">
-        <label className="cursor-pointer rounded-xl border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">
+        <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft ${busy ? "pointer-events-none opacity-70" : ""}`}>
+          {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />}
           {busy ? busyLabel : hasImage ? `Change ${label}` : `Add ${label}`}
           <input ref={input} type="file" accept={accept} className="sr-only" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
         </label>
@@ -82,4 +87,30 @@ export function ImageUpload({
       {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
     </div>
   );
+}
+
+// Centers the picture on a square, see-through canvas (up to 1024 px a side),
+// so a wide or tall logo fits a square space without being cut or stretched.
+// SVGs and anything the browser can't read are left as they are.
+async function toSquare(file: File): Promise<File> {
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return file;
+  try {
+    const img = await createImageBitmap(file);
+    const longest = Math.max(img.width, img.height);
+    const side = Math.min(1024, longest);
+    const scale = side / longest;
+    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = side;
+    canvas.height = side;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, Math.round((side - w) / 2), Math.round((side - h) / 2), w, h);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".png", { type: "image/png" });
+  } catch {
+    return file;
+  }
 }

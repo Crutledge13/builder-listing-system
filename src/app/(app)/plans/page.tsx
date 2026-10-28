@@ -1,4 +1,7 @@
 import { redirect } from "next/navigation";
+import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
+import { MediaPicture } from "@/components/media-tile";
+import { SetupNav } from "@/components/setup-nav";
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
@@ -15,11 +18,12 @@ export default function PlansPage(props: PageProps<"/plans">) {
   return (
     <div className="mx-auto max-w-5xl">
       <h1 className="text-[28px] font-bold leading-tight tracking-tight">Floor plans</h1>
-      <p className="mt-1 text-muted">Each plan’s specs and room sizes. Homes pull their room list from their plan, which the MLS asks for.</p>
+      <p className="mt-1 text-muted">Each plan’s specs, room sizes and model home photos. Homes pull their room list from their plan, which the MLS asks for.</p>
       <Suspense fallback={<div className="mt-8 h-64 animate-pulse rounded-2xl bg-soft" />}>
         <div className="mt-6"><Notice searchParams={props.searchParams} /></div>
         <Plans />
       </Suspense>
+      <SetupNav steps={["plans"]} path="/plans" />
     </div>
   );
 }
@@ -35,6 +39,13 @@ async function Plans() {
   if (focus) q = q.eq("builder_id", focus);
   const [{ data }, { data: builders }] = await Promise.all([q, staff ? supabase.from("builders").select("id, name").order("name") : Promise.resolve({ data: null })]);
   const plans = (data ?? []) as unknown as { id: string; name: string; bedrooms_total: number | null; bathrooms_full: number | null; bathrooms_half: number | null; living_area: number | null; stories: number | null; rooms: unknown[]; plan_file_path: string | null; active: boolean; builder_id: string; builders: { name: string } | null }[];
+  // A cover photo per plan: its first model home photo (counts come from the same small query).
+  const { data: covers } = plans.length
+    ? await supabase.from("media").select(MEDIA_SELECT).in("builder_id", [...new Set(plans.map((p) => p.builder_id))]).in("plan_name", plans.map((p) => p.name))
+        .is("home_id", null).is("community_id", null).is("deleted_at", null).neq("kind", "floor_plan").neq("kind", "video").order("sort_order").limit(300)
+    : { data: [] };
+  const coverFor = (p: { builder_id: string; name: string }) =>
+    ((covers ?? []) as unknown as MediaRow[]).find((m) => m.builder_id === p.builder_id && m.plan_name === p.name);
   const byBuilder = new Map<string, typeof plans>();
   for (const p of plans) byBuilder.set(p.builders?.name ?? "", [...(byBuilder.get(p.builders?.name ?? "") ?? []), p]);
 
@@ -47,7 +58,14 @@ async function Plans() {
           {(staff || byBuilder.size > 1) && <h2 className="mb-3 text-lg font-semibold">{builder.replace(" (demo)", "")}</h2>}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {list.map((p) => (
-              <Link key={p.id} href={`/plans/${p.id}`} className="rounded-2xl border border-line p-4 hover:border-foreground">
+              <Link key={p.id} href={`/plans/${p.id}`} className="overflow-hidden rounded-2xl border border-line hover:border-foreground">
+                {(() => {
+                  const cover = coverFor(p);
+                  return cover
+                    ? <MediaPicture m={cover} className="aspect-[3/2] w-full" />
+                    : <div className="flex aspect-[3/2] w-full items-center justify-center bg-soft text-sm text-muted">No photos yet</div>;
+                })()}
+                <div className="p-4">
                 <p className="font-semibold">{p.name} {!p.active && <span className="ml-1 rounded bg-soft px-1.5 text-xs font-normal text-muted">Retired</span>}</p>
                 <p className="mt-1 text-sm text-muted">
                   {[p.bedrooms_total != null ? `${p.bedrooms_total} bd` : null, p.bathrooms_full != null ? `${p.bathrooms_full + (p.bathrooms_half ?? 0) * 0.5} ba` : null, p.living_area ? `${num(p.living_area)} sq ft` : null, p.stories ? `${p.stories} story` : null].filter(Boolean).join(" · ")}
@@ -55,6 +73,7 @@ async function Plans() {
                 <p className={p.rooms.length ? "mt-2 text-sm text-emerald-800" : "mt-2 text-sm text-amber-900"}>
                   {p.rooms.length ? `${p.rooms.length} rooms with sizes` : "No room sizes yet"}{p.plan_file_path ? " · plan file" : ""}
                 </p>
+                </div>
               </Link>
             ))}
           </div>

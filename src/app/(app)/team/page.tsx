@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SetupNav } from "@/components/setup-nav";
 import { Avatar } from "@/components/avatar";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -17,6 +18,7 @@ export default function TeamPage(props: PageProps<"/team">) {
     <Suspense fallback={<div className="mt-16 h-64 animate-pulse rounded-2xl bg-soft" />}>
       <Notice searchParams={props.searchParams} />
       <Team />
+      <SetupNav steps={["team", "sales"]} path="/team" />
     </Suspense>
   );
 }

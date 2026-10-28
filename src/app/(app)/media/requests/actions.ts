@@ -127,22 +127,26 @@ export async function updateMediaRequest(formData: FormData) {
 
 // The builder's contact for photographers (shown on every job card).
 export async function saveShootContact(formData: FormData) {
+  const back = safeBack(formData.get("back"), "/media/requests#photo-contact");
   const supabase = await createClient();
   const { data: me } = await supabase.auth.getUser();
   const { data: profile } = await supabase.from("profiles").select("builder_id").eq("id", me.user?.id ?? "").maybeSingle();
+  if (!profile?.builder_id) go(back, { error: "Only people at a builder set who photographers call." });
   const text = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max) || null;
+  // Upsert: a brand-new builder may not have a row yet.
   const { data, error } = await supabase
     .from("builder_photo_info")
-    .update({
+    .upsert({
+      builder_id: profile.builder_id,
       contact_name: text("contact_name", 80),
       contact_phone: text("contact_phone", 30),
       contact_email: text("contact_email", 200),
       access_notes: text("access_notes", 1000),
       updated_at: new Date().toISOString(),
-    })
-    .eq("builder_id", profile?.builder_id ?? "")
+    }, { onConflict: "builder_id" })
     .select("builder_id");
-  if (error || !data?.length) redirect(`/media/requests?error=${encodeURIComponent("Your role can’t change the photographer contact.")}`);
+  if (error || !data?.length) go(back, { error: "Your role can’t change the photographer contact." });
   revalidatePath("/media/requests");
-  redirect(`/media/requests?saved=${encodeURIComponent("Saved. Photographers will see this on their jobs.")}`);
+  revalidatePath("/setup");
+  go(back, { saved: "Saved. Photographers will see this on their jobs." });
 }

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { SetupNav } from "@/components/setup-nav";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -16,6 +17,7 @@ export default function CompanyPage(props: PageProps<"/company">) {
       <Suspense fallback={<div className="mt-8 h-96 animate-pulse rounded-2xl bg-soft" />}>
         <Company searchParams={props.searchParams} />
       </Suspense>
+      <SetupNav steps={["website", "billing", "title_company"]} path="/company" />
     </div>
   );
 }
