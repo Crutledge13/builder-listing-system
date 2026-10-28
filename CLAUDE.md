@@ -60,7 +60,7 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 ## How the code is laid out
 
 - `supabase/migrations/` — every database change, in order. The database's security rules live here. Never change the database by hand without adding a migration file.
-- `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo. Then, in order: `demo_media.sql`, `demo_photo_requests.sql`, `demo_round3.sql`, `demo_mls.sql`, `demo_plans.sql`, `demo_incentives.sql`.
+- `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo. Then, in order: `demo_media.sql`, `demo_photo_requests.sql`, `demo_round3.sql`, `demo_mls.sql`, `demo_plans.sql`, `demo_incentives.sql`, `demo_tasks.sql`.
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
 - `src/app/(app)/` — the signed-in screens: communities (start page, add a community) and each community's homes, all homes, home detail (edit, approvals, listing status, open houses incl. repeating, reverse prospecting, photo requests, change requests), add a home, approvals, media library, photo requests, photographer jobs and earnings, tasks (our team), team (builder owners/managers), website check, help, admin.
