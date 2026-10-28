@@ -34,7 +34,7 @@ type Shared = {
   };
   community: { name: string; city: string };
   builder: {
-    id: string; name: string; logo_updated_at: string | null; primary_color: string | null; secondary_color?: string | null;
+    id: string; name: string; logo_updated_at: string | null; icon_updated_at?: string | null; primary_color: string | null; secondary_color?: string | null;
     fonts?: string[]; tagline?: string | null; website_url: string | null;
   };
   media: (Omit<MediaRow, "homes" | "communities" | "builders"> & { vertical: boolean })[];
@@ -126,6 +126,9 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
   const display = font.family ? { fontFamily: `${font.family}, var(--font-sans)` } : undefined;
   const tagline = s.builder.tagline?.trim() || null;
   const logo = s.builder.logo_updated_at ? `/s/${token}/logo?v=${encodeURIComponent(s.builder.logo_updated_at)}` : null;
+  // The square icon (falls back to the main logo) for the footer mark and the browser tab.
+  const iconAt = s.builder.icon_updated_at ?? s.builder.logo_updated_at;
+  const icon = iconAt ? `/s/${token}/icon?v=${encodeURIComponent(iconAt)}` : null;
 
   const expires = s.link.expires_at
     ? new Date(s.link.expires_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: TZ })
@@ -155,6 +158,7 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
   return (
     <div className="min-h-screen bg-white">
       {font.href && <link rel="stylesheet" href={font.href} precedence="default" />}
+      {icon && <link rel="icon" href={icon} />}
 
       <header>
         <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-4 py-4 sm:px-8">
@@ -369,10 +373,10 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
       <footer style={{ background: brand, color: onBrand }}>
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-6 px-4 py-10 sm:px-8">
           <div className="flex min-w-0 items-center gap-5">
-            {logo && (
-              <span className="shrink-0 rounded-xl bg-white px-3 py-2">
+            {icon && (
+              <span className="shrink-0 rounded-xl bg-white p-1.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={logo} alt="" className="h-12 w-auto max-w-[160px] object-contain" />
+                <img src={icon} alt="" className="h-14 w-14 object-contain" />
               </span>
             )}
             <div className="min-w-0">

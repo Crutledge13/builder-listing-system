@@ -234,6 +234,8 @@ begin
       -- A drawn demo logo (src/lib/demo-logo.ts), not a stored file: <builder>/demo-logo/<color>/<Name>.svg
       logo_path = br.builder_id || '/demo-logo/' || substr(r.c1, 2) || '/' || replace(replace(r.name, ' (demo)', ''), ' ', '-') || '.svg',
       logo_updated_at = now(),
+      -- And its icon (the square mark alone): <builder>/demo-icon/<color>/<Name>.svg
+      icon_path = br.builder_id || '/demo-icon/' || substr(r.c1, 2) || '/' || replace(replace(r.name, ' (demo)', ''), ' ', '-') || '.svg',
       colors = jsonb_build_array(jsonb_build_object('name', 'Main', 'hex', r.c1), jsonb_build_object('name', 'Accent', 'hex', r.c2),
                                  jsonb_build_object('name', 'Ink', 'hex', '#1e2125')),
       fonts = array['Figtree', 'Georgia'],

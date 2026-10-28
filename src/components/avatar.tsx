@@ -32,17 +32,20 @@ export function BuilderLogo({
   name,
   version,
   className = "h-8 max-w-[120px]",
+  icon = false,
 }: {
   builderId: string;
   name: string;
   version?: string | null;
   className?: string;
+  // The builder's square icon instead of the main logo (falls back to the logo).
+  icon?: boolean;
 }) {
   const clean = name.replace(" (demo)", "");
   if (version) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={`/api/logo/${builderId}?v=${encodeURIComponent(version)}`} alt={`${clean} logo`} className={cx("w-auto shrink-0 object-contain", className)} />
+      <img src={`/api/logo/${builderId}?${icon ? "kind=icon&" : ""}v=${encodeURIComponent(version)}`} alt={`${clean} logo`} className={cx("w-auto shrink-0 object-contain", className)} />
     );
   }
   return (

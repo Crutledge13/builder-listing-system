@@ -59,7 +59,7 @@ export async function saveBranding(formData: FormData) {
   go(builderId, { saved: "Branding saved." });
 }
 
-async function setFile(builderId: string, column: "logo_path" | "brand_guide_path", path: string | null, extra: Record<string, unknown> = {}) {
+async function setFile(builderId: string, column: "logo_path" | "icon_path" | "brand_guide_path", path: string | null, extra: Record<string, unknown> = {}) {
   await requireProfile();
   const supabase = await createClient();
   const { data: before } = await supabase.from("builder_branding").select(column).eq("builder_id", builderId).maybeSingle();
@@ -77,6 +77,15 @@ export async function saveLogo(builderId: string, path: string) {
 
 export async function removeLogo(builderId: string) {
   return setFile(builderId, "logo_path", null);
+}
+
+// The square icon (for small spaces); optional, the main logo stands in for it.
+export async function saveIcon(builderId: string, path: string) {
+  return setFile(builderId, "icon_path", path);
+}
+
+export async function removeIcon(builderId: string) {
+  return setFile(builderId, "icon_path", null);
 }
 
 // Read the guide with AI and keep what it found as a suggestion.

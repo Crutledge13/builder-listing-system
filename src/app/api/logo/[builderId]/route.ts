@@ -1,16 +1,19 @@
-// Serves a builder's logo to signed-in people who can see that builder
+// Serves a builder's logo (or, with ?kind=icon, its square icon, falling back
+// to the logo) to signed-in people who can see that builder
 // (row-level security on builder_branding decides), and to photographers
 // with a job for that builder. Private bucket, hour-long link.
 
 import { createClient } from "@/lib/supabase/server";
 import { demoLogoResponse } from "@/lib/demo-logo";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ builderId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ builderId: string }> }) {
   const { builderId } = await params;
+  const icon = new URL(request.url).searchParams.get("kind") === "icon";
   const supabase = await createClient();
-  const { data: b } = await supabase.from("builder_branding").select("logo_path").eq("builder_id", builderId).maybeSingle();
+  const { data: b } = await supabase.from("builder_branding").select("logo_path, icon_path").eq("builder_id", builderId).maybeSingle();
+  const own = icon ? (b?.icon_path ?? b?.logo_path) : b?.logo_path;
   // Photographers can't read branding, but may see the logo of a builder they shoot for.
-  const path = b?.logo_path ?? ((await supabase.rpc("job_logo_path", { p_builder: builderId })).data as string | null);
+  const path = own ?? ((await supabase.rpc(icon ? "job_icon_path" : "job_logo_path", { p_builder: builderId })).data as string | null);
   if (!path) return new Response("Not found", { status: 404 });
   const drawn = demoLogoResponse(path);
   if (drawn) return drawn;

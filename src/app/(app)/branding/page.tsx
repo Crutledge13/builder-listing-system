@@ -12,7 +12,7 @@ import { brandScanAvailable, type BrandScan } from "@/lib/brand-scan";
 import { dateTime } from "@/lib/format";
 import { addPreset, deletePreset, savePreset, setDefaultPreset } from "./actions";
 import { FORMAT_LABELS, PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
-import { applyScan, dismissScan, removeGuide, removeLogo, rescanGuide, saveBranding, saveGuide, saveLogo } from "./actions";
+import { applyScan, dismissScan, removeGuide, removeIcon, removeLogo, rescanGuide, saveBranding, saveGuide, saveIcon, saveLogo } from "./actions";
 
 // Reading a long brand guide with AI can take a little while.
 export const maxDuration = 120;
@@ -32,6 +32,8 @@ type BrandingRow = {
   builder_id: string;
   logo_path: string | null;
   logo_updated_at: string | null;
+  icon_path: string | null;
+  icon_updated_at: string | null;
   primary_color: string | null;
   secondary_color: string | null;
   website_url: string | null;
@@ -59,7 +61,7 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
   // Our team picks a builder; everyone else sees their own.
   const { data: rows } = await supabase
     .from("builder_branding")
-    .select("builder_id, logo_path, logo_updated_at, primary_color, secondary_color, website_url, tagline, brand_notes, colors, fonts, brand_guide_path, brand_guide_name, brand_guide_uploaded_at, brand_guide_scan, brand_guide_scanned_at, default_download_preset, updated_at, builders(name)");
+    .select("builder_id, logo_path, logo_updated_at, icon_path, icon_updated_at, primary_color, secondary_color, website_url, tagline, brand_notes, colors, fonts, brand_guide_path, brand_guide_name, brand_guide_uploaded_at, brand_guide_scan, brand_guide_scanned_at, default_download_preset, updated_at, builders(name)");
   const all = ((rows ?? []) as unknown as BrandingRow[]).sort((a, b) => (a.builders?.name ?? "").localeCompare(b.builders?.name ?? ""));
   const wanted = typeof sp.builder === "string" ? sp.builder : me.builder_id;
   const b = all.find((r) => r.builder_id === wanted) ?? (staff ? all[0] : null);
@@ -126,32 +128,59 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
       </section>
 
       <section className="rounded-2xl border border-line p-5">
-        <h2 className="font-semibold">Logo</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="flex h-36 items-center justify-center rounded-xl border border-line bg-white p-4">
-            <div className="flex h-28 w-28 items-center justify-center rounded-lg border border-dashed border-line">
-              <BuilderLogo builderId={b.builder_id} name={name} version={b.logo_updated_at} className="h-28 w-28 max-w-full" />
+        <h2 className="font-semibold">Logos</h2>
+        <p className="mt-1 text-sm text-muted">Most brands have two: the main logo (often your name written out) and an icon (the small square mark). We use the main logo wherever there&rsquo;s room, and the icon in small square spots like the realtor page&rsquo;s browser tab. No icon yet? We use the main logo there too.</p>
+        <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold">Main logo</h3>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div className="flex h-32 items-center justify-center rounded-xl border border-line bg-white p-4">
+                <BuilderLogo builderId={b.builder_id} name={name} version={b.logo_updated_at} className="h-16 max-w-full" />
+              </div>
+              <div className="flex h-32 items-center justify-center rounded-xl p-4" style={{ background: primary }}>
+                <BuilderLogo builderId={b.builder_id} name={name} version={b.logo_updated_at} className="h-16 max-w-full" />
+              </div>
             </div>
+            <p className="mt-2 text-xs text-muted">Any shape; it keeps its own shape. A see-through background (PNG or SVG) works best, at least 1200 px wide.</p>
+            {edit && (
+              <div className="mt-3">
+                <ImageUpload
+                  bucket="branding"
+                  folder={b.builder_id}
+                  accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                  label="main logo"
+                  hasImage={!!b.logo_path}
+                  save={saveLogo.bind(null, b.builder_id)}
+                  remove={removeLogo.bind(null, b.builder_id)}
+                />
+              </div>
+            )}
           </div>
-          <div className="flex h-36 items-center justify-center rounded-xl p-4" style={{ background: primary }}>
-            <BuilderLogo builderId={b.builder_id} name={name} version={b.logo_updated_at} className="h-28 w-28 max-w-full" />
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold">Icon</h3>
+            <div className="mt-2 flex h-32 items-center justify-center gap-4 rounded-xl border border-line bg-white p-4">
+              <BuilderLogo builderId={b.builder_id} name={name} version={b.icon_updated_at ?? b.logo_updated_at} icon className="h-20 w-20" />
+              <BuilderLogo builderId={b.builder_id} name={name} version={b.icon_updated_at ?? b.logo_updated_at} icon className="h-8 w-8" />
+            </div>
+            <p className="mt-2 text-xs text-muted">
+              {b.icon_path ? "Square mark for small spaces." : "Not added yet, so the main logo stands in."} Upload any shape: we center it on a square without cutting anything off. 512 × 512 px or larger.
+            </p>
+            {edit && (
+              <div className="mt-3">
+                <ImageUpload
+                  bucket="branding"
+                  folder={b.builder_id}
+                  accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                  label="icon"
+                  square
+                  hasImage={!!b.icon_path}
+                  save={saveIcon.bind(null, b.builder_id)}
+                  remove={removeIcon.bind(null, b.builder_id)}
+                />
+              </div>
+            )}
           </div>
         </div>
-        <p className="mt-2 text-xs text-muted">Your logo sits in a square everywhere it shows. Upload any shape: we center it on a square without cutting anything off. A see-through background (PNG) works best; 1000 × 1000 px or larger looks sharpest.</p>
-        {edit && (
-          <div className="mt-4">
-            <ImageUpload
-              bucket="branding"
-              folder={b.builder_id}
-              accept="image/png,image/svg+xml,image/jpeg,image/webp"
-              label="logo"
-              square
-              hasImage={!!b.logo_path}
-              save={saveLogo.bind(null, b.builder_id)}
-              remove={removeLogo.bind(null, b.builder_id)}
-            />
-          </div>
-        )}
       </section>
 
       <form action={saveBranding} className="mt-6 rounded-2xl border border-line p-5">
