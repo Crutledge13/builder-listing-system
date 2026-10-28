@@ -87,6 +87,45 @@ Only their assigned communities: price, availability, status, open houses, chang
 
 Use your own photos (your house, your office) for upload tests, not a builder's, until Live exists.
 
+## Onboarding a new builder
+
+Done by a platform admin, in this order. Everything a builder gets is set here; nothing is set up in code.
+
+**Before you start, collect from the builder:**
+- Company legal name (it goes on the MLS as Owner Name)
+- Their communities: marketing name, legal plat (subdivision) name, city, county
+- Which MLS each community lists in (NTREIS for DFW)
+- Who should log in: name, email and role for each person (owner, manager, marketing, sales), and which communities each salesperson works
+- Whether our team enters their MLS listings (full service) or they do it themselves (software only)
+- Logo, brand colors or a brand guide, website address
+- Who photographers call: name, phone, lockbox or gate notes
+- Shared answers per community: schools, HOA, utilities, MUD/PID, showing instructions, driving directions
+
+**1. Add the company.** Admin → Builders → **Add a builder**. Then on the same screen:
+- **MLS markets this builder lists in**
+- **Who enters listings in the MLS**: our team or the builder
+- **Features this builder has**: untick anything they aren't paying for (comps, reverse prospecting, website check, reports, their Tasks board)
+- **Save builder settings**
+
+**2. Add their communities.** Admin → Communities → **Add a community**: pick the builder, then name, city and county. On each community's page, our team fills in the shared MLS answers (schools, HOA, utilities, showing), so every home in it starts with them.
+
+**3. Invite the owner.** Admin → People → **Invite a person**: full name, email, role **Builder owner**, their builder → **Send invite**. They get an email to set their own password. From then on the owner can add the rest of their team themselves from **Team**, or you can add each person here.
+
+**4. Assign salespeople.** For each salesperson, tick **Communities this salesperson can see** → **Save communities**. A salesperson with none ticked sees nothing.
+
+**5. Branding and photographer contact.** On **Branding**, add the logo, colors, website and download sizes (or upload their brand guide and tick what to keep). On **Photo requests**, fill in **Who photographers call**. The builder's own marketing person can do both.
+
+**6. Add the first homes.** Their marketing person (or you) uses **Add a home** in each community. "Save time: start from something" copies a floor plan or an existing listing. If our team has their floor plans, add them first under **Plans** so room sizes fill in.
+
+**7. Check it as them.** On the test site, use **View as…**; on Live, ask the owner to share their screen. Confirm they see only their own company, salespeople see only their communities, and the right features show.
+
+**What the builder receives:** only the invite email from step 3 (and later, password resets). Nothing else is emailed until Resend is connected.
+
+**What has to be set up first:**
+- **Invites** need the Supabase admin key (`SUPABASE_SERVICE_ROLE_KEY`) in Vercel. Without it the invite form is turned off.
+- The invite link opens whatever address is set as Supabase's **Site URL** (Authentication → URL Configuration), so set it to the site's address. Otherwise people land on the wrong page.
+- Real builders go on **Live** once it exists, not the test site.
+
 ## Before real data (from `CLAUDE.md` and `docs/backups.md`)
 
 - Make the GitHub repository **private**.
