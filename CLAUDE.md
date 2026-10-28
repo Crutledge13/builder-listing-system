@@ -86,7 +86,7 @@ Environment variables are listed in `.env.example`. Set them in Vercel; never co
 
 ## Demo mode
 
-When `DEMO_PASSWORD` is set (and `DEMO_MODE` isn't `false`), anyone signed in as a `@demo.test` user gets a "View as…" menu to switch between demo users and show each role's view. Never set `DEMO_PASSWORD` on the live system.
+When `DEMO_PASSWORD` is set (and `DEMO_MODE` isn't `false`), anyone signed in as a `@demo.test` user gets "See the demo as someone else…" in the menu to switch between demo users and show each role's view. The admin login (`admin@demo.test`, Conner Rutledge, `DEMO_ADMIN` in `src/lib/auth.ts`) sees everything; while viewing as anyone else, the demo banner at the top has a one-click "Back to Conner Rutledge (admin)". Never set `DEMO_PASSWORD` on the live system.
 
 ## Sales access
 

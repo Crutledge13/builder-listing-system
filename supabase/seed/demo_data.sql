@@ -50,7 +50,7 @@ begin
   insert into public.communities (builder_id, name, city, county) values (b_pl, 'Bluestem Meadows', 'Princeton', 'Collin') returning id into c_blue;
 
   insert into public.profiles (id, email, full_name, role, builder_id) values
-    (pg_temp.demo_user('admin@demo.test', 'Dana Admin'), 'admin@demo.test', 'Dana Admin', 'platform_admin', null),
+    (pg_temp.demo_user('admin@demo.test', 'Conner Rutledge'), 'admin@demo.test', 'Conner Rutledge', 'platform_admin', null),
     (pg_temp.demo_user('coordinator@demo.test', 'Casey Coordinator'), 'coordinator@demo.test', 'Casey Coordinator', 'listing_coordinator', null),
     (pg_temp.demo_user('owner.mesquite@demo.test', 'Morgan Reyes'), 'owner.mesquite@demo.test', 'Morgan Reyes', 'builder_owner', b_mc),
     (pg_temp.demo_user('manager.mesquite@demo.test', 'Jordan Ellis'), 'manager.mesquite@demo.test', 'Jordan Ellis', 'manager', b_mc),

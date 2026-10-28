@@ -63,7 +63,7 @@ export function sendPhotographersToJobs(me: Profile) {
 
 // Fake logins used for demos. Only switchable when DEMO_MODE is on.
 export const DEMO_USERS = [
-  { email: "admin@demo.test", label: "Dana Admin", detail: "Platform admin (our staff)" },
+  { email: "admin@demo.test", label: "Conner Rutledge", detail: "Admin: sees everything" },
   { email: "coordinator@demo.test", label: "Casey Coordinator", detail: "Listing coordinator (our staff)" },
   { email: "owner.mesquite@demo.test", label: "Morgan Reyes", detail: "Owner, Mesquite Creek" },
   { email: "manager.mesquite@demo.test", label: "Jordan Ellis", detail: "Manager, Mesquite Creek" },
@@ -74,6 +74,9 @@ export const DEMO_USERS = [
   { email: "marketing.prairie@demo.test", label: "Quinn Harper", detail: "Marketing, Prairie Lantern" },
   { email: "photographer@demo.test", label: "Sky Navarro", detail: "Photographer (contractor)" },
 ] as const;
+
+// The demo's admin login: sees everything, and the "Back to admin" button returns here.
+export const DEMO_ADMIN = DEMO_USERS[0];
 
 // On whenever a demo password is set, unless DEMO_MODE is explicitly "false".
 export function demoModeOn() {

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { requireProfile, DEMO_USERS, demoModeOn } from "@/lib/auth";
+import { requireProfile, DEMO_ADMIN, DEMO_USERS, demoModeOn } from "@/lib/auth";
 import { ROLE_LABELS, isStaff } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { menuLinks, primaryTabs } from "@/lib/menu";
@@ -67,8 +67,21 @@ async function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur print:hidden">
       {showDemo && (
-        <div className="bg-[#fff7e6] px-4 py-1.5 text-center text-xs text-[#7a5200]">
-          You’re in the demo. Every builder, home and person here is made up.
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-[#fff7e6] px-4 py-1.5 text-center text-xs text-[#7a5200]">
+          {me.email === DEMO_ADMIN.email ? (
+            <span>You’re in the demo as {DEMO_ADMIN.label} (admin), seeing everything. Every builder, home and person here is made up.</span>
+          ) : (
+            <>
+              <span>
+                Demo: viewing as <b>{me.full_name}</b> ({ROLE_LABELS[me.role].toLowerCase()}{me.builder_name ? `, ${me.builder_name.replace(" (demo)", "")}` : ""}).
+              </span>
+              {/* One click back to the admin view, from any role. */}
+              <form action={switchDemoUser}>
+                <input type="hidden" name="email" value={DEMO_ADMIN.email} />
+                <button className="rounded-full bg-[#7a5200] px-3 py-0.5 font-semibold text-white hover:bg-black">Back to {DEMO_ADMIN.label} (admin)</button>
+              </form>
+            </>
+          )}
         </div>
       )}
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-8">
