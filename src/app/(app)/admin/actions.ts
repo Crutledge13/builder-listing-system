@@ -42,7 +42,7 @@ export async function addBuilder(formData: FormData) {
   if (!name) go(back, { error: "Enter the builder’s name." });
   const ownerEmail = text("owner_email").toLowerCase();
   const ownerName = text("owner_name");
-  if (ownerEmail && !ownerName) go(back, { error: "Enter the owner’s name to send the invite." });
+  if (ownerEmail && !ownerName) go(back, { error: "Enter the primary contact’s name to send the invite." });
 
   const supabase = await createClient();
   const { data: created, error } = await supabase
@@ -59,7 +59,7 @@ export async function addBuilder(formData: FormData) {
   let invited = "";
   if (ownerEmail) {
     const problem = await inviteOne({ email: ownerEmail, fullName: ownerName, role: "builder_owner", builderId: created.id });
-    invited = problem ? ` The owner’s login wasn’t made: ${problem}` : ` ${ownerName} is set up as the owner: copy their invite link from their card below and send it to them.`;
+    invited = problem ? ` The primary contact’s login wasn’t made: ${problem}` : ` ${ownerName} is set up as the primary contact: copy their invite link from their card below and send it to them.`;
   }
   revalidatePath("/", "layout");
   go("/admin/onboarding", {

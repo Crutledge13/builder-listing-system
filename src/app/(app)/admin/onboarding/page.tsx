@@ -66,7 +66,7 @@ async function OnboardingList() {
     <div className="grid gap-10 lg:grid-cols-[1fr_340px]">
       <div className="space-y-3">
         <p className="text-sm text-muted">
-          Each builder&rsquo;s path: we record the agreement and invite the owner, then their checklist ticks itself off as they add their team, communities and homes.
+          Each builder&rsquo;s path: we record the agreement and invite their primary contact, then their checklist ticks itself off as they add their team, communities and homes.
           Click a builder to see and change everything.
         </p>
         <BuilderListTools count={sorted.length} />
@@ -105,10 +105,10 @@ async function OnboardingList() {
             ))}
           </div>
         </fieldset>
-        <h3 className="mt-6 text-sm font-semibold">Owner</h3>
+        <h3 className="mt-6 text-sm font-semibold">Primary contact</h3>
         <p className="text-xs text-muted">{canInvite ? "You get an invite link on their card to send them. It opens a page where they choose a password, then their setup checklist." : "Invites are off until SUPABASE_SERVICE_ROLE_KEY is set in Vercel. You can add the owner later."}</p>
-        <Field label="Owner’s name" name="owner_name" />
-        <Field label="Owner’s email" name="owner_email" type="email" />
+        <Field label="Primary contact’s name" name="owner_name" />
+        <Field label="Primary contact’s email" name="owner_email" type="email" />
         <DetailFields />
         <button className="mt-5 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Add builder</button>
       </form>
@@ -170,9 +170,9 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, fromBuilder, pending
           <input type="hidden" name="role" value="builder_owner" />
           <input type="hidden" name="builder_id" value={ob.builderId} />
           <input type="hidden" name="back" value="/admin/onboarding" />
-          <label className="block text-sm"><span className="mb-1 block font-medium">Owner&rsquo;s name</span><input name="full_name" required className="field-input" /></label>
-          <label className="block text-sm"><span className="mb-1 block font-medium">Owner&rsquo;s email</span><input name="email" type="email" required className="field-input" /></label>
-          <button disabled={!canInvite} className="rounded-lg bg-foreground px-3 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-40">Add owner</button>
+          <label className="block text-sm"><span className="mb-1 block font-medium">Primary contact&rsquo;s name</span><input name="full_name" required className="field-input" /></label>
+          <label className="block text-sm"><span className="mb-1 block font-medium">Primary contact&rsquo;s email</span><input name="email" type="email" required className="field-input" /></label>
+          <button disabled={!canInvite} className="rounded-lg bg-foreground px-3 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-40">Add primary contact</button>
           {!canInvite && <p className="text-xs text-muted sm:col-span-3">Invites need SUPABASE_SERVICE_ROLE_KEY set in Vercel.</p>}
         </form>
       )}
@@ -215,7 +215,7 @@ function DetailFields({ d }: { d?: Details }) {
 function FromBuilderSummary({ builderId, f, d }: { builderId: string; f: FromBuilder; d?: Details }) {
   const contact = f.settings?.main_contact_name
     ? [f.settings.main_contact_name, f.settings.main_contact_email, f.settings.main_contact_phone].filter(Boolean).join(" · ")
-    : f.owner ? `${f.owner.full_name} (owner) · ${f.owner.email}` : null;
+    : f.owner ? `${f.owner.full_name} (primary contact) · ${f.owner.email}` : null;
   const billing = d?.billing_contact_name ? [d.billing_contact_name, d.billing_contact_email, d.billing_contact_phone].filter(Boolean).join(" · ") : null;
   const rows: [string, string | null][] = [
     ["Main point of contact", contact],

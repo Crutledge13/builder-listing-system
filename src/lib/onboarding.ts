@@ -165,8 +165,8 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
         done: !!b?.legal_name, detail: b?.legal_name ?? undefined, href: `/admin/onboarding#b-${id}`, cta: "Add it" },
       { key: "markets", group: "ours", ourTeam: true, title: "MLS markets", why: "Which MLS each of their communities goes to.",
         done: markets.length > 0, detail: markets.join(", ") || undefined, href: "/admin/builders", cta: "Set markets" },
-      { key: "owner", group: "ours", ourTeam: true, title: "Owner added and invited", why: "The owner is our main point of contact until they name someone else. Send them their invite link from their card.",
-        done: owners > 0, href: `/admin/onboarding#b-${id}`, cta: "Invite the owner" },
+      { key: "owner", group: "ours", ourTeam: true, title: "Primary contact added and invited", why: "The first login for their company and who we work with, until they name someone else on Company details. Send them their invite link from their card.",
+        done: owners > 0, href: `/admin/onboarding#b-${id}`, cta: "Invite the primary contact" },
     ];
 
     const steps: Step[] = [
