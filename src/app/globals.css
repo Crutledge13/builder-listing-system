@@ -186,3 +186,69 @@ html[data-busy] .busy-bar {
 @media (prefers-reduced-motion: reduce) {
   .busy-bar::before { animation: none; width: 100%; opacity: 0.6; }
 }
+
+/* The link or button that was just clicked (ClickFeedback sets data-pending):
+   dimmed, can't be clicked again, and a small spinner on buttons. PendingButton
+   already shows its own spinner (aria-busy), so it doesn't get a second one. */
+[data-pending] {
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 120ms;
+}
+button[data-pending]:not([aria-busy="true"])::after,
+input[type="submit"][data-pending] {
+  cursor: progress;
+}
+button[data-pending]:not([aria-busy="true"])::after {
+  content: "";
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-left: 0.5em;
+  vertical-align: -0.1em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 9999px;
+  animation: busy-spin 0.7s linear infinite;
+}
+@keyframes busy-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* "One moment…" under the header when a click takes more than half a second. */
+.busy-note {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: var(--foreground);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 6px 24px rgba(30, 33, 37, 0.18);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -6px);
+  transition: opacity 150ms, transform 150ms;
+}
+html[data-busy-note] .busy-note {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.busy-note-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-top-color: transparent;
+  border-radius: 9999px;
+  animation: busy-spin 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  button[data-pending]:not([aria-busy="true"])::after,
+  .busy-note-spinner { animation-duration: 2s; }
+}
