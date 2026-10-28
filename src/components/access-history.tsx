@@ -9,13 +9,15 @@ const role = (r: string | null) => (r ? ROLE_LABELS[r as Role] ?? r : "none");
 function describe(e: Entry) {
   const c = e.changes;
   switch (e.action) {
-    case "person_added": return `added ${c.name} (${c.email}) as ${role(c.role)}`;
+    case "person_added": return c.via ? `let ${c.name} (${c.email}) join as ${role(c.role)} with a join link${c.link ? ` (“${c.link}”)` : ""}` : `added ${c.name} (${c.email}) as ${role(c.role)}`;
     case "person_role_changed": return `changed ${c.name} from ${role(c.from)} to ${role(c.to)}`;
     case "person_company_changed": return `moved ${c.name} to a different company`;
     case "person_turned_off": return `turned off ${c.name}’s access`;
     case "person_turned_on": return `turned ${c.name}’s access back on`;
     case "sales_community_added": return `gave ${c.name} access to ${c.community}`;
     case "sales_community_removed": return `removed ${c.name} from ${c.community}`;
+    case "person_staff_builder_added": return `assigned ${c.person} (our team) to work on this builder`;
+    case "person_staff_builder_removed": return `took ${c.person} (our team) off this builder`;
     default: return e.action.replace(/_/g, " ");
   }
 }

@@ -37,8 +37,10 @@ export async function proxy(request: NextRequest) {
   const isConfirm = request.nextUrl.pathname === "/auth/confirm";
   // Realtor share links: the page checks the link's code itself (see /s/[token]).
   const isShare = request.nextUrl.pathname.startsWith("/s/");
+  // Join links: the page checks the link's code itself (see /join/[token]).
+  const isJoin = request.nextUrl.pathname.startsWith("/join/");
 
-  if (!user && !isLogin && !isConfirm && !isShare) {
+  if (!user && !isLogin && !isConfirm && !isShare && !isJoin) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

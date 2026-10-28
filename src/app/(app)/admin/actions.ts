@@ -204,6 +204,67 @@ export async function setAssignments(formData: FormData) {
   go(back, { saved: "Sales assignments saved." });
 }
 
+// A join link: anyone with it can set up their own login with this role (and
+// builder). No email is sent. Never makes a platform admin (refused in the database too).
+const JOIN_DAYS = new Set([7, 14, 30, 90]);
+export async function createJoinLink(formData: FormData) {
+  await requireAdmin("/admin/people");
+  const role = String(formData.get("role") ?? "");
+  if (!role || role === "platform_admin") go("/admin/people", { error: "Pick a role. Join links can’t make platform admins.", at: "join" });
+  const staffRole = ["listing_coordinator", "photographer"].includes(role);
+  const builderId = staffRole ? null : String(formData.get("builder_id") ?? "") || null;
+  if (!staffRole && !builderId) go("/admin/people", { error: "Pick the builder they work for.", at: "join" });
+  const days = Number(formData.get("days"));
+  const maxUses = String(formData.get("max_uses") ?? "").trim();
+  const uses = maxUses ? Number(maxUses) : null;
+  if (uses !== null && (!Number.isInteger(uses) || uses < 1 || uses > 500)) go("/admin/people", { error: "How many people can use it: a number from 1 to 500, or blank for no limit.", at: "join" });
+  const supabase = await createClient();
+  const { error } = await supabase.from("join_links").insert({
+    role,
+    builder_id: builderId,
+    label: String(formData.get("label") ?? "").trim().slice(0, 120) || null,
+    community_ids: role === "sales" ? formData.getAll("community_id").map(String) : [],
+    staff_builder_ids: role === "listing_coordinator" ? formData.getAll("staff_builder_id").map(String) : [],
+    expires_at: new Date(Date.now() + (JOIN_DAYS.has(days) ? days : 30) * 86_400_000).toISOString(),
+    max_uses: uses,
+  });
+  if (error) go("/admin/people", { error: friendly(error.message), at: "join" });
+  revalidatePath("/admin/people");
+  go("/admin/people", { saved: "Join link made. Copy it below and send it.", at: "join" });
+}
+
+export async function setJoinLinkOn(formData: FormData) {
+  await requireAdmin("/admin/people");
+  const on = formData.get("on") === "1";
+  const supabase = await createClient();
+  const { data } = await supabase.from("join_links").update({ revoked_at: on ? null : new Date().toISOString() }).eq("id", String(formData.get("id"))).select("id");
+  if (!data?.length) go("/admin/people", { error: "Couldn’t change that link.", at: "join" });
+  revalidatePath("/admin/people");
+  go("/admin/people", { saved: on ? "Link turned back on." : "Link turned off. Nobody new can join with it; people who already joined keep their access.", at: "join" });
+}
+
+// Which builders a listing coordinator works on. None ticked = every builder.
+export async function setStaffBuilders(formData: FormData) {
+  await requireAdmin("/admin/people");
+  const profileId = String(formData.get("profile_id"));
+  const want = new Set(formData.getAll("builder_id").map(String));
+  const supabase = await createClient();
+  const { data: now } = await supabase.from("staff_builders").select("builder_id").eq("profile_id", profileId);
+  const have = new Set((now ?? []).map((r) => r.builder_id as string));
+  const remove = [...have].filter((b) => !want.has(b));
+  const add = [...want].filter((b) => !have.has(b));
+  if (remove.length) {
+    const { error } = await supabase.from("staff_builders").delete().eq("profile_id", profileId).in("builder_id", remove);
+    if (error) go("/admin/people", { error: friendly(error.message) });
+  }
+  if (add.length) {
+    const { error } = await supabase.from("staff_builders").insert(add.map((b) => ({ profile_id: profileId, builder_id: b })));
+    if (error) go("/admin/people", { error: friendly(error.message) });
+  }
+  revalidatePath("/", "layout");
+  go("/admin/people", { saved: want.size ? `Saved. They now see only the ${want.size} builder${want.size === 1 ? "" : "s"} ticked.` : "Saved. They see every builder." });
+}
+
 // Sends one invite and sets up the person's account. Returns a problem in
 // plain words, or null when it worked. Callers check the admin role first.
 async function inviteOne(p: { email: string; fullName: string; role: string; builderId: string | null }): Promise<string | null> {
