@@ -151,14 +151,17 @@ async function HomeDetail({
   // RLS hides other builders' homes, so they look exactly like missing ones.
   if (!home) notFound();
 
-  const { data: activity } = await supabase
-    .from("activity_log")
-    .select("id, action, changes, actor_id, created_at")
-    .eq("home_id", id)
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const [{ data: activity }, { data: priceRows }] = await Promise.all([
+    supabase.from("activity_log").select("id, action, changes, actor_id, created_at").eq("home_id", id).order("created_at", { ascending: false }).limit(20),
+    // Every price change on this home, newest first (for the Price section's history and undo).
+    supabase.from("activity_log").select("id, changes, actor_id, created_at").eq("home_id", id).not("changes->list_price", "is", null).order("created_at", { ascending: false }).limit(25),
+  ]);
+  const priceHistory = (priceRows ?? []).map((r) => {
+    const c = (r.changes as Record<string, { from: unknown; to: unknown }>).list_price;
+    return { id: r.id, actor_id: r.actor_id as string | null, created_at: r.created_at as string, from: c?.from == null ? null : Number(c.from), to: c?.to == null ? null : Number(c.to) };
+  });
 
-  const actorIds = [...new Set((activity ?? []).map((a) => a.actor_id).filter(Boolean))];
+  const actorIds = [...new Set([...(activity ?? []), ...(priceRows ?? [])].map((a) => a.actor_id).filter(Boolean))];
   const { data: actors } = actorIds.length
     ? await supabase.from("profiles").select("id, full_name, role").in("id", actorIds)
     : { data: [] as { id: string; full_name: string; role: string }[] };
@@ -522,7 +525,7 @@ async function HomeDetail({
             </div>
           </HomeSection>
 
-          <HomeSection id="price" title="Price" badge={home.list_price ? money(home.list_price) : null}
+          <HomeSection id="price" title="Price" open={at === "price"} badge={home.list_price ? money(home.list_price) : null}
             hint={home.list_price ? (status === "live_on_mls" ? "Changing it adds an MLS update for the new price" : "Open to change it") : "No price yet"}>
             <form action={saveHome} className="flex flex-wrap items-end gap-3">
               <input type="hidden" name="id" value={home.id} />
@@ -530,7 +533,49 @@ async function HomeDetail({
                 <Field def={{ name: "list_price", label: "List price ($)", type: "number", step: "1" }} value={home.list_price} source={sources.list_price} canEdit={editable.has("list_price")} />
               </div>
               {editable.has("list_price") && <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save price</button>}
+              <input type="hidden" name="at" value="price" />
             </form>
+            {sectionNotice("price")}
+
+            <h4 className="mt-6 text-sm font-semibold">Price history</h4>
+            {priceHistory.length === 0 ? (
+              <p className="mt-1 text-sm text-muted">No price changes yet.{home.list_price ? ` It has been ${money(home.list_price)} since it was added.` : ""}</p>
+            ) : (
+              <ol className="mt-2 divide-y divide-line rounded-2xl border border-line">
+                {priceHistory.map((p, i) => {
+                  const current = i === 0 && Number(home.list_price) === p.to;
+                  const down = p.from != null && p.to != null && p.to < p.from;
+                  return (
+                    <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
+                      <span className="tabular-nums">
+                        <span className="text-muted line-through">{p.from == null ? "No price" : money(p.from)}</span>
+                        <span className="mx-1.5 text-muted" aria-hidden>→</span>
+                        <b className="font-semibold">{p.to == null ? "No price" : money(p.to)}</b>
+                        {p.from != null && p.to != null && (
+                          <span className={cx("ml-2 text-xs font-semibold", down ? "text-red-700" : "text-emerald-700")}>
+                            {down ? "−" : "+"}{money(Math.abs(p.to - p.from))}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-muted">{actorName.get(p.actor_id ?? "") ?? "Someone"}, {dateTime(p.created_at)}</span>
+                      {current && <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">Current</span>}
+                      {current && p.from != null && editable.has("list_price") && (
+                        <form action={saveHome} className="ml-auto">
+                          <input type="hidden" name="id" value={home.id} />
+                          <input type="hidden" name="list_price" value={p.from} />
+                          <input type="hidden" name="at" value="price" />
+                          <input type="hidden" name="undo" value="1" />
+                          <button className="rounded-lg border border-foreground px-3 py-1.5 text-xs font-semibold hover:bg-soft">Undo: go back to {money(p.from)}</button>
+                        </form>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+            {status === "live_on_mls" && editable.has("list_price") && (
+              <p className="mt-2 text-xs text-muted">If you undo before the MLS is updated, the change simply drops off the MLS update. If it&rsquo;s already on the MLS, undoing adds a new update with the old price.</p>
+            )}
           </HomeSection>
 
           <HomeSection id="requests" title="Change requests" open={at === "requests"} tone="attention"
@@ -680,7 +725,7 @@ async function HomeDetail({
           <form id="edit" action={saveHome} className="scroll-mt-28 divide-y divide-line">
             <input type="hidden" name="id" value={home.id} />
             {SECTIONS.map((section) => (
-              <HomeSection key={section.title} title={section.title} open={at === "edit"}
+              <HomeSection key={section.title} id={`details-${section.title.toLowerCase().replace(/[^a-z]+/g, "-")}`} title={section.title} open={at === "edit"}
                 hint={section.fields.map((f) => { const v = home[f.name]; return v === null || v === undefined || v === "" ? null : String(v); }).filter(Boolean).slice(0, 3).join(" · ") || "Open to fill in"}>
                 <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
                   {section.fields.map((f) => (
@@ -1108,6 +1153,8 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
 }
 
 const SAVED_MESSAGES: Record<string, string> = {
+  price: "Price saved. It's in the price history below.",
+  price_undo: "Price changed back.",
   status: "Status updated.",
   created: "Home added as a draft. Finish any details below, then submit it for review.",
   request: "Request sent. The builder’s managers and marketing team will see it on this home.",

@@ -53,7 +53,7 @@ export async function saveHome(formData: FormData) {
     const raw = String(formData.get(field) ?? "").trim();
     if (NUMERIC.includes(field)) {
       const n = raw === "" ? null : Number(raw.replace(/[$,]/g, ""));
-      if (n !== null && Number.isNaN(n)) back(id, { error: `${field.replace(/_/g, " ")} must be a number` });
+      if (n !== null && Number.isNaN(n)) back(id, { error: `${field.replace(/_/g, " ")} must be a number`, ...(formData.get("at") === "price" ? { at: "price" } : {}) });
       patch[field] = n;
     } else {
       patch[field] = raw === "" ? null : raw;
@@ -77,6 +77,8 @@ export async function saveHome(formData: FormData) {
 
   revalidatePath("/homes");
   // NTREIS answers changed: reopen that folded section with the message.
+  // The Price section sends at=price (and undo=1 for "Go back to $…") so it reopens with its own message.
+  if (formData.get("at") === "price") back(id, { saved: formData.get("undo") === "1" ? "price_undo" : "price", at: "price" });
   back(id, patch.mls_fields ? { saved: "1", at: "ntreis" } : { saved: "1" });
 }
 
