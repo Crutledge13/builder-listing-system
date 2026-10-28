@@ -91,7 +91,7 @@ Use your own photos (your house, your office) for upload tests, not a builder's,
 
 - Make the GitHub repository **private**.
 - Create the live Supabase project (Pro plan), apply the database changes, turn on point-in-time recovery and leaked-password protection.
-- Fix the database warnings about functions anyone can call.
+- Database warnings: fixed 28 Oct 2026 (`20261028000043_lock_trigger_functions.sql`). The warnings Supabase still shows are intended: share-link functions that must work signed out, and signed-in functions that check the caller themselves.
 - Switch on the backups and pass one restore drill.
 - Paid security review.
 - Set up Live in Vercel with its own settings and a real domain; no demo password there.

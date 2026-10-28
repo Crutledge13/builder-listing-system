@@ -32,7 +32,7 @@ The full permission grid is `docs/permission-grid.md` (draft until the owners ap
 ## Non-negotiable rules
 
 1. **Each builder company is a separate tenant.** Builder A can never see Builder B's data, photos or videos.
-2. **Permissions are enforced in the database** with Supabase row-level security (RLS), not just by hiding things on screen. Every new table gets RLS policies in the same change that creates it.
+2. **Permissions are enforced in the database** with Supabase row-level security (RLS), not just by hiding things on screen. Every new table gets RLS policies in the same change that creates it. Every new `public` trigger function gets `revoke execute ... from public, anon, authenticated` in the same change (triggers still fire); every new callable `security definer` function checks the caller itself and revokes `anon` unless it's a share-link function.
 3. **Every field records its source:** website, staff, or MLS.
 4. **Imports never silently overwrite staff edits.** New or changed data from builder websites goes to a review queue.
 5. **Media is private.** Files are locked by default and viewed only through links that expire. Uploads go straight from the browser to storage, not through our server. Target home is Cloudflare (R2 for photos, Stream for video); for the test phase, uploads use a private Supabase Storage bucket (`media`). Storage calls live in `src/app/api/media/[id]/route.ts` and `src/app/(app)/media/upload/`, so moving to Cloudflare before launch is contained.
