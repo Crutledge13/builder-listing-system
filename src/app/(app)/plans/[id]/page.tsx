@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { isStaff } from "@/lib/permissions";
+import { canEditPlans, isStaff } from "@/lib/permissions";
+import { AiCreditMeter } from "@/components/ai-credit-meter";
 import { dateTime } from "@/lib/format";
 import { levelLabel, roomSize, type Room } from "@/lib/rooms";
 import type { PlanScan } from "@/lib/plan-scan";
@@ -38,6 +39,8 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
   const supabase = await createClient();
   const { data: p } = await supabase.from("floor_plans").select("*, builders(name)").eq("id", id).maybeSingle();
   if (!p) notFound();
+  // Our team, or the builder's owners, managers and marketing (the database checks it is their builder).
+  const canEdit = canEditPlans(me.role) && (staff || me.builder_id === p.builder_id);
   const rooms = (p.rooms ?? []) as Room[];
   const scan = p.scan as PlanScan | null;
   const builder = (p.builders as { name: string } | null)?.name.replace(" (demo)", "") ?? "";
@@ -52,9 +55,10 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
         {p.plan_file_path ? (
           <p className="mt-1 text-sm"><a href={`/api/plan-file/${p.id}`} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">{p.plan_file_name ?? "Open the plan"}</a></p>
         ) : (
-          <p className="mt-1 text-sm text-muted">{staff ? "Upload the plan (PDF or image). We’ll read the room sizes off it for you to check." : "Our team hasn’t uploaded the plan file yet."}</p>
+          <p className="mt-1 text-sm text-muted">{canEdit ? "Upload the plan (PDF or image) with room dimensions on it. AI reads the room sizes off it for you to check." : "No plan file uploaded yet."}</p>
         )}
-        {staff && (
+        {canEdit && planScanAvailable() && <div className="mt-3"><AiCreditMeter builderId={p.builder_id} staff={staff} compact /></div>}
+        {canEdit && (
           <div className="mt-3 flex flex-wrap items-start gap-3">
             <ImageUpload
               bucket="plan-files"
@@ -70,13 +74,13 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
             {p.plan_file_path && !scan && planScanAvailable() && (
               <form action={rescanPlan}>
                 <input type="hidden" name="id" value={p.id} />
-                <button className="rounded-xl px-3 py-2 text-sm font-semibold text-accent underline">Read the room sizes again</button>
+                <button className="rounded-xl px-3 py-2 text-sm font-semibold text-accent underline">Read the room sizes again (25 credits)</button>
               </form>
             )}
           </div>
         )}
 
-        {staff && scan && (
+        {canEdit && scan && (
           <div className="mt-4 rounded-2xl border border-accent bg-accent-soft/40 p-4">
             <p className="font-semibold">Here’s what we read off the plan{p.scanned_at ? ` (${dateTime(p.scanned_at)})` : ""}</p>
             <p className="mt-1 text-sm text-muted">
@@ -92,7 +96,7 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
         )}
       </section>
 
-      {staff ? (
+      {canEdit ? (
         <form action={savePlan} className="mt-6 space-y-6">
           <input type="hidden" name="id" value={p.id} />
           <section className="rounded-2xl border border-line p-5">
@@ -124,8 +128,8 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
       ) : (
         <section className="mt-6 rounded-2xl border border-line p-5">
           <h2 className="font-semibold">Rooms and sizes</h2>
-          {rooms.length ? <RoomTable rooms={rooms} /> : <p className="mt-2 text-sm text-muted">Our team hasn’t added the room sizes yet.</p>}
-          <p className="mt-3 text-sm text-muted">Something wrong? Tell our team from Help and they’ll fix the plan.</p>
+          {rooms.length ? <RoomTable rooms={rooms} /> : <p className="mt-2 text-sm text-muted">No room sizes yet.</p>}
+          <p className="mt-3 text-sm text-muted">Something wrong? Ask your owner, manager or marketing lead to fix the plan.</p>
         </section>
       )}
     </>

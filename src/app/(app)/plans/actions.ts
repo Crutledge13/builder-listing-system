@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { isStaff } from "@/lib/permissions";
+import { canEditPlans, isStaff } from "@/lib/permissions";
 import { cleanRooms } from "@/lib/rooms";
-import { planScanAvailable, scanFloorPlan, type PlanScan } from "@/lib/plan-scan";
+import { PLAN_MODEL, planScanAvailable, scanFloorPlan, type PlanScan } from "@/lib/plan-scan";
+import { creditStatus, finishCredits, outOfCreditsMessage, spendCredits } from "@/lib/ai-credits";
 
 function go(path: string, params: Record<string, string>, hash = ""): never {
   redirect(`${path}?${new URLSearchParams(params).toString()}${hash}`);
@@ -38,8 +39,9 @@ function specs(formData: FormData) {
 
 export async function createPlan(formData: FormData) {
   const me = await requireProfile();
-  if (!isStaff(me.role)) go("/plans", { error: "Our team sets up floor plans." });
-  const builderId = String(formData.get("builder_id") ?? "");
+  if (!canEditPlans(me.role)) go("/plans", { error: "Your role can’t add floor plans." });
+  // Our team picks the builder; everyone else adds to their own.
+  const builderId = isStaff(me.role) ? String(formData.get("builder_id") ?? "") : (me.builder_id ?? "");
   const s = specs(formData);
   if (!builderId || !s.name) go("/plans", { error: "Pick the builder and name the plan." }, "#new");
   const supabase = await createClient();
@@ -52,7 +54,7 @@ export async function createPlan(formData: FormData) {
 export async function savePlan(formData: FormData) {
   const me = await requireProfile();
   const id = String(formData.get("id"));
-  if (!isStaff(me.role)) go(`/plans/${id}`, { error: "Our team changes floor plans." });
+  if (!canEditPlans(me.role)) go(`/plans/${id}`, { error: "Your role can’t change floor plans." });
   const supabase = await createClient();
   const { error } = await supabase.from("floor_plans").update({ ...specs(formData), active: formData.get("active") === "on" }).eq("id", id);
   if (error) go(`/plans/${id}`, { error: error.message.includes("duplicate") ? "That builder already has a plan with that name." : `Couldn’t save: ${error.message}` });
@@ -64,17 +66,32 @@ export async function savePlan(formData: FormData) {
 async function runScan(id: string): Promise<{ error?: string }> {
   if (!planScanAvailable()) return { error: "Reading plans needs the AI key (ANTHROPIC_API_KEY) set up on the server. Add the rooms by hand meanwhile." };
   const supabase = await createClient();
-  const { data: p } = await supabase.from("floor_plans").select("plan_file_path").eq("id", id).maybeSingle();
+  const { data: p } = await supabase.from("floor_plans").select("plan_file_path, builder_id").eq("id", id).maybeSingle();
   if (!p?.plan_file_path) return { error: "Upload the plan file first." };
+  // Reading a plan costs AI credits; reserve them before calling the AI.
+  let usageId: string | null = null;
+  try {
+    usageId = await spendCredits(supabase, p.builder_id, "plan_read", id);
+  } catch {
+    return { error: "Couldn’t check your AI credits. Try again in a minute." };
+  }
+  if (!usageId) return { error: outOfCreditsMessage(await creditStatus(supabase, p.builder_id)) + " You can still add the rooms by hand." };
   const { data: link } = await supabase.storage.from("plan-files").createSignedUrl(p.plan_file_path, 600);
-  if (!link) return { error: "Couldn’t open the plan file." };
+  if (!link) {
+    await finishCredits(supabase, usageId, false);
+    return { error: "Couldn’t open the plan file." };
+  }
   const ext = p.plan_file_path.split(".").pop()?.toLowerCase();
   const mime = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
   let scan: PlanScan | null = null;
   try {
-    scan = await scanFloorPlan(link.signedUrl, mime);
+    const read = await scanFloorPlan(link.signedUrl, mime);
+    scan = read.scan;
+    // The AI did the work, so the credits are used even if it found no rooms.
+    await finishCredits(supabase, usageId, true, PLAN_MODEL, read.usage);
   } catch {
-    return { error: "The AI couldn’t read that file. A clearer PDF or image of the plan usually works." };
+    await finishCredits(supabase, usageId, false);
+    return { error: "The AI couldn’t read that file (no credits used). A clearer PDF or image of the plan usually works." };
   }
   if (!scan || !scan.rooms.length) return { error: "The AI didn’t find any room sizes on that file." };
   await supabase.from("floor_plans").update({ scan, scanned_at: new Date().toISOString() }).eq("id", id);
@@ -83,7 +100,7 @@ async function runScan(id: string): Promise<{ error?: string }> {
 
 export async function savePlanFile(id: string, path: string, fileName: string): Promise<{ error?: string }> {
   const me = await requireProfile();
-  if (!isStaff(me.role)) return { error: "Our team uploads plan files." };
+  if (!canEditPlans(me.role)) return { error: "Your role can’t upload plan files." };
   const supabase = await createClient();
   const { data: before } = await supabase.from("floor_plans").select("plan_file_path").eq("id", id).maybeSingle();
   const { error } = await supabase.from("floor_plans").update({ plan_file_path: path, plan_file_name: fileName.slice(0, 200) }).eq("id", id);
@@ -97,7 +114,7 @@ export async function savePlanFile(id: string, path: string, fileName: string): 
 export async function rescanPlan(formData: FormData) {
   const me = await requireProfile();
   const id = String(formData.get("id"));
-  if (!isStaff(me.role)) go(`/plans/${id}`, { error: "Our team changes floor plans." });
+  if (!canEditPlans(me.role)) go(`/plans/${id}`, { error: "Your role can’t change floor plans." });
   const r = await runScan(id);
   go(`/plans/${id}`, r.error ? { error: r.error } : { saved: "Read the plan again. Check what it found." }, "#scan");
 }
@@ -106,7 +123,7 @@ export async function rescanPlan(formData: FormData) {
 export async function useScan(formData: FormData) {
   const me = await requireProfile();
   const id = String(formData.get("id"));
-  if (!isStaff(me.role)) go(`/plans/${id}`, { error: "Our team changes floor plans." });
+  if (!canEditPlans(me.role)) go(`/plans/${id}`, { error: "Your role can’t change floor plans." });
   const supabase = await createClient();
   const { data: p } = await supabase.from("floor_plans").select("*").eq("id", id).maybeSingle();
   const scan = p?.scan as PlanScan | null;
@@ -123,7 +140,7 @@ export async function useScan(formData: FormData) {
 export async function dismissScan(formData: FormData) {
   const me = await requireProfile();
   const id = String(formData.get("id"));
-  if (!isStaff(me.role)) go(`/plans/${id}`, { error: "Our team changes floor plans." });
+  if (!canEditPlans(me.role)) go(`/plans/${id}`, { error: "Your role can’t change floor plans." });
   const supabase = await createClient();
   await supabase.from("floor_plans").update({ scan: null }).eq("id", id);
   go(`/plans/${id}`, { saved: "Dismissed." });

@@ -46,7 +46,8 @@ The full permission grid is `docs/permission-grid.md` (draft until the owners ap
 - Supabase: database, logins, RLS. Separate test and live projects.
 - Cloudflare R2 (photos) and Cloudflare Stream (video)
 - Sentry for error alerts
-- Later: Resend (email), Stripe (billing), HubSpot sync, Claude API for photo tagging
+- Claude API: photo labeling (Haiku 5.5), floor plan and brand guide reading (Sonnet 5.5), paid from per-builder AI credits
+- Later: Resend (email), Stripe (billing), HubSpot sync
 
 ## Working style
 
@@ -113,7 +114,11 @@ Extra tags come only from `media_tags` (label, group: shot / inside / outside / 
 
 ## AI photo labeling
 
-After an upload, `src/lib/ai-tagging.ts` sends each JPG/PNG/WebP photo (by a 10-minute private link) to Claude Haiku 5.5 (`claude-haiku-5-5`), which suggests the room, up to 6 tags, a short caption and MLS warnings (blurry, dark, people, signs/logos, text). It runs after the response via `after()`, with the uploader's own database access. AI fills only what a person hasn't set; `room_source` / `caption_source` say `ai` or `staff`, and a person's edit flips them to `staff` (trigger `media_track_sources`). Flagged photos are not marked MLS-ready. HEIC photos skip AI. Needs `ANTHROPIC_API_KEY` in Vercel.
+After an upload, `src/lib/ai-tagging.ts` sends each JPG/PNG/WebP photo (by a 10-minute private link) to Claude Haiku 5.5 (`claude-haiku-5-5`), which suggests the room, up to 6 tags, a short caption and MLS warnings (blurry, dark, people, signs/logos, text). It runs after the response via `after()`, with the uploader's own database access. AI fills only what a person hasn't set; `room_source` / `caption_source` say `ai` or `staff`, and a person's edit flips them to `staff` (trigger `media_track_sources`). Flagged photos are not marked MLS-ready. HEIC photos skip AI. Each photo uses 1 AI credit (see "AI credits"); when the builder is out, the photo is saved with `ai_status = 'no_credits'` and AI skips the rest of that batch. Needs `ANTHROPIC_API_KEY` in Vercel.
+
+## AI credits
+
+Every AI call is paid for from the builder's monthly AI credits (migration `20261028000045_ai_credits`, `src/lib/ai-credits.ts`). Costs are in `app_settings.ai_credit_costs`: photo label 1 credit (Haiku 5.5, about $0.0003 to us), floor plan read 25 and brand guide read 25 (Sonnet 5.5, about $0.02-0.04). Each builder gets `app_settings.ai_credits_default` (2,500) a month unless `ai_allowances` gives them their own (0 turns AI off for them); `ai_credit_grants` adds extra for one month. Months run on Central time and reset on the 1st. Code calls `spendCredits` (`public.ai_spend`, which reserves the credits or returns null when there aren't enough, one spender per builder at a time) before the AI call, and `finishCredits` (`public.ai_finish`) after it with the real tokens, or to give the credits back when the call failed. Runs by our staff and photographers are logged with `counts = false` and never use a builder's credits. `ai_usage` keeps every call with tokens and dollar cost (from `app_settings.ai_prices`; update it if Anthropic's prices change); only those two functions write it; staff see all, builder owners and managers their own. Screens: `AiCreditMeter` (`src/components/ai-credit-meter.tsx`) on Floor plans, each plan's file section and the upload page for builder users; Admin overview "AI credits this month" (`public.ai_usage_summary`) shows credits used, photo and plan counts and real cost per builder, with per-builder monthly credits, extra credits for this month and the default.
 
 ## Admin and invites
 
@@ -165,7 +170,7 @@ Stage triggers: a home going move-in ready automatically requests real photos; w
 
 ## Floor plans and room sizes
 
-`floor_plans` (one per builder plan: specs, NTREIS Levels, # living and dining areas, and a room list) is set up by our team at `/plans` (staff write; everyone at the builder reads their own). A plan file (PDF or image, private bucket `plan-files`, `/api/plan-file/[id]`) is read by Claude Sonnet 5.5 (`src/lib/plan-scan.ts`, needs `ANTHROPIC_API_KEY`); what it reads waits as `scan` until someone clicks "Use these rooms" or dismisses it. Rooms are RESO rows (RoomType from NTREIS's list, RoomLevel 1-9 or B, RoomLength, RoomWidth in feet), cleaned by `private.clean_rooms` on plans and on homes. A home's rooms live in `homes.mls_fields -> 'Rooms'`: "Room sizes" on each home (fill from the plan, then adjust; owners, managers and our admins edit, like other NTREIS answers), the Rooms step of Add a home (`RoomsEditor`, filled by "start from a floor plan" or a copied listing), and a Room sizes list with copy buttons on our MLS sheet and work sheets. "Start from a floor plan" uses the plans our team set up first, then the latest home on a plan. NTREIS homes with no rooms get a readiness warning (`rooms`).
+`floor_plans` (one per builder plan: specs, NTREIS Levels, # living and dining areas, and a room list) is set up at `/plans` by our team or by the builder's owners, managers and marketing for their own builder (same people as `private.can_edit_branding`; `canEditPlans` in `permissions.ts`); everyone at the builder reads their own. Builders upload plan files into their own folder of `plan-files`, and each read uses 25 AI credits. A plan file (PDF or image, private bucket `plan-files`, `/api/plan-file/[id]`) is read by Claude Sonnet 5.5 (`src/lib/plan-scan.ts`, needs `ANTHROPIC_API_KEY`); what it reads waits as `scan` until someone clicks "Use these rooms" or dismisses it. Rooms are RESO rows (RoomType from NTREIS's list, RoomLevel 1-9 or B, RoomLength, RoomWidth in feet), cleaned by `private.clean_rooms` on plans and on homes. A home's rooms live in `homes.mls_fields -> 'Rooms'`: "Room sizes" on each home (fill from the plan, then adjust; owners, managers and our admins edit, like other NTREIS answers), the Rooms step of Add a home (`RoomsEditor`, filled by "start from a floor plan" or a copied listing), and a Room sizes list with copy buttons on our MLS sheet and work sheets. "Start from a floor plan" uses the plans our team set up first, then the latest home on a plan. NTREIS homes with no rooms get a readiness warning (`rooms`).
 
 ## Builder settings and feature switches
 

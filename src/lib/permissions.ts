@@ -153,6 +153,12 @@ export function canEditBranding(role: Role) {
   return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }
 
+// Floor plans: our team, and the builder's owners, managers and marketing for
+// their own builder. Mirrors the floor_plans policies (is_staff or can_edit_branding).
+export function canEditPlans(role: Role) {
+  return ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role);
+}
+
 export function canManageMedia(role: Role) {
   return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }

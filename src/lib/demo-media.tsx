@@ -23,7 +23,7 @@ export type MediaRow = {
   created_at: string;
   duration_seconds: number | null;
   room_source: "ai" | "staff" | null;
-  ai_status: "pending" | "done" | "skipped" | "failed" | null;
+  ai_status: "pending" | "done" | "skipped" | "failed" | "no_credits" | null;
   ai_suggestion: { room: string; confidence: number; tags: string[]; caption: string; flags: string[] } | null;
   caption: string | null;
   plan_name: string | null;

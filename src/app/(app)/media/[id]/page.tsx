@@ -266,6 +266,7 @@ function AiPanel({ m, canRerun, canClear }: { m: MediaRow; canRerun: boolean; ca
       {m.ai_status === "pending" && <p>AI is looking at this photo. Refresh in a moment.</p>}
       {m.ai_status === "skipped" && <p className="text-muted">AI didn’t look at this file{m.mime_type === "image/heic" ? " (iPhone HEIC photos can’t be read; pick the room yourself)" : ""}.</p>}
       {m.ai_status === "failed" && <p className="text-muted">AI couldn’t read this photo. Pick the room yourself, or try again.</p>}
+      {m.ai_status === "no_credits" && <p className="text-muted">AI didn’t label this photo because this month’s AI credits were used up. Pick the room yourself, or try again after they reset.</p>}
       {m.ai_status === "done" && s && (
         <>
           <p>
@@ -292,7 +293,7 @@ function AiPanel({ m, canRerun, canClear }: { m: MediaRow; canRerun: boolean; ca
         <form action={rerunAi} className="mt-3">
           <input type="hidden" name="id" value={m.id} />
           <button className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-sm font-semibold hover:bg-violet-50">
-            {m.ai_status === "done" ? "Ask AI again" : "Let AI label this photo"}
+            {m.ai_status === "done" ? "Ask AI again (1 credit)" : "Let AI label this photo (1 credit)"}
           </button>
         </form>
       )}

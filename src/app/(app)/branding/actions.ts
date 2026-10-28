@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { brandScanAvailable, scanBrandGuide, type BrandScan } from "@/lib/brand-scan";
+import { BRAND_MODEL, brandScanAvailable, scanBrandGuide, type BrandScan } from "@/lib/brand-scan";
+import { creditStatus, finishCredits, outOfCreditsMessage, spendCredits } from "@/lib/ai-credits";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 type Color = { name: string; hex: string };
@@ -82,14 +83,27 @@ async function runScan(builderId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
   const { data: b } = await supabase.from("builder_branding").select("brand_guide_path").eq("builder_id", builderId).maybeSingle();
   if (!b?.brand_guide_path) return { error: "Upload a brand guide first." };
+  let usageId: string | null = null;
+  try {
+    usageId = await spendCredits(supabase, builderId, "brand_guide_read", builderId);
+  } catch {
+    return { error: "Couldn’t check your AI credits. Try again in a minute." };
+  }
+  if (!usageId) return { error: outOfCreditsMessage(await creditStatus(supabase, builderId)) };
   const { data: link } = await supabase.storage.from("branding").createSignedUrl(b.brand_guide_path, 600);
-  if (!link) return { error: "Couldn’t open the brand guide." };
+  if (!link) {
+    await finishCredits(supabase, usageId, false);
+    return { error: "Couldn’t open the brand guide." };
+  }
   const ext = b.brand_guide_path.split(".").pop()?.toLowerCase();
   const mime = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
   let scan: BrandScan | null = null;
   try {
-    scan = await scanBrandGuide(link.signedUrl, mime);
+    const read = await scanBrandGuide(link.signedUrl, mime);
+    scan = read.scan;
+    await finishCredits(supabase, usageId, true, BRAND_MODEL, read.usage);
   } catch {
+    await finishCredits(supabase, usageId, false);
     return { error: "The AI couldn’t read that file. Very large or scanned-image PDFs sometimes fail; try a smaller export." };
   }
   if (!scan) return { error: "The AI couldn’t find branding in that file." };

@@ -6,7 +6,8 @@ import { cleanRooms, ROOM_TYPES, type Room } from "@/lib/rooms";
 // level and size, using NTREIS's room names. Only a suggestion: our team checks
 // it before it's saved to the plan. Needs ANTHROPIC_API_KEY on the server.
 
-const MODEL = "claude-sonnet-5-5";
+export const PLAN_MODEL = "claude-sonnet-5-5";
+const MODEL = PLAN_MODEL;
 
 export type PlanScan = {
   bedrooms_total: number | null; bathrooms_full: number | null; bathrooms_half: number | null;
@@ -49,7 +50,8 @@ function parse(text: string): PlanScan | null {
   };
 }
 
-export async function scanFloorPlan(url: string, mimeType: string): Promise<PlanScan | null> {
+// Returns what it read plus the tokens used (for AI credits and cost tracking).
+export async function scanFloorPlan(url: string, mimeType: string): Promise<{ scan: PlanScan | null; usage: { input_tokens: number; output_tokens: number } }> {
   const client = new Anthropic();
   const file =
     mimeType === "application/pdf"
@@ -61,5 +63,5 @@ export async function scanFloorPlan(url: string, mimeType: string): Promise<Plan
     system: SYSTEM,
     messages: [{ role: "user", content: [file, { type: "text", text: "List the rooms on this floor plan." }] }],
   });
-  return parse(reply.content.map((b) => (b.type === "text" ? b.text : "")).join(""));
+  return { scan: parse(reply.content.map((b) => (b.type === "text" ? b.text : "")).join("")), usage: reply.usage };
 }

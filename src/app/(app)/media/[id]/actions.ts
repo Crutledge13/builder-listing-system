@@ -67,6 +67,8 @@ export async function rerunAi(formData: FormData) {
   if (!data?.length) back(id, { error: "You can’t change this file." });
   await tagMedia(supabase, [id]);
   revalidatePath("/media");
+  const { data: after } = await supabase.from("media").select("ai_status").eq("id", id).maybeSingle();
+  if (after?.ai_status === "no_credits") back(id, { error: "This month’s AI credits are used up, so AI didn’t look at it. Ask our team if you need more." });
   back(id, { saved: "ai" });
 }
 

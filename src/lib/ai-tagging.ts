@@ -2,6 +2,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadTagList, matchToList, type ListTag } from "@/lib/tags";
+import { finishCredits, spendCredits } from "@/lib/ai-credits";
 
 // Looks at uploaded photos with Claude and suggests the room, a few tags, a
 // short caption and anything the MLS might reject. Suggestions are marked as
@@ -79,7 +80,7 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
   if (ids.length === 0) return;
   const { data: rows } = await supabase
     .from("media")
-    .select("id, kind, mime_type, storage_path, web_path, source, room, room_source, caption, tags, title")
+    .select("id, builder_id, kind, mime_type, storage_path, web_path, source, room, room_source, caption, tags, title")
     .in("id", ids);
   const photos = (rows ?? []).filter((r) => r.source === "upload" && r.kind === "photo" && r.storage_path);
 
@@ -91,11 +92,29 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
   const list = await loadTagList(supabase);
   const SYSTEM = system(list.map((t) => t.label));
 
+  // Builders that ran out of credits during this batch: skip the rest of their photos.
+  const outOfCredits = new Set<string>();
+
   const work = photos.map((p) => async () => {
     // The screen-size copy (WebP) is smaller and quicker for the AI to read, and
     // exists even for HEIC photos when the uploader's browser could read them.
     if (!p.web_path && !READABLE.has(p.mime_type ?? "")) {
       await supabase.from("media").update({ ai_status: "skipped" }).eq("id", p.id);
+      return;
+    }
+    // Each photo costs one AI credit. Out of credits: the upload is fine, AI just doesn't run.
+    let usageId: string | null = null;
+    if (!outOfCredits.has(p.builder_id)) {
+      try {
+        usageId = await spendCredits(supabase, p.builder_id, "photo_label", p.id);
+      } catch {
+        await supabase.from("media").update({ ai_status: "failed", ai_at: new Date().toISOString() }).eq("id", p.id);
+        return;
+      }
+    }
+    if (!usageId) {
+      outOfCredits.add(p.builder_id);
+      await supabase.from("media").update({ ai_status: "no_credits", ai_at: new Date().toISOString() }).eq("id", p.id);
       return;
     }
     try {
@@ -118,6 +137,9 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
       });
       const text = reply.content.map((b) => (b.type === "text" ? b.text : "")).join("");
       const s = parseSuggestion(text, list);
+      // A reply we can't use gives the credit back.
+      await finishCredits(supabase, usageId, !!s, MODEL, reply.usage);
+      usageId = null;
       if (!s) throw new Error("Unreadable reply");
 
       const patch: Record<string, unknown> = {
@@ -139,6 +161,7 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
       if (s.flags.length) patch.mls_ready = false;
       await supabase.from("media").update(patch).eq("id", p.id);
     } catch {
+      if (usageId) await finishCredits(supabase, usageId, false);
       await supabase.from("media").update({ ai_status: "failed", ai_at: new Date().toISOString() }).eq("id", p.id);
     }
   });

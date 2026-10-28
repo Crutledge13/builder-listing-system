@@ -433,3 +433,60 @@ export async function removeBoardField(formData: FormData) {
   revalidatePath("/", "layout");
   go("/admin/mls", { saved: "Field removed." });
 }
+
+// ---------------------------------------------------------------------------
+// AI credits (Admin overview)
+// ---------------------------------------------------------------------------
+const credits = (v: FormDataEntryValue | null) => {
+  const x = Math.round(Number(String(v ?? "").replace(/,/g, "").trim()));
+  return Number.isFinite(x) && x >= 0 && x <= 1_000_000 ? x : null;
+};
+
+// A builder's monthly allowance; blank goes back to the default.
+export async function setAiAllowance(formData: FormData) {
+  await requireAdmin("/admin");
+  const builderId = String(formData.get("builder_id") ?? "");
+  const raw = String(formData.get("monthly_credits") ?? "").trim();
+  const supabase = await createClient();
+  if (!raw) {
+    await supabase.from("ai_allowances").delete().eq("builder_id", builderId);
+  } else {
+    const n = credits(raw);
+    if (n == null) go("/admin", { error: "Enter a whole number of credits (0 turns AI off for that builder)." });
+    const { error } = await supabase.from("ai_allowances").upsert({ builder_id: builderId, monthly_credits: n, updated_at: new Date().toISOString() });
+    if (error) go("/admin", { error: friendly(error.message) });
+  }
+  revalidatePath("/admin");
+  go("/admin", { saved: "Monthly AI credits saved." });
+}
+
+// Extra credits for this month only.
+export async function addAiCredits(formData: FormData) {
+  const me = await requireAdmin("/admin");
+  const n = credits(formData.get("credits"));
+  if (!n) go("/admin", { error: "Enter how many extra credits to add." });
+  const supabase = await createClient();
+  const { data: month } = await supabase.rpc("ai_credit_status", { p_builder: String(formData.get("builder_id")) });
+  const { error } = await supabase.from("ai_credit_grants").insert({
+    builder_id: String(formData.get("builder_id")),
+    month: (month as { month: string } | null)?.month,
+    credits: n,
+    note: String(formData.get("note") ?? "").trim().slice(0, 200) || null,
+    created_by: me.id,
+  });
+  if (error) go("/admin", { error: friendly(error.message) });
+  revalidatePath("/admin");
+  go("/admin", { saved: `Added ${n.toLocaleString()} credits for this month.` });
+}
+
+// The allowance every builder gets unless they have their own.
+export async function setAiDefault(formData: FormData) {
+  await requireAdmin("/admin");
+  const n = credits(formData.get("default_credits"));
+  if (n == null) go("/admin", { error: "Enter a whole number of credits." });
+  const supabase = await createClient();
+  const { error } = await supabase.from("app_settings").upsert({ key: "ai_credits_default", value: n, updated_at: new Date().toISOString() });
+  if (error) go("/admin", { error: friendly(error.message) });
+  revalidatePath("/admin");
+  go("/admin", { saved: "Default monthly AI credits saved." });
+}

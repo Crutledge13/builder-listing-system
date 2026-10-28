@@ -8,6 +8,8 @@ import { addJobTour } from "./tour-action";
 import { UploadForm } from "./upload-form";
 import { BackButton } from "@/components/back-button";
 import { loadTagList } from "@/lib/tags";
+import { AiCreditMeter } from "@/components/ai-credit-meter";
+import { aiTaggingAvailable } from "@/lib/ai-tagging";
 
 export default function UploadPage(props: PageProps<"/media/upload">) {
   return (
@@ -118,6 +120,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
       <p className="mt-1 text-muted">
         Files go straight into private storage. Pick where they belong and the address, plan and community tags are added for you.
       </p>
+      {aiTaggingAvailable() && !isStaff(me.role) && <div className="mt-4"><AiCreditMeter builderId={me.builder_id} compact /></div>}
       <div className="mt-8">
         <UploadForm
           tagList={tagList}

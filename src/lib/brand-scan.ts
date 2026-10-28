@@ -7,7 +7,8 @@ import Anthropic from "@anthropic-ai/sdk";
 //
 // Needs ANTHROPIC_API_KEY on the server. Without it, nothing is sent anywhere.
 
-const MODEL = "claude-sonnet-5-5";
+export const BRAND_MODEL = "claude-sonnet-5-5";
+const MODEL = BRAND_MODEL;
 
 export type BrandScan = {
   colors: { name: string; hex: string }[];
@@ -58,7 +59,7 @@ export function parseBrandScan(text: string): BrandScan | null {
 }
 
 // `url` is a short-lived private link to the file.
-export async function scanBrandGuide(url: string, mimeType: string): Promise<BrandScan | null> {
+export async function scanBrandGuide(url: string, mimeType: string): Promise<{ scan: BrandScan | null; usage: { input_tokens: number; output_tokens: number } }> {
   const client = new Anthropic();
   const file =
     mimeType === "application/pdf"
@@ -70,5 +71,5 @@ export async function scanBrandGuide(url: string, mimeType: string): Promise<Bra
     system: SYSTEM,
     messages: [{ role: "user", content: [file, { type: "text", text: "Pull the branding out of this guide." }] }],
   });
-  return parseBrandScan(reply.content.map((b) => (b.type === "text" ? b.text : "")).join(""));
+  return { scan: parseBrandScan(reply.content.map((b) => (b.type === "text" ? b.text : "")).join("")), usage: reply.usage };
 }
