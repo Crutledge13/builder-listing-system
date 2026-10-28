@@ -6,6 +6,7 @@ import { createClient as createAdminSupabase } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { SUPABASE_URL } from "@/lib/supabase/config";
+import { FEATURES } from "@/lib/features";
 
 // Every action here is for our platform admins. The database rules enforce
 // this too; the check below just gives a clear message.
@@ -251,11 +252,14 @@ export async function closeIssue(formData: FormData) {
   go("/admin/requests", { saved: "Help request closed." });
 }
 
-// Which MLS markets a builder lists in (set at onboarding, editable later).
+// A builder's settings: which MLS markets it lists in (set at onboarding,
+// editable later), who enters the MLS, and which optional features it has.
 export async function setBuilderMarkets(formData: FormData) {
   await requireAdmin("/admin/builders");
   const builderId = String(formData.get("builder_id"));
   const markets = formData.getAll("mls").map(String);
+  const ticked = new Set(formData.getAll("feature").map(String));
+  const featuresOff = FEATURES.map((f) => f.key).filter((k) => !ticked.has(k));
   const supabase = await createClient();
   const { error } = await supabase
     .from("builder_settings")
@@ -264,12 +268,13 @@ export async function setBuilderMarkets(formData: FormData) {
       mls_boards: markets,
       mls_locked: formData.get("locked") === "on",
       mls_entry: formData.get("mls_entry") === "builder" ? "builder" : "our_team",
+      features_off: featuresOff,
       updated_at: new Date().toISOString(),
     });
   if (error) go("/admin/builders", { error: friendly(error.message) });
   revalidatePath("/", "layout");
   go("/admin/builders", {
-    saved: `${markets.length ? `Markets saved: ${markets.join(", ")}.` : "Markets cleared."} ${formData.get("mls_entry") === "builder" ? "The builder enters its own MLS listings." : "Our team enters the MLS listings."}`,
+    saved: `${markets.length ? `Markets saved: ${markets.join(", ")}.` : "Markets cleared."} ${formData.get("mls_entry") === "builder" ? "The builder enters its own MLS listings." : "Our team enters the MLS listings."}${featuresOff.length ? ` Turned off: ${featuresOff.map((k) => FEATURES.find((f) => f.key === k)?.label).join(", ")}.` : ""}`,
   });
 }
 

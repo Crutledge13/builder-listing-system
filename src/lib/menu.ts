@@ -1,9 +1,11 @@
 import type { Role } from "@/lib/permissions";
+import type { Feature } from "@/lib/features";
 
 export type MenuLink = { href: string; label: string; hint?: string };
 
 // The few tabs that always show along the top, by role.
-export function primaryTabs(role: Role, enterOwnMls = false): MenuLink[] {
+// `off` is the builder's turned-off features (src/lib/features.ts).
+export function primaryTabs(role: Role, enterOwnMls = false, off: ReadonlySet<Feature> = new Set()): MenuLink[] {
   if (role === "photographer") return [{ href: "/jobs", label: "Your jobs" }];
   if (role === "platform_admin" || role === "listing_coordinator") {
     return [
@@ -20,13 +22,13 @@ export function primaryTabs(role: Role, enterOwnMls = false): MenuLink[] {
     { href: "/media", label: "Media" },
   ];
   if (enterOwnMls) tabs.unshift({ href: "/tasks", label: "MLS work" });
-  if (role === "builder_owner" || role === "manager" || role === "marketing") tabs.push({ href: "/todo", label: "Tasks" });
-  if (role === "builder_owner" || role === "manager" || role === "sales") tabs.push({ href: "/reports", label: "Reports" });
+  if (!off.has("builder_tasks") && (role === "builder_owner" || role === "manager" || role === "marketing")) tabs.push({ href: "/todo", label: "Tasks" });
+  if (!off.has("reports") && (role === "builder_owner" || role === "manager" || role === "sales")) tabs.push({ href: "/reports", label: "Reports" });
   return tabs;
 }
 
 // Everything else lives in the menu.
-export function menuLinks(role: Role): MenuLink[] {
+export function menuLinks(role: Role, off: ReadonlySet<Feature> = new Set()): MenuLink[] {
   if (role === "photographer") {
     return [{ href: "/jobs#earnings", label: "Earnings", hint: "Payments for your shoots" }];
   }
@@ -40,8 +42,8 @@ export function menuLinks(role: Role): MenuLink[] {
   if (role !== "sales") links.push({ href: "/media/requests", label: "Photo requests", hint: "Shoots and deliveries" });
   links.push({ href: "/incentives", label: "Incentives", hint: role === "sales" ? "Current incentives for your communities" : "Builder, community and home incentives with end dates" });
   links.push({ href: "/plans", label: "Floor plans", hint: role === "platform_admin" || role === "listing_coordinator" ? "Set up each builder’s plans and room sizes" : "Your plans and their room sizes" });
-  links.push({ href: "/comps", label: "Comps", hint: role === "platform_admin" || role === "listing_coordinator" ? "Comp requests to pull and send" : "Ask for comps and see what's been sent" });
-  if (["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role)) {
+  if (!off.has("comps")) links.push({ href: "/comps", label: "Comps", hint: role === "platform_admin" || role === "listing_coordinator" ? "Comp requests to pull and send" : "Ask for comps and see what's been sent" });
+  if (!off.has("website_check") && ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role)) {
     links.push({ href: "/website-check", label: "Website check", hint: "Website, Builder Listings and MLS side by side" });
   }
   if (role === "builder_owner" || role === "manager") {

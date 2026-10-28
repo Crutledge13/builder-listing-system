@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
+import { requireFeature } from "@/lib/features";
 import { canSeeReports, isStaff, MARKET_LABELS, type MarketStatus } from "@/lib/permissions";
 import { FilterTable, type FRow } from "@/components/filter-table";
 import { money } from "@/lib/format";
@@ -33,6 +34,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-US", { m
 
 async function ReportView({ searchParams }: { searchParams: PageProps<"/reports">["searchParams"] }) {
   const me = await requireProfile();
+  await requireFeature(me, "reports");
   const staff = isStaff(me.role);
   if (!canSeeReports(me.role)) redirect("/communities");
   const sales = me.role === "sales";

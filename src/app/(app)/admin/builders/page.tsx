@@ -4,6 +4,7 @@ import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
 import { addBuilder, renameBuilder, setBuilderMarkets } from "../actions";
+import { FEATURES } from "@/lib/features";
 
 export default function BuildersAdmin(props: PageProps<"/admin/builders">) {
   return (
@@ -22,7 +23,7 @@ async function Builders() {
     supabase.from("homes").select("builder_id").is("deleted_at", null),
     supabase.from("profiles").select("builder_id"),
     supabase.from("mls_boards").select("code, short_name, region").eq("active", true).order("code"),
-    supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked, mls_entry"),
+    supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked, mls_entry, features_off"),
   ]);
   const settingsFor = (id: string) => (settings ?? []).find((x) => x.builder_id === id);
   const tally = (rows: { builder_id: string | null }[] | null, id: string) => (rows ?? []).filter((r) => r.builder_id === id).length;
@@ -73,7 +74,19 @@ async function Builders() {
                   <span>The builder&rsquo;s own team <span className="text-muted">(software only: their owners, managers and marketing get the MLS work sheets, notices and emails)</span></span>
                 </label>
               </fieldset>
-              <button className="mt-2 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save MLS settings</button>
+              <fieldset className="mt-3 border-t border-line pt-3">
+                <legend className="text-sm font-medium">Features this builder has</legend>
+                <p className="text-xs text-muted">Untick to hide a feature from this builder&rsquo;s team. Our team still sees everything.</p>
+                <div className="mt-1.5 grid gap-x-5 gap-y-1.5 sm:grid-cols-2">
+                  {FEATURES.map((f) => (
+                    <label key={f.key} className="flex items-start gap-2 text-sm">
+                      <input type="checkbox" name="feature" value={f.key} defaultChecked={!settingsFor(b.id)?.features_off?.includes(f.key)} className="mt-0.5 h-4 w-4 accent-[#3452c7]" />
+                      <span>{f.label} <span className="text-muted">({f.hint})</span></span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <button className="mt-2 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save builder settings</button>
             </form>
           </div>
         ))}

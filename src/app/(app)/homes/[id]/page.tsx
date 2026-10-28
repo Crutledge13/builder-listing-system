@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { enterOwnMls } from "@/lib/mls-entry";
+import { featuresOff } from "@/lib/features";
 import {
   allowedTransitions,
   editableFields,
@@ -181,6 +182,8 @@ async function HomeDetail({
   ]);
   // Builders who enter their own listings get the MLS sheet and the "mark live" step too.
   const ownMls = !staff && (await enterOwnMls(me.role, me.builder_id));
+  // Optional features this builder has turned off (Admin > Builders).
+  const off = await featuresOff(me.role, me.builder_id);
   const mlsScore = staff || ownMls ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
   const alerts = await loadAlerts({ homeId: id });
   // The home's standing realtor link (made on first open), for the Share link button at the top.
@@ -375,7 +378,7 @@ async function HomeDetail({
             ))}
           </dl>
 
-          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} canRequestPhotos={canRequestMedia(me.role)} shareUrl={shareUrl} canComps={canRequestComps(me.role)} />
+          <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} canRequestPhotos={canRequestMedia(me.role)} shareUrl={shareUrl} canComps={canRequestComps(me.role) && !off.has("comps")} showReverse={!off.has("reverse_prospecting")} />
 
           {homeTasks && homeTasks.length > 0 && (
             <section className="border-b border-line py-6">
@@ -506,6 +509,7 @@ async function HomeDetail({
             )}
           </section>
 
+          {!off.has("reverse_prospecting") && (
           <section id="reverse-prospecting" className="scroll-mt-28 border-b border-line py-8">
             <h3 className="text-lg font-semibold">
               Reverse prospecting {openReverse.length > 0 && <span className="font-normal text-muted">{openReverse.length} in progress</span>}
@@ -545,7 +549,7 @@ async function HomeDetail({
                 </li>
               ))}
             </ul>
-            {canRequestComps(me.role) && (
+            {canRequestComps(me.role) && !off.has("comps") && (
               <p className="mt-4 text-sm">
                 Need to check the price? <Link href={`/comps/new?home=${home.id}`} className="font-semibold text-accent underline">Request comps for this home</Link>
               </p>
@@ -558,6 +562,7 @@ async function HomeDetail({
               </form>
             )}
           </section>
+          )}
 
           <ListingMediaPanel
             home={{ id: home.id, community_name: (home.communities as { name: string } | null)?.name ?? "the community", plan_name: home.plan_name }}
@@ -1145,11 +1150,11 @@ const REQUEST_STYLES: Record<string, string> = {
   declined: "bg-soft text-muted",
 };
 
-function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse, canRequestPhotos, shareUrl, canComps }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number; canRequestPhotos: boolean; shareUrl: string | null; canComps: boolean }) {
+function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse, canRequestPhotos, shareUrl, canComps, showReverse }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number; canRequestPhotos: boolean; shareUrl: string | null; canComps: boolean; showReverse: boolean }) {
   const items = [
     { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
     { href: "#open-houses", title: "Open houses", sub: upcomingOH ? `${upcomingOH} scheduled` : "Schedule one" },
-    { href: "#reverse-prospecting", title: "Reverse prospecting", sub: openReverse ? "In progress" : "Request a list" },
+    ...(showReverse ? [{ href: "#reverse-prospecting", title: "Reverse prospecting", sub: openReverse ? "In progress" : "Request a list" }] : []),
     ...(canComps ? [{ href: `/comps/new?home=${homeId}`, title: "Request comps", sub: "Check the price" }] : []),
     ...(canRequestPhotos ? [{ href: "#photo-requests", title: "Request photos", sub: openShoots ? `${openShoots} in progress` : "Send a photographer" }] : []),
     { href: `/media?home=${homeId}`, title: canRequestPhotos ? "Media" : "Photos and video", sub: canRequestPhotos ? "Home, community, plan" : "View and download" },

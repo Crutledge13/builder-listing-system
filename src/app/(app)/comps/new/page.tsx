@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { requireFeature } from "@/lib/features";
 import { canRequestComps, isStaff } from "@/lib/permissions";
 import { BackButton } from "@/components/back-button";
 import { RequiredPill } from "@/components/required-pill";
@@ -22,6 +23,7 @@ export default function NewCompsPage(props: PageProps<"/comps/new">) {
 async function Form({ searchParams }: { searchParams: PageProps<"/comps/new">["searchParams"] }) {
   const sp = await searchParams;
   const me = await requireProfile();
+  await requireFeature(me, "comps");
   if (!canRequestComps(me.role)) return <p className="mt-8 text-muted">Your role can’t ask for comps.</p>;
   const supabase = await createClient();
   const homeId = typeof sp.home === "string" ? sp.home : null;

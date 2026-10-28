@@ -38,6 +38,7 @@ The full permission grid is `docs/permission-grid.md` (draft until the owners ap
 5. **Media is private.** Files are locked by default and viewed only through links that expire. Uploads go straight from the browser to storage, not through our server. Target home is Cloudflare (R2 for photos, Stream for video); for the test phase, uploads use a private Supabase Storage bucket (`media`). Storage calls live in `src/app/api/media/[id]/route.ts` and `src/app/(app)/media/upload/`, so moving to Cloudflare before launch is contained.
 6. **Deletes go to a 30-day trash first**, and every change is written to the activity log.
 7. **No real builder data** goes into the system until backups and a security review are done. Until then, use realistic fake data only.
+8. **One template for every builder.** All builders share one codebase, one database and one deployment. Never copy the code or make a separate deployment for a builder, and never write code that checks which builder it is (no builder names, IDs or slugs in code or migrations; demo builders belong only in `supabase/seed/`). When one builder needs something different, make it a setting or feature switch any builder could use (see "Builder settings and feature switches"), with a default that keeps every other builder as it is.
 
 ## Tech stack
 
@@ -64,7 +65,7 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
 - `src/app/(app)/` — the signed-in screens: communities (start page, add a community) and each community's homes, all homes, home detail (edit, approvals, listing status, open houses incl. repeating, reverse prospecting, photo requests, change requests), add a home, approvals, media library, photo requests, photographer jobs and earnings, tasks (our team), team (builder owners/managers), website check, help, admin.
-- `src/lib/menu.ts` — which tabs show on top for each role (owners, managers and marketing get Tasks, their builder board; builders who enter their own MLS also get MLS work); everything else is in the menu. Request comps is a tile in each home's row of quick links and a button on each community, plus Comps in the menu.
+- `src/lib/menu.ts` — which tabs show on top for each role and the builder's feature switches (owners, managers and marketing get Tasks, their builder board; builders who enter their own MLS also get MLS work); everything else is in the menu. Request comps is a tile in each home's row of quick links and a button on each community, plus Comps in the menu.
 - `src/components/home-art.tsx`, `src/components/media-art.tsx` — drawn pictures (exteriors, rooms, floor plans, community scenes) for demo media. `demo-media/videos/` holds four short demo videos.
 - `src/app/(app)/media/` — media library (builder > community > home folders, room/type/tag filters, search), item page (download, tags, cover, trash), upload.
 - `src/app/api/media/[id]/route.ts` — the only way files are served: reads the media record as the signed-in user (RLS decides), then redirects to an hour-long storage link or streams a demo video.
@@ -163,6 +164,19 @@ Stage triggers: a home going move-in ready automatically requests real photos; w
 ## Floor plans and room sizes
 
 `floor_plans` (one per builder plan: specs, NTREIS Levels, # living and dining areas, and a room list) is set up by our team at `/plans` (staff write; everyone at the builder reads their own). A plan file (PDF or image, private bucket `plan-files`, `/api/plan-file/[id]`) is read by Claude Sonnet 5.5 (`src/lib/plan-scan.ts`, needs `ANTHROPIC_API_KEY`); what it reads waits as `scan` until someone clicks "Use these rooms" or dismisses it. Rooms are RESO rows (RoomType from NTREIS's list, RoomLevel 1-9 or B, RoomLength, RoomWidth in feet), cleaned by `private.clean_rooms` on plans and on homes. A home's rooms live in `homes.mls_fields -> 'Rooms'`: "Room sizes" on each home (fill from the plan, then adjust; owners, managers and our admins edit, like other NTREIS answers), the Rooms step of Add a home (`RoomsEditor`, filled by "start from a floor plan" or a copied listing), and a Room sizes list with copy buttons on our MLS sheet and work sheets. "Start from a floor plan" uses the plans our team set up first, then the latest home on a plan. NTREIS homes with no rooms get a readiness warning (`rooms`).
+
+## Builder settings and feature switches
+
+Everything that differs between builders lives in the database, set per builder:
+
+- `builder_settings` (Admin > Builders, platform admins): MLS markets (`mls_boards`, `mls_locked`), who enters the MLS (`mls_entry`), website feed, and `features_off`.
+- `builder_branding` (`/branding`): logo, colors, fonts, website, tagline, brand notes, default download size.
+- `builder_photo_info`: who photographers call and access notes.
+- Community-level `mls_details`: shared MLS answers for every home in a community.
+
+**Feature switches:** `builder_settings.features_off` lists the optional features a builder doesn't have; empty means everything is on, so new features are on for everyone unless turned off. Today's switches: comp requests, reverse prospecting, website check, reports, the builder's Tasks board. The list is `FEATURES` in `src/lib/features.ts` and the check on the `features_off` column; add a key to both (new migration) to make another feature switchable. Only platform admins change it (`builder_settings_mls_entry_guard`). Screens use `featuresOff()` / `hasFeature()` to hide tabs, menu links and buttons, and `requireFeature()` at the top of a feature's pages. Comp and reverse prospecting requests are also refused in the database when off (`feature_request_guard`, via `private.builder_feature_on`), since they create work for our team. Our staff always see every feature for every builder.
+
+When a builder asks for something different, first check whether an existing setting covers it; if not, add a setting or switch with a default that leaves other builders unchanged, and list it here.
 
 ## Builders who enter their own MLS listings (software only)
 

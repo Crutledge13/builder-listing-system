@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
 import { canSeeReports, isStaff, MARKET_LABELS, type MarketStatus, type Role } from "@/lib/permissions";
 import { buildReport, parseRange } from "@/lib/report";
+import { hasFeature } from "@/lib/features";
 
 // The listing health report as an Excel file. Same numbers as the page.
 export async function GET(request: Request) {
@@ -15,6 +16,7 @@ export async function GET(request: Request) {
   const role = me.role as Role;
   const staff = isStaff(role);
   if (!canSeeReports(role)) return new Response("Not allowed", { status: 403 });
+  if (!(await hasFeature({ role, builder_id: me.builder_id }, "reports"))) return new Response("Reports aren’t turned on for your company", { status: 403 });
   const builderId = staff ? sp.builder : me.builder_id;
   if (!builderId) return new Response("Pick a builder", { status: 400 });
   // The database only returns builders this person may see.

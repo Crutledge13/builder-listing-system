@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { requireFeature } from "@/lib/features";
 import { builderFocus } from "@/lib/builder-focus";
 import { canUseBuilderBoard, isStaff } from "@/lib/permissions";
 import { cx, dateTime } from "@/lib/format";
@@ -57,6 +58,7 @@ function sourceLink(t: Todo) {
 
 async function Board({ searchParams }: { searchParams: PageProps<"/todo">["searchParams"] }) {
   const me = await requireProfile();
+  await requireFeature(me, "builder_tasks");
   if (!canUseBuilderBoard(me.role) && !isStaff(me.role)) redirect("/communities");
   const sp = await searchParams;
   const view = sp.view === "mine" || sp.view === "done" ? sp.view : "open";

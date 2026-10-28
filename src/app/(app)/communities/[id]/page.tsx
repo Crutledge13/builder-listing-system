@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { hasFeature } from "@/lib/features";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
@@ -39,6 +40,7 @@ async function CommunityDetail({
   const me = await requireProfile();
   const supabase = await createClient();
   const staff = isStaff(me.role);
+  const compsOn = await hasFeature(me, "comps");
 
   const { data: community } = await supabase
     .from("communities")
@@ -124,7 +126,7 @@ async function CommunityDetail({
         <Link href={`/media?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
           Community photos and videos
         </Link>
-        {canRequestComps(me.role) && (
+        {canRequestComps(me.role) && compsOn && (
           <Link href={`/comps/new?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
             Request comps
           </Link>

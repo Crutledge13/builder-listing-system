@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile } from "@/lib/auth";
+import { requireFeature } from "@/lib/features";
 import { canAddHomes, canSeeWebsiteCheck, editableFields, isStaff, type HomeField, type WorkflowStatus } from "@/lib/permissions";
 import { cx, dateTime, money, num } from "@/lib/format";
 import { Notice } from "@/components/notice";
@@ -38,6 +39,7 @@ function show(key: CompareKey, v: unknown) {
 
 async function Check({ searchParams }: { searchParams: PageProps<"/website-check">["searchParams"] }) {
   const me = await requireProfile();
+  await requireFeature(me, "website_check");
   if (!canSeeWebsiteCheck(me.role)) redirect("/communities");
   const sp = await searchParams;
   const staff = isStaff(me.role);

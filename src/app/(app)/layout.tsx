@@ -5,6 +5,7 @@ import { ROLE_LABELS, isStaff } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { menuLinks, primaryTabs } from "@/lib/menu";
 import { enterOwnMls } from "@/lib/mls-entry";
+import { featuresOff } from "@/lib/features";
 import { signOut } from "../login/actions";
 import { switchDemoUser } from "./demo-actions";
 import { NavLinks } from "./nav-links";
@@ -37,6 +38,7 @@ async function Header() {
   // Open task count on the Tasks tab for our team, and the builder picker.
   let badges: Record<string, number> | undefined;
   const ownMls = await enterOwnMls(me.role, me.builder_id);
+  const off = await featuresOff(me.role, me.builder_id);
   let focusBuilders: { id: string; name: string }[] = [];
   const focus = await builderFocus(me.role);
   if (isStaff(me.role)) {
@@ -76,7 +78,7 @@ async function Header() {
           </span>
         )}
         <div className="flex min-w-0 flex-1 justify-start md:justify-center">
-          <NavLinks links={primaryTabs(me.role, ownMls)} badges={badges} />
+          <NavLinks links={primaryTabs(me.role, ownMls, off)} badges={badges} />
         </div>
         {isStaff(me.role) && focusBuilders.length > 1 && <BuilderFocusPicker builders={focusBuilders} current={focus} action={setBuilderFocus} />}
 
@@ -107,7 +109,7 @@ async function Header() {
             </Link>
 
             <nav className="border-b border-line p-2" aria-label="More">
-              {menuLinks(me.role).map((l) => (
+              {menuLinks(me.role, off).map((l) => (
                 <Link key={l.href} href={l.href} className="block rounded-xl px-3 py-2 hover:bg-soft">
                   <span className="block text-[15px] font-medium">{l.label}</span>
                   {l.hint && <span className="block text-xs text-muted">{l.hint}</span>}
