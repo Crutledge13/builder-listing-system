@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { readTitleCompany } from "@/lib/title-company";
 import { BRAND_MODEL, brandScanAvailable, scanBrandGuide, type BrandScan } from "@/lib/brand-scan";
 import { creditStatus, finishCredits, outOfCreditsMessage, spendCredits } from "@/lib/ai-credits";
 
@@ -239,4 +240,23 @@ export async function setDefaultPreset(formData: FormData) {
   if (error || !data?.length) go(builderId, { error: "Your role can’t change the default download size." }, "#sizes");
   revalidatePath("/", "layout");
   go(builderId, { saved: "Default download size saved." }, "#sizes");
+}
+
+// The builder's default title company (fills NTREIS's title company boxes for
+// every home unless a community sets its own). Stored on builder_settings,
+// which owners, managers, marketing and our admins can change.
+export async function saveTitleCompany(formData: FormData) {
+  await requireProfile();
+  const builderId = String(formData.get("builder_id"));
+  const t = readTitleCompany(formData);
+  if (t.title_company_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(t.title_company_email)) go(builderId, { error: "That escrow officer email doesn’t look right." }, "#title-company");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("builder_settings")
+    .upsert({ builder_id: builderId, ...t, updated_at: new Date().toISOString() })
+    .select("builder_id");
+  if (error) go(builderId, { error: error.message.includes("row-level security") ? "Your role can’t change this builder’s title company." : `Couldn’t save: ${error.message}` }, "#title-company");
+  if (!data?.length) go(builderId, { error: "Your role can’t change this builder’s title company." }, "#title-company");
+  revalidatePath("/", "layout");
+  go(builderId, { saved: t.title_company_name ? `Default title company saved: ${t.title_company_name}.` : "Default title company cleared." }, "#title-company");
 }

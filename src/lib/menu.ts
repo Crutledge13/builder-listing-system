@@ -59,7 +59,7 @@ export function menuLinks(role: Role, off: ReadonlySet<Feature> = new Set()): Me
     links.push({ href: "/todo", label: "Builders’ tasks", hint: "What each builder’s team has open" });
   }
   if (["builder_owner", "manager", "marketing"].includes(role)) {
-    links.push({ href: "/branding", label: "Company branding", hint: "Logo, colors and website" });
+    links.push({ href: "/branding", label: "Company branding", hint: "Logo, colors, website and title company" });
   } else if (role === "sales") {
     links.push({ href: "/branding", label: "Company branding", hint: "Logo and brand colors" });
   }

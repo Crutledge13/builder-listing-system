@@ -11,7 +11,9 @@ import { brandScanAvailable, type BrandScan } from "@/lib/brand-scan";
 import { dateTime } from "@/lib/format";
 import { addPreset, deletePreset, savePreset, setDefaultPreset } from "./actions";
 import { FORMAT_LABELS, PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
-import { applyScan, dismissScan, removeGuide, removeLogo, rescanGuide, saveBranding, saveGuide, saveLogo } from "./actions";
+import { applyScan, dismissScan, removeGuide, removeLogo, rescanGuide, saveBranding, saveGuide, saveLogo, saveTitleCompany } from "./actions";
+import { TitleCompanyFields } from "@/components/title-company-fields";
+import { TITLE_COMPANY_SELECT, type TitleCompany } from "@/lib/mls-fields";
 
 // Reading a long brand guide with AI can take a little while.
 export const maxDuration = 120;
@@ -147,6 +149,8 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
           </div>
         )}
       </section>
+
+      <TitleCompanySection builderId={b.builder_id} edit={edit} />
 
       <form action={saveBranding} className="mt-6 rounded-2xl border border-line p-5">
         <input type="hidden" name="builder_id" value={b.builder_id} />
@@ -331,6 +335,26 @@ function SizeFields({ action, builderId, p, submit }: { action: (fd: FormData) =
       </label>
       <label className="block"><span className="mb-1 block text-xs font-medium">Quality (40-100)</span><input name="quality" type="number" min={40} max={100} defaultValue={p?.quality ?? 85} className="field-input py-2" /></label>
       <div className="sm:col-span-4"><button className="rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-white hover:bg-black">{submit}</button></div>
+    </form>
+  );
+}
+
+// The builder's default title company, used on every home's MLS listing
+// unless a community sets its own in its community setup.
+async function TitleCompanySection({ builderId, edit }: { builderId: string; edit: boolean }) {
+  const supabase = await createClient();
+  const { data } = await supabase.from("builder_settings").select(TITLE_COMPANY_SELECT).eq("builder_id", builderId).maybeSingle();
+  return (
+    <form id="title-company" action={saveTitleCompany} className="mt-6 scroll-mt-28 rounded-2xl border border-line p-5">
+      <input type="hidden" name="builder_id" value={builderId} />
+      <h2 className="font-semibold">Default title company</h2>
+      <p className="mt-1 text-sm text-muted">
+        Goes on every home&rsquo;s MLS listing as the preferred title company. A community that uses a different one can set its own in its community setup.
+      </p>
+      <fieldset disabled={!edit} className="mt-4">
+        <TitleCompanyFields t={data as TitleCompany | null} />
+      </fieldset>
+      {edit && <button className="mt-4 rounded-xl bg-foreground px-4 py-2 text-sm font-semibold text-white hover:bg-black">Save title company</button>}
     </form>
   );
 }

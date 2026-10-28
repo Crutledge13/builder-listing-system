@@ -91,9 +91,11 @@ function FieldRow({ f, sheet, communityName, admin }: { f: MlsField; sheet: MlsS
         {f.required && <span className="text-red-700"> *</span>}
         <span className="block text-[11px] text-muted">{f.key}</span>
         {f.source === "community" && <span className="mt-0.5 inline-block rounded bg-accent-soft px-1.5 py-px text-[10px] font-semibold text-accent">Shared: all of {communityName}</span>}
-        {f.source === "community" && !(f.key in sheet.communityStaff) && f.key in sheet.communityAnswers && (
+        {f.source === "community" && !(f.key in sheet.communityStaff) && (f.key in sheet.communityAnswers ? (
           <span className="mt-0.5 block text-[11px] text-muted">From the builder’s community setup</span>
-        )}
+        ) : f.key in sheet.communityDefaults ? (
+          <span className="mt-0.5 block text-[11px] text-muted">The builder’s default title company</span>
+        ) : null)}
       </div>
       <div className="min-w-0">
         {editable ? (
