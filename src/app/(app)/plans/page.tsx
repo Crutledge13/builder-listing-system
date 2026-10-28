@@ -35,10 +35,10 @@ async function Plans() {
   const canEdit = canEditPlans(me.role);
   const focus = await builderFocus(me.role);
   const supabase = await createClient();
-  let q = supabase.from("floor_plans").select("id, name, bedrooms_total, bathrooms_full, bathrooms_half, living_area, stories, rooms, plan_file_path, active, builder_id, builders(name)").order("name");
+  let q = supabase.from("floor_plans").select("id, name, bedrooms_total, bathrooms_full, bathrooms_half, living_area, living_area_max, stories, levels, rooms, plan_file_path, active, builder_id, builders(name)").order("name");
   if (focus) q = q.eq("builder_id", focus);
   const [{ data }, { data: builders }] = await Promise.all([q, staff ? supabase.from("builders").select("id, name").order("name") : Promise.resolve({ data: null })]);
-  const plans = (data ?? []) as unknown as { id: string; name: string; bedrooms_total: number | null; bathrooms_full: number | null; bathrooms_half: number | null; living_area: number | null; stories: number | null; rooms: unknown[]; plan_file_path: string | null; active: boolean; builder_id: string; builders: { name: string } | null }[];
+  const plans = (data ?? []) as unknown as { id: string; name: string; bedrooms_total: number | null; bathrooms_full: number | null; bathrooms_half: number | null; living_area: number | null; living_area_max: number | null; stories: number | null; levels: string | null; rooms: unknown[]; plan_file_path: string | null; active: boolean; builder_id: string; builders: { name: string } | null }[];
   // A cover photo per plan: its first model home photo (counts come from the same small query).
   const { data: covers } = plans.length
     ? await supabase.from("media").select(MEDIA_SELECT).in("builder_id", [...new Set(plans.map((p) => p.builder_id))]).in("plan_name", plans.map((p) => p.name))
@@ -68,7 +68,7 @@ async function Plans() {
                 <div className="p-4">
                 <p className="font-semibold">{p.name} {!p.active && <span className="ml-1 rounded bg-soft px-1.5 text-xs font-normal text-muted">Retired</span>}</p>
                 <p className="mt-1 text-sm text-muted">
-                  {[p.bedrooms_total != null ? `${p.bedrooms_total} bd` : null, p.bathrooms_full != null ? `${p.bathrooms_full + (p.bathrooms_half ?? 0) * 0.5} ba` : null, p.living_area ? `${num(p.living_area)} sq ft` : null, p.stories ? `${p.stories} story` : null].filter(Boolean).join(" · ")}
+                  {[p.bedrooms_total != null ? `${p.bedrooms_total} bd` : null, p.bathrooms_full != null ? `${p.bathrooms_full + (p.bathrooms_half ?? 0) * 0.5} ba` : null, p.living_area ? `${num(p.living_area)}${p.living_area_max ? `–${num(p.living_area_max)}` : ""} sq ft` : null, p.levels ? `${p.levels} ${p.levels === "One" ? "story" : "stories"}` : p.stories ? `${p.stories} story` : null].filter(Boolean).join(" · ")}
                 </p>
                 <p className={p.rooms.length ? "mt-2 text-sm text-emerald-800" : "mt-2 text-sm text-amber-900"}>
                   {p.rooms.length ? `${p.rooms.length} rooms with sizes` : "No room sizes yet"}{p.plan_file_path ? " · plan file" : ""}

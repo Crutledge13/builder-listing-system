@@ -8,6 +8,7 @@ import { canEditPlans, isStaff } from "@/lib/permissions";
 import { cleanRooms } from "@/lib/rooms";
 import { PLAN_MODEL, planScanAvailable, scanFloorPlan, type PlanScan } from "@/lib/plan-scan";
 import { creditStatus, finishCredits, outOfCreditsMessage, spendCredits } from "@/lib/ai-credits";
+import { STORIES_FROM_LEVELS } from "@/lib/ntreis-fields";
 
 function go(path: string, params: Record<string, string>, hash = ""): never {
   redirect(`${path}?${new URLSearchParams(params).toString()}${hash}`);
@@ -20,16 +21,33 @@ const int = (v: FormDataEntryValue | null) => {
   return Number.isFinite(x) && x >= 0 ? x : null;
 };
 
+// Square feet "from" and "to". A plan can come out a little bigger with some
+// elevations, so it can have a range; "3228-3410" typed in one box works too.
+function sqftRange(formData: FormData) {
+  const raw = String(formData.get("living_area") ?? "");
+  const both = raw.match(/^\s*([\d,]+)\s*(?:-|–|to)\s*([\d,]+)\s*$/i);
+  let low = both ? int(both[1].replace(/,/g, "")) : int(raw.replace(/,/g, ""));
+  let high = both ? int(both[2].replace(/,/g, "")) : int(String(formData.get("living_area_max") ?? "").replace(/,/g, ""));
+  if (low === 0) low = null;
+  if (high === 0) high = null;
+  if (low !== null && high !== null && high < low) [low, high] = [high, low];
+  if (low === null && high !== null) [low, high] = [high, null];
+  return { living_area: low, living_area_max: high !== null && high !== low ? high : null };
+}
+
 function specs(formData: FormData) {
+  // One "Stories" question, using NTREIS's choices (One, One and One Half,
+  // Two...). It fills both the NTREIS Levels answer and our stories number.
+  const levels = String(formData.get("levels") ?? "") || null;
   return {
     name: String(formData.get("name") ?? "").trim().slice(0, 80),
     bedrooms_total: int(formData.get("bedrooms_total")),
     bathrooms_full: int(formData.get("bathrooms_full")),
     bathrooms_half: int(formData.get("bathrooms_half")),
-    living_area: int(formData.get("living_area")),
-    stories: int(formData.get("stories")),
+    ...sqftRange(formData),
+    stories: levels ? (STORIES_FROM_LEVELS[levels] ?? null) : int(formData.get("stories")),
     garage_spaces: int(formData.get("garage_spaces")),
-    levels: String(formData.get("levels") ?? "") || null,
+    levels,
     living_areas_total: int(formData.get("living_areas_total")),
     dining_areas_total: int(formData.get("dining_areas_total")),
     notes: String(formData.get("notes") ?? "").trim().slice(0, 2000) || null,
@@ -135,6 +153,8 @@ export async function useScan(formData: FormData) {
   for (const k of ["bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area", "stories", "garage_spaces"] as const) {
     if (p[k] == null && scan[k] != null) patch[k] = scan[k];
   }
+  // Stories and NTREIS Levels are one question on the plan: keep them together.
+  if (p.levels == null && typeof patch.stories === "number") patch.levels = patch.stories >= 3 ? "Three Or More" : patch.stories === 2 ? "Two" : "One";
   await supabase.from("floor_plans").update(patch).eq("id", id);
   revalidatePath(`/plans/${id}`);
   go(`/plans/${id}`, { saved: "Rooms filled in from the plan. Check them and save if you change anything." });

@@ -7,7 +7,9 @@ import { PhotoPackButton } from "@/components/photo-pack-button";
 import type { DownloadPreset } from "@/lib/image-resize";
 import type { MediaRow } from "@/lib/demo-media";
 import { TOUR_PROVIDERS, type ListingMedia, type Tour } from "@/lib/listing-media";
-import { addToListing, addTour, makeListingCover, moveListingItem, removeFromListing, trashTour } from "@/app/(app)/homes/[id]/listing-actions";
+import { addToListing, addTour, labelListingPhotos, makeListingCover, moveListingItem, removeFromListing, trashTour } from "@/app/(app)/homes/[id]/listing-actions";
+import { ListingSortable } from "@/components/listing-sortable";
+import { RenameInline } from "@/components/rename-inline";
 
 // Everything that goes on this home's MLS listing, in MLS order, and the
 // places more can come from: our photographer, the builder's own uploads, the
@@ -20,7 +22,10 @@ export function ListingMediaPanel({
   notice,
   download,
   fold,
+  aiOn = false,
 }: {
+  // AI labeling is switched on (offers to label photos that have no room yet).
+  aiOn?: boolean;
   home: { id: string; community_name: string; plan_name: string | null; address?: string; disclaimer?: boolean };
   listing: ListingMedia;
   canEdit: boolean;
@@ -78,7 +83,7 @@ export function ListingMediaPanel({
 
       {/* 1. Photos and video on the listing, in MLS order */}
       <SubHead n={1} title="Photos and video on the listing" count={`${plural(listing.photos.length, "photo")}${listing.videos.length ? ` · ${plural(listing.videos.length, "video")}` : ""}`}>
-        In the order the MLS shows them. Use Earlier / Later to change the order.
+        In the order the MLS shows them. {canEdit ? "Drag a photo onto another spot to move it (or use Earlier / Later). Click a name to rename it." : ""}
       </SubHead>
       {canEdit && listing.photos.length > 1 && (
         <p className="mt-1 text-xs text-muted">
@@ -104,14 +109,25 @@ export function ListingMediaPanel({
             </p>
           ) : null;
         })()}
-        <ol className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {canEdit && aiOn && (() => {
+          const unlabeled = ownPhotos.filter((m) => !m.room && m.source === "upload").length;
+          return unlabeled > 0 ? (
+            <form action={labelListingPhotos} className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
+              <input type="hidden" name="home_id" value={home.id} />
+              {unlabeled} {unlabeled === 1 ? "photo has" : "photos have"} no room yet.
+              <button className="font-semibold text-accent underline">Let AI label {unlabeled === 1 ? "it" : "them"}</button>
+              <span className="text-xs">({unlabeled} AI {unlabeled === 1 ? "credit" : "credits"})</span>
+            </form>
+          ) : null;
+        })()}
+        <ListingSortable homeId={home.id} enabled={canEdit && media.length > 1} className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {media.map((item, idx) => {
             const m = (item as Extract<typeof item, { type: "media" }>).media;
             const isVideo = m.kind === "video";
             // The cover: the chosen one, or (until one is chosen) photo 1.
             const isCover = m.id === coverId;
             return (
-              <li key={item.id} className="min-w-0">
+              <li key={item.id} data-sort-id={item.id} className={cx("min-w-0", canEdit && media.length > 1 && "cursor-grab")}>
                 <Link href={`/media/${m.id}`} className={cx("relative block aspect-[3/2] overflow-hidden rounded-lg bg-soft", isCover && "ring-2 ring-accent ring-offset-2")}>
                   <MediaPicture m={m} className="h-full w-full" />
                   <span className="absolute left-1.5 top-1.5 rounded bg-white/95 px-1.5 text-[11px] font-bold shadow-sm">{isVideo ? "Video" : numbers[idx]}</span>
@@ -128,7 +144,7 @@ export function ListingMediaPanel({
                     </span>
                   )}
                 </Link>
-                <span className="mt-1 block truncate text-xs text-muted">{m.caption ?? m.title}</span>
+                <RenameInline mediaId={m.id} name={m.caption ?? m.title} canEdit={canEdit && m.home_id === home.id} />
                 {canEdit && (
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                     {idx > 0 && <Move homeId={home.id} itemId={item.id} dir="up" label="← Earlier" />}
@@ -151,7 +167,7 @@ export function ListingMediaPanel({
               </li>
             );
           })}
-        </ol>
+        </ListingSortable>
         </>
       )}
 
@@ -246,10 +262,26 @@ export function ListingMediaPanel({
           <SubHead n={3} title="Add more photos (optional)">
             Photos from the community or the floor plan aren&rsquo;t on the listing unless you add them. Click + Add to put one at the end.
           </SubHead>
-          <Optional homeId={home.id} title={`From ${home.community_name} (the community)`} items={listing.community} empty="No community photos or video yet." />
-          {home.plan_name && (
-            <Optional homeId={home.id} title={`From the ${home.plan_name} floor plan`} items={listing.plan} empty="No photos for this floor plan yet." hint="Model or plan photos: turn on the representative disclaimer if the listing uses them." />
-          )}
+          {(() => {
+            // Items already moved onto the listing aren't offered again; say so
+            // instead of "none yet" (tester notes: adding one made it look like
+            // the community had no photos).
+            const onListing = media.map((i) => (i as Extract<typeof i, { type: "media" }>).media);
+            const fromCommunity = onListing.filter((m) => !m.home_id && m.community_id).length;
+            const fromPlan = onListing.filter((m) => !m.home_id && !m.community_id).length;
+            const already = (n: number, what: string) => (n ? `Nothing more to add: ${n === 1 ? `the ${what} is` : `all ${plural(n, what)} are`} already on the listing above.` : null);
+            return (
+              <>
+                <Optional homeId={home.id} title={`From ${home.community_name} (the community)`} items={listing.community}
+                  empty={already(fromCommunity, "community item") ?? "No community photos or video yet. Upload them from the community’s page, or choose “The whole community” when uploading."} />
+                {home.plan_name && (
+                  <Optional homeId={home.id} title={`From the ${home.plan_name} floor plan`} items={listing.plan}
+                    empty={already(fromPlan, "plan item") ?? "No drawings or photos for this floor plan yet. Add them on the floor plan’s page."}
+                    hint="Floor plan drawings, elevations and model home photos. Turn on the representative disclaimer if the listing uses model photos." />
+                )}
+              </>
+            );
+          })()}
 
         </>
       )}

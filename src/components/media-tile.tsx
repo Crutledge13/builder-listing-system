@@ -18,6 +18,15 @@ export function MediaPicture({ m, className, size = "thumb", fileBase = "/api/me
       <video src={`${fileBase}${m.id}#t=0.5`} preload="metadata" muted playsInline className={cx("object-cover", className)} />
     );
   }
+  // A PDF (usually a floor plan drawing) has no picture to show: a plain card instead of a broken image.
+  if (m.mime_type === "application/pdf" && !m.thumb_path) {
+    return (
+      <span className={cx("flex flex-col items-center justify-center gap-1 bg-soft text-muted", className)}>
+        <svg viewBox="0 0 24 24" className="h-8 w-8" aria-hidden><path d="M7 3h7l5 5v13H7z M14 3v5h5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
+        <span className="text-xs font-semibold">PDF</span>
+      </span>
+    );
+  }
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={`${fileBase}${m.id}?size=${size}`} alt={m.title} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" className={cx("object-cover", className)} />;
 }

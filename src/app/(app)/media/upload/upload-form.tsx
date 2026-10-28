@@ -9,6 +9,8 @@ import { uploadErrorText } from "@/lib/upload-errors";
 import { recordUploads, type UploadedFile } from "./actions";
 import { TagPicker } from "@/components/tag-picker";
 import type { ListTag } from "@/lib/tags";
+import { useFileDrop } from "@/lib/use-file-drop";
+import { cx } from "@/lib/format";
 
 type Community = { id: string; name: string; builder_id: string; builderName: string };
 type Home = { id: string; community_id: string; unparsed_address: string };
@@ -51,7 +53,11 @@ export function UploadForm({
   mode = "all",
   cancelHref,
   videoPreset,
+  aiOn = true,
 }: {
+  // Whether AI labeling is switched on (ANTHROPIC_API_KEY set). When it's off
+  // we don't promise that AI will pick the rooms.
+  aiOn?: boolean;
   // Fixes the kind of video (e.g. "reel" for a home's social media reel upload) and hides the picker.
   videoPreset?: string;
   mode?: keyof typeof MODES;
@@ -80,6 +86,31 @@ export function UploadForm({
   const homesHere = useMemo(() => homes.filter((h) => h.community_id === communityId), [homes, communityId]);
   const community = communities.find((c) => c.id === communityId);
   const tooBig = files.filter((f) => f.size > MAX_MB * 1_048_576);
+
+  // Files picked with the button or dragged onto the box.
+  function choose(picked: File[]) {
+    const ok = MODES[mode].accept.split(",");
+    // A taller-than-wide video is a social reel: pick that type for them.
+    const firstVideo = picked.find((f) => f.type.startsWith("video/"));
+    if (mode === "videos" && firstVideo && !videoPreset) {
+      const v = document.createElement("video");
+      v.preload = "metadata";
+      v.onloadedmetadata = () => {
+        if (v.videoHeight > v.videoWidth) setVideoType("reel");
+        URL.revokeObjectURL(v.src);
+      };
+      v.src = URL.createObjectURL(firstVideo);
+    }
+    const list = picked.filter((f) => !f.type || ok.includes(f.type) || (mode !== "videos" && /\.heic$/i.test(f.name)));
+    if (list.length < picked.length) {
+      setMessage({ kind: "error", text: `Skipped ${picked.length - list.length} ${picked.length - list.length === 1 ? "file" : "files"} this box doesn't take. Use ${MODES[mode].types}.` });
+    } else {
+      setMessage(null);
+    }
+    setFiles(list);
+    setProgress(Object.fromEntries(list.map((f) => [f.name, "waiting" as const])));
+  }
+  const { dragging, dropProps } = useFileDrop(choose, busy);
 
   async function upload(e: React.FormEvent) {
     e.preventDefault();
@@ -188,7 +219,7 @@ export function UploadForm({
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium">Room or type</span>
             <select value={room} onChange={(e) => setRoom(e.target.value)} className="field-input">
-              {ROOMS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              {ROOMS.map(([k, v]) => <option key={k} value={k}>{k === "" && !aiOn ? "Pick later, on each photo" : v}</option>)}
             </select>
           </label>
         )}
@@ -199,31 +230,18 @@ export function UploadForm({
         </div>
       </div>
 
-      <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-line p-8 text-center hover:border-foreground">
+      <label {...dropProps} className={cx("block cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center hover:border-foreground", dragging ? "border-accent bg-accent-soft/40" : "border-line")}>
         <input
           type="file"
           multiple
           accept={MODES[mode].accept}
           className="sr-only"
           onChange={(e) => {
-            const ok = MODES[mode].accept.split(",");
-            // A taller-than-wide video is a social reel: pick that type for them.
-            const firstVideo = Array.from(e.target.files ?? []).find((f) => f.type.startsWith("video/"));
-            if (mode === "videos" && firstVideo && !videoPreset) {
-              const v = document.createElement("video");
-              v.preload = "metadata";
-              v.onloadedmetadata = () => {
-                if (v.videoHeight > v.videoWidth) setVideoType("reel");
-                URL.revokeObjectURL(v.src);
-              };
-              v.src = URL.createObjectURL(firstVideo);
-            }
-            const list = Array.from(e.target.files ?? []).filter((f) => !f.type || ok.includes(f.type) || (mode !== "videos" && /\.heic$/i.test(f.name)));
-            setFiles(list);
-            setProgress(Object.fromEntries(list.map((f) => [f.name, "waiting" as const])));
+            choose(Array.from(e.target.files ?? []));
+            e.target.value = "";
           }}
         />
-        <span className="block font-semibold">{MODES[mode].title}</span>
+        <span className="block font-semibold">{dragging ? "Drop the files here" : `${MODES[mode].title}, or drag them here`}</span>
         <span className="mt-1 block text-sm text-muted">{MODES[mode].types}, up to {MAX_MB} MB each</span>
       </label>
 

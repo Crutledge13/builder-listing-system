@@ -1,11 +1,13 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { detectProvider } from "@/lib/listing-media";
 import { setCover } from "@/lib/set-cover";
+import { aiTaggingAvailable, tagMedia } from "@/lib/ai-tagging";
 
 // Changes to what goes on a home's MLS listing. The database decides who may
 // (owners, managers, marketing and our admins) and checks every item belongs
@@ -63,6 +65,17 @@ export async function removeFromListing(formData: FormData) {
   back(homeId, { saved: "Taken off the listing. It’s still in the media library." });
 }
 
+// Save a new order: renumber only the rows whose place changed. Returns an
+// error message, or null when it saved.
+async function saveOrder(supabase: Awaited<ReturnType<typeof createClient>>, list: { id: string; position: number }[], order: string[]) {
+  for (const [n, id] of order.entries()) {
+    if (list.find((r) => r.id === id)!.position === n + 1) continue;
+    const { error } = await supabase.from("listing_media").update({ position: n + 1 }).eq("id", id);
+    if (error) return friendly(error.message);
+  }
+  return null;
+}
+
 // Move an item up, down or to the front.
 export async function moveListingItem(formData: FormData) {
   const homeId = homeIdFrom(formData);
@@ -78,13 +91,72 @@ export async function moveListingItem(formData: FormData) {
   order.splice(i, 1);
   const to = dir === "first" ? 0 : dir === "up" ? Math.max(i - 1, 0) : Math.min(i + 1, list.length - 1);
   order.splice(to, 0, itemId);
-  // Renumber only the rows whose place changed.
-  for (const [n, id] of order.entries()) {
-    if (list.find((r) => r.id === id)!.position === n + 1) continue;
-    const { error } = await supabase.from("listing_media").update({ position: n + 1 }).eq("id", id);
-    if (error) back(homeId, { error: friendly(error.message) });
-  }
+  const problem = await saveOrder(supabase, list, order);
+  if (problem) back(homeId, { error: problem });
   back(homeId, { saved: dir === "first" ? "Now the first photo on the MLS." : "Order saved." });
+}
+
+// Drag and drop: put one item where another one is (the one there moves
+// along). Called from the photo grid in the browser, so it returns instead
+// of redirecting; the grid refreshes the page.
+export async function dropListingItem(homeIdRaw: string, itemId: string, beforeId: string | null): Promise<{ error?: string }> {
+  if (!ID.test(homeIdRaw) || !ID.test(itemId) || (beforeId !== null && !ID.test(beforeId))) return { error: "Couldn’t move that photo." };
+  await requireProfile();
+  const supabase = await createClient();
+  const { data: rows } = await supabase.from("listing_media").select("id, position").eq("home_id", homeIdRaw).order("position");
+  const list = rows ?? [];
+  if (!list.some((r) => r.id === itemId)) return { error: "That photo isn’t on the listing any more." };
+  const order = list.map((r) => r.id).filter((id) => id !== itemId);
+  const at = beforeId === null ? order.length : order.indexOf(beforeId);
+  order.splice(at < 0 ? order.length : at, 0, itemId);
+  const problem = await saveOrder(supabase, list, order);
+  if (problem) return { error: problem };
+  revalidatePath(`/homes/${homeIdRaw}`, "layout");
+  return {};
+}
+
+// Rename a photo right from the grid (tester notes: no need to open each one).
+export async function renameListingPhoto(mediaId: string, name: string): Promise<{ error?: string }> {
+  const title = name.trim().replace(/\s+/g, " ").slice(0, 140);
+  if (!ID.test(mediaId)) return { error: "Couldn’t rename that photo." };
+  if (!title) return { error: "Give it a name." };
+  await requireProfile();
+  const supabase = await createClient();
+  const { data: m } = await supabase.from("media").select("id, caption").eq("id", mediaId).maybeSingle();
+  if (!m) return { error: "That photo isn’t available to you." };
+  // The grid shows the caption when there is one, so the new name replaces it
+  // too (and counts as a person's edit, so AI never changes it back).
+  const { data, error } = await supabase.from("media").update(m.caption ? { title, caption: title } : { title }).eq("id", mediaId).select("id");
+  if (error) return { error: friendly(error.message) };
+  if (!data?.length) return { error: "Your role can’t rename photos." };
+  revalidatePath("/media");
+  revalidatePath("/homes", "layout");
+  return {};
+}
+
+// Ask AI to label this home's photos that have no room yet (for example ones
+// uploaded before AI was switched on). 1 AI credit per photo.
+export async function labelListingPhotos(formData: FormData) {
+  const homeId = homeIdFrom(formData);
+  await requireProfile();
+  if (!aiTaggingAvailable()) back(homeId, { error: "AI labeling is off until the ANTHROPIC_API_KEY setting is added in Vercel." });
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("media")
+    .select("id")
+    .eq("home_id", homeId)
+    .eq("kind", "photo")
+    .eq("source", "upload")
+    .is("room", null)
+    .is("deleted_at", null)
+    .limit(60);
+  // (HEIC photos without a screen-size copy are skipped by tagMedia itself.)
+  const ids = (rows ?? []).map((r) => r.id as string);
+  if (!ids.length) back(homeId, { saved: "Every photo already has a room." });
+  const { data: marked } = await supabase.from("media").update({ ai_status: "pending" }).in("id", ids).select("id");
+  if (!marked?.length) back(homeId, { error: "Your role can’t change these photos." });
+  after(() => tagMedia(supabase, marked.map((r) => r.id as string)));
+  back(homeId, { saved: `AI is labeling ${marked.length} ${marked.length === 1 ? "photo" : "photos"}. Refresh in a minute to see the rooms and names.` });
 }
 
 // "Make cover": the picture on this home's cards, and photo 1 on the MLS.

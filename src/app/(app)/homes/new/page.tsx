@@ -8,6 +8,9 @@ import { canAddHomes, canRequestMedia, isStaff, NEED_LABELS, ROLE_LABELS, STAGE_
 import { createHome } from "./actions";
 import { questionSections, SectionFields } from "@/components/ntreis-questions";
 import { FormSteps } from "@/components/form-steps";
+import { CommunitySchools, type Schools } from "@/components/community-schools";
+import { mergeCommunityDetails } from "@/lib/mls-fields";
+import { canEditCommunitySetup } from "@/lib/onboarding";
 import { NtreisToggle } from "@/components/ntreis-toggle";
 import { RequiredPill } from "@/components/required-pill";
 import { RoomsEditor } from "@/components/rooms-editor";
@@ -44,11 +47,22 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
   }
 
   const supabase = await createClient();
-  const [{ data: communities }, { data: boards }, { data: settings }] = await Promise.all([
-    supabase.from("communities").select("id, name, city, builder_id, mls_board, builders(name)").order("name"),
+  const [{ data: communities }, { data: boards }, { data: settings }, { data: communityDetails }] = await Promise.all([
+    supabase.from("communities").select("id, name, city, builder_id, mls_board, mls_fields, builders(name)").order("name"),
     supabase.from("mls_boards").select("code, short_name, region").eq("active", true).order("code"),
     supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked, website_feed_enabled"),
+    // Our team's community-wide MLS entries (they win over the builder's answers).
+    supabase.from("mls_details").select("community_id, data").not("community_id", "is", null),
   ]);
+  // Each community's schools, for the "Location and schools" step.
+  const staffByCommunity = new Map((communityDetails ?? []).map((d) => [d.community_id as string, d.data as Record<string, unknown>]));
+  const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const schools: Record<string, Schools> = Object.fromEntries(
+    (communities ?? []).map((c) => {
+      const m = mergeCommunityDetails(c.mls_fields as Record<string, unknown> | null, staffByCommunity.get(c.id));
+      return [c.id, { district: text(m.HighSchoolDistrict), elementary: text(m.ElementarySchool), middle: text(m.MiddleOrJuniorSchool), high: text(m.HighSchool) }];
+    }),
+  );
   const staff = isStaff(me.role);
   const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(me.role);
   const boardName = new Map((boards ?? []).map((b) => [b.code, b.short_name]));
@@ -168,6 +182,8 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
                       <RoomsEditor formId="new-home" initial={[]} />
                     </div>
                   </>
+                ) : q.title === "Location and schools" ? (
+                  <CommunitySchools formId="new-home" schools={schools} canEdit={canEditCommunitySetup(me.role)} />
                 ) : undefined
               }
             />

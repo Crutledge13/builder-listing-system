@@ -6,6 +6,7 @@ import { canEditPlans, canManageMedia, isStaff } from "@/lib/permissions";
 import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { MediaGrid, MediaTile, planFolderHref } from "@/components/media-tile";
 import { PlanPhotoUpload } from "../plan-photo-upload";
+import { ELEVATION_TAG, type PlanMediaKind } from "@/lib/plan-media";
 import { AiCreditMeter } from "@/components/ai-credit-meter";
 import { dateTime } from "@/lib/format";
 import { levelLabel, roomSize, type Room } from "@/lib/rooms";
@@ -54,7 +55,11 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
       <h1 className="mt-1 text-[28px] font-bold leading-tight tracking-tight">{p.name} plan</h1>
 
       <section id="scan" className="mt-6 scroll-mt-28 rounded-2xl border border-line p-5">
-        <h2 className="font-semibold">Plan file</h2>
+        <h2 className="font-semibold">Plan with room sizes</h2>
+        <p className="mt-1 text-sm text-muted">
+          One file: the plan drawing with room dimensions on it{planScanAvailable() ? ", which AI reads the room sizes from" : ""}. If the plan has a sheet per floor, put them in one PDF.
+          This isn&rsquo;t the brochure, and it doesn&rsquo;t go on the MLS; drawings for the listing go under &ldquo;Floor plan drawings&rdquo; below.
+        </p>
         {p.plan_file_path ? (
           <p className="mt-1 text-sm"><a href={`/api/plan-file/${p.id}`} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">{p.plan_file_name ?? "Open the plan"}</a></p>
         ) : (
@@ -69,7 +74,7 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
               accept="application/pdf,image/png,image/jpeg,image/webp"
               typesLabel="a PDF, PNG, JPG or WebP"
               maxMb={25}
-              label="plan file"
+              label="plan with room sizes"
               busyLabel={planScanAvailable() ? "Uploading and reading… (up to a minute)" : "Uploading…"}
               hasImage={!!p.plan_file_path}
               save={savePlanFile.bind(null, p.id)}
@@ -111,12 +116,20 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
               <N name="bedrooms_total" label="Bedrooms" v={p.bedrooms_total} />
               <N name="bathrooms_full" label="Full baths" v={p.bathrooms_full} />
               <N name="bathrooms_half" label="Half baths" v={p.bathrooms_half} />
-              <N name="living_area" label="Living area (sq ft)" v={p.living_area} />
-              <N name="stories" label="Stories" v={p.stories} />
-              <N name="garage_spaces" label="Garage spaces" v={p.garage_spaces} />
-              <label className="block"><span className="mb-1 block text-sm font-medium">Levels (NTREIS)</span>
-                <select name="levels" defaultValue={p.levels ?? ""} className="field-input"><option value="">—</option>{LEVELS.map((l) => <option key={l}>{l}</option>)}</select>
+              <div className="block sm:col-span-2">
+                <span className="mb-1 block text-sm font-medium">Living area (sq ft)</span>
+                <div className="flex items-center gap-2">
+                  <input name="living_area" inputMode="numeric" defaultValue={p.living_area ?? ""} placeholder="From, e.g. 3228" aria-label="Living area from" className="field-input" />
+                  <span className="text-sm text-muted">to</span>
+                  <input name="living_area_max" inputMode="numeric" defaultValue={p.living_area_max ?? ""} placeholder="Optional, e.g. 3410" aria-label="Living area up to" className="field-input" />
+                </div>
+                <span className="mt-1 block text-xs leading-snug text-muted">Heated square feet. Give a range if it changes with the elevation. Each home still gets its own exact number (the MLS takes one), starting from the first.</span>
+              </div>
+              <label className="block"><span className="mb-1 block text-sm font-medium">Stories</span>
+                <select name="levels" defaultValue={p.levels ?? (p.stories === 1 ? "One" : p.stories === 2 ? "Two" : p.stories && p.stories >= 3 ? "Three Or More" : "")} className="field-input"><option value="">Choose</option>{LEVELS.map((l) => <option key={l}>{l}</option>)}</select>
+                <span className="mt-1 block text-xs leading-snug text-muted">NTREIS&rsquo;s choices. One and One Half: mostly one story with a small upstairs, like a single game room.</span>
               </label>
+              <N name="garage_spaces" label="Garage spaces" v={p.garage_spaces} />
               <N name="living_areas_total" label="# Living areas" v={p.living_areas_total} />
               <N name="dining_areas_total" label="# Dining areas" v={p.dining_areas_total} />
               <label className="block sm:col-span-3"><span className="mb-1 block text-sm font-medium">Notes (optional)</span><input name="notes" maxLength={2000} defaultValue={p.notes ?? ""} className="field-input" /></label>
@@ -141,23 +154,41 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
   );
 }
 
-// The plan's own photos (model home pictures and video). Homes on this plan
-// show them until they have five photos of their own.
+// The plan's own files, in three slots (tester notes, 28 Oct 2026): floor
+// plan drawings, elevation renderings, and model home photos and video. Homes
+// on this plan can add any of them to their listing, and show them, marked
+// "representative", until they have five photos of their own.
 async function PlanPhotos({ planId, name, builderId, canUpload }: { planId: string; name: string; builderId: string; canUpload: boolean }) {
   const supabase = await createClient();
   const { data } = await supabase.from("media").select(MEDIA_SELECT).eq("builder_id", builderId).eq("plan_name", name)
-    .is("home_id", null).is("community_id", null).is("deleted_at", null).order("sort_order").limit(60);
+    .is("home_id", null).is("community_id", null).is("deleted_at", null).order("sort_order").limit(120);
   const list = (data ?? []) as unknown as MediaRow[];
+  const drawings = list.filter((m) => m.kind === "floor_plan");
+  const elevations = list.filter((m) => m.kind !== "floor_plan" && (m.tags ?? []).includes(ELEVATION_TAG));
+  const photos = list.filter((m) => !drawings.includes(m) && !elevations.includes(m));
+  const slots: { kind: PlanMediaKind; id: string; title: string; about: string; items: MediaRow[] }[] = [
+    { kind: "drawings", id: "drawings", title: "Floor plan drawings", about: "The layout drawings that go on the MLS listing, one per floor.", items: drawings },
+    { kind: "elevations", id: "elevations", title: "Elevation renderings", about: "Drawings or renderings of the front of the house for each elevation (A, B, C…).", items: elevations },
+    { kind: "photos", id: "photos", title: "Model home photos and video", about: "Real photos of a finished home on this plan. Homes on this plan show them, marked “representative”, until they have photos of their own.", items: photos },
+  ];
   return (
-    <section id="photos" className="mt-6 scroll-mt-28 rounded-2xl border border-line p-5">
+    <section id="plan-media" className="mt-6 scroll-mt-28 rounded-2xl border border-line p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-semibold">Photos of this plan</h2>
+        <h2 className="font-semibold">Drawings and photos of this plan</h2>
         {list.length > 0 && <a href={planFolderHref(builderId, name)} className="text-sm font-semibold underline">Open the {name} folder</a>}
       </div>
-      <p className="mt-1 text-sm text-muted">Model home photos. Homes built on this plan show them, marked “representative”, until they have photos of their own.</p>
-      {list.length > 0 && <div className="mt-4"><MediaGrid>{list.map((m) => <MediaTile key={m.id} m={m} direct />)}</MediaGrid></div>}
-      {list.length === 0 && !canUpload && <p className="mt-3 text-sm text-muted">No photos of this plan yet.</p>}
-      {canUpload && <div className="mt-4"><PlanPhotoUpload planId={planId} builderId={builderId} /></div>}
+      <p className="mt-1 text-sm text-muted">Any home on the {name} plan can add these to its listing from its own page.</p>
+      {slots.map((slot) => (
+        <div key={slot.kind} id={slot.id} className="mt-6 scroll-mt-28 border-t border-line pt-5">
+          <h3 className="flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
+            {slot.title}
+            <span className="font-normal text-muted">{slot.items.length ? `${slot.items.length}` : "none yet"}</span>
+          </h3>
+          <p className="mt-0.5 text-sm text-muted">{slot.about}</p>
+          {slot.items.length > 0 && <div className="mt-3"><MediaGrid>{slot.items.map((m) => <MediaTile key={m.id} m={m} direct />)}</MediaGrid></div>}
+          {canUpload && <div className="mt-3"><PlanPhotoUpload planId={planId} builderId={builderId} kind={slot.kind} /></div>}
+        </div>
+      ))}
     </section>
   );
 }

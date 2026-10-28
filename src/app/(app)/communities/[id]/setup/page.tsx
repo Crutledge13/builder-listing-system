@@ -13,7 +13,7 @@ import { MlsInput } from "@/components/ntreis-questions";
 import { canEditCommunitySetup } from "@/lib/onboarding";
 import {
   communityCompleteness, communitySections, formatMls, mergeCommunityDetails, MLS_BOARD_SELECT, TITLE_COMPANY_SELECT, titleDefaults,
-  type MlsBoard, type MlsField, type TitleCompany,
+  builderLabel, type MlsBoard, type MlsField, type TitleCompany,
 } from "@/lib/mls-fields";
 import { saveCommunitySetup } from "./actions";
 
@@ -25,8 +25,9 @@ export default function CommunitySetupPage(props: PageProps<"/communities/[id]/s
   );
 }
 
-// Plain-English notes for the builder, by field. The MLS's own wording stays
-// as the label so our team can match it to the MLS screen.
+// Plain-English notes for the builder, by field (the field's own help is used
+// when there's none here). Builders see each field's plain question as its
+// name, with the MLS's own wording in small type so our team can match it.
 const HELP: Record<string, string> = {
   SubdivisionName: "The legal plat name on the deed. Leave blank if it’s the same as the community name.",
   MLSAreaMajor: "Our team can fill this in if you don’t know it.",
@@ -40,7 +41,6 @@ const HELP: Record<string, string> = {
   AssociationYN: "Whether homeowners pay into an HOA.",
   AssociationType: "Filled in from “Has an HOA” unless you pick one.",
   AssociationFee: "Dues per billing period, in dollars.",
-  ConsentToRecord: "Whether visitors may record audio or video during showings.",
   LockBoxType: "The lockbox agents use at your homes.",
   AccessCode: "Gate code agents need to get in. Only agents see it.",
   ShowingRequirements: "How agents get in: appointment only, go and show, call first, and so on.",
@@ -107,7 +107,7 @@ async function CommunitySetup({
       <div className="sticky top-24 z-10 -mx-4 bg-white/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-2xl sm:border sm:border-line sm:px-5">
         <ProgressBar done={score.filled} total={score.required} label={score.filled === score.required ? "Ready for the MLS" : "MLS-required answers"} />
         {score.missing.length > 0 && (
-          <p className="mt-1.5 text-xs text-muted">Still needed: {score.missing.map((f) => f.label).join(", ")}</p>
+          <p className="mt-1.5 text-xs text-muted">Still needed: {score.missing.map((f) => builderLabel(f)).join(", ")}</p>
         )}
       </div>
 
@@ -171,10 +171,11 @@ function Question({ f, value, staffValue, needed, disabled, placeholder, usesDef
   const body = (
     <>
       <span className="text-sm font-medium">
-        {f.label}
+        {builderLabel(f)}
         {((f.required && !f.derive) || needed) && <RequiredPill />}
       </span>
-      {HELP[f.key] && <span className="mt-0.5 block text-xs leading-snug text-muted">{HELP[f.key]}</span>}
+      {builderLabel(f) !== f.label && <span className="block text-[11px] text-muted">On the MLS: {f.label}</span>}
+      {(HELP[f.key] ?? f.help) && <span className="mt-0.5 block text-xs leading-snug text-muted">{HELP[f.key] ?? f.help}</span>}
       <span className="mt-1.5 block">
         {placeholder && f.type === "text" ? (
           <input name={`cf__${f.key}`} defaultValue={value == null ? "" : String(value)} placeholder={placeholder} disabled={disabled} className="field-input" />
@@ -191,7 +192,7 @@ function Question({ f, value, staffValue, needed, disabled, placeholder, usesDef
     </>
   );
   return (
-    <div data-required={needed ? f.label : undefined} data-empty={needed ? "" : undefined} className={cx("min-w-0", wide && "sm:col-span-2")}>
+    <div data-required={needed ? builderLabel(f) : undefined} data-empty={needed ? "" : undefined} className={cx("min-w-0", wide && "sm:col-span-2")}>
       <input type="hidden" name="cf_key" value={f.key} />
       {f.type === "multi" ? <div>{body}</div> : <label className="block">{body}</label>}
     </div>

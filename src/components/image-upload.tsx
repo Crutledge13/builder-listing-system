@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { uploadErrorText } from "@/lib/upload-errors";
+import { useFileDrop } from "@/lib/use-file-drop";
 
 // Uploads one image straight from the browser to a private storage bucket,
 // then tells the server where it went. Storage's own rules check the folder.
@@ -59,12 +60,15 @@ export function ImageUpload({
     router.refresh();
   }
 
+  // Dropping a file on the button works too (only the first file is used).
+  const { dragging, dropProps } = useFileDrop((files) => void pick(files[0]), busy);
+
   return (
     <div>
       <div className="flex flex-wrap gap-2">
-        <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft ${busy ? "pointer-events-none opacity-70" : ""}`}>
+        <label {...dropProps} title="Click to choose a file, or drag one here" className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold hover:bg-soft ${dragging ? "border-accent bg-accent-soft/40" : "border-foreground"} ${busy ? "pointer-events-none opacity-70" : ""}`}>
           {busy && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />}
-          {busy ? busyLabel : hasImage ? `Change ${label}` : `Add ${label}`}
+          {busy ? busyLabel : dragging ? "Drop it here" : hasImage ? `Change ${label}` : `Add ${label}`}
           <input ref={input} type="file" accept={accept} className="sr-only" disabled={busy} onChange={(e) => pick(e.target.files?.[0])} />
         </label>
         {hasImage && remove && (

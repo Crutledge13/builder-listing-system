@@ -7,6 +7,7 @@ import { requireProfile } from "@/lib/auth";
 import { canManageMedia } from "@/lib/permissions";
 import { aiTaggingAvailable, tagMedia } from "@/lib/ai-tagging";
 import type { UploadedFile } from "@/app/(app)/media/upload/actions";
+import { ELEVATION_TAG, type PlanMediaKind } from "@/lib/plan-media";
 
 function titleFrom(name: string) {
   const base = name.replace(/\.[^.]+$/, "").replace(/[_\-]+/g, " ").replace(/\s+/g, " ").trim();
@@ -16,7 +17,7 @@ function titleFrom(name: string) {
 // Records photos (and video) already uploaded from the browser into a floor
 // plan's library: the model home pictures homes on this plan borrow until
 // they have their own (media with plan_name and no home or community).
-export async function recordPlanPhotos(planId: string, files: UploadedFile[]): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+export async function recordPlanPhotos(planId: string, files: UploadedFile[], kind: PlanMediaKind = "photos"): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
   const me = await requireProfile();
   if (!canManageMedia(me.role)) return { ok: false, error: "Your role can’t upload photos." };
   const supabase = await createClient();
@@ -33,10 +34,11 @@ export async function recordPlanPhotos(planId: string, files: UploadedFile[]): P
       community_id: null,
       home_id: null,
       plan_name: plan.name,
-      kind: f.type.startsWith("video/") ? "video" : "photo",
-      room: null,
+      kind: f.type.startsWith("video/") ? "video" : kind === "drawings" ? "floor_plan" : "photo",
+      // Set by the slot it was added in, so AI doesn't guess these.
+      room: kind === "drawings" ? "floor_plan" : kind === "elevations" ? "exterior" : null,
       title: titleFrom(f.name),
-      tags: [],
+      tags: kind === "elevations" ? [ELEVATION_TAG] : [],
       source: "upload",
       storage_path: f.path,
       thumb_path: f.thumbPath?.startsWith(prefix) ? f.thumbPath : null,
@@ -46,7 +48,8 @@ export async function recordPlanPhotos(planId: string, files: UploadedFile[]): P
       // OK for the MLS unless the AI (or a person) finds something wrong with it.
       mls_ready: true,
       sort_order: 100 + i,
-      ai_status: aiTaggingAvailable() && f.type.startsWith("image/") ? "pending" : null,
+      // Drawings aren't photos of rooms; AI looks only at the others.
+      ai_status: aiTaggingAvailable() && kind !== "drawings" && f.type.startsWith("image/") ? "pending" : null,
     }));
   if (!rows.length) return { ok: false, error: "No files to record." };
 
@@ -55,6 +58,6 @@ export async function recordPlanPhotos(planId: string, files: UploadedFile[]): P
   revalidatePath(`/plans/${plan.id}`);
   revalidatePath("/media");
   const ids = (inserted ?? []).map((r) => r.id as string);
-  after(() => tagMedia(supabase, ids));
+  if (kind !== "drawings") after(() => tagMedia(supabase, ids));
   return { ok: true, count: rows.length };
 }

@@ -62,6 +62,7 @@ import { NtreisQuestions } from "@/components/ntreis-questions";
 import { canEditMlsAnswers } from "@/lib/ntreis-form";
 import { isReel, loadListingMedia } from "@/lib/listing-media";
 import { ListingMediaPanel } from "@/components/listing-media-panel";
+import { aiTaggingAvailable } from "@/lib/ai-tagging";
 import { ShareLinksPanel } from "@/components/share-links-panel";
 import { SocialReelPanel } from "@/components/social-reel-panel";
 import { ShareLinkTile } from "@/components/share-link-tile";
@@ -656,6 +657,7 @@ async function HomeDetail({
             download={{ presets: (presetRows ?? []) as DownloadPreset[], builderDefault: brandRow?.default_download_preset ?? null }}
             canEdit={canManageMedia(me.role)}
             canRequest={canRequestMedia(me.role)}
+            aiOn={aiTaggingAvailable()}
             notice={sectionNotice("listing-media")}
             fold={{ open: at === "listing-media", badge: `${listing.photos.filter((m) => m.kind === "photo").length} photos`, hint: "What goes on the MLS, in order, plus downloads" }}
           />

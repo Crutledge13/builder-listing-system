@@ -26,9 +26,17 @@ export type MlsField = {
   hint?: string;          // note for our team on the MLS sheet
   ask?: boolean;          // asked of the builder on Add a home and the home page
   help?: string;          // plain-English help shown to the builder under the field
+  question?: string;      // plain-English label builders see instead of the MLS's own (e.g. "... YN"); the MLS sheet keeps `label`
   preset?: string | string[]; // starting answer on Add a home (the builder can change it)
   derive?: (c: DeriveContext) => unknown; // worked out when nothing is stored
 };
+
+// What builders see as a field's name: its plain question when there is one,
+// else the MLS's label without NTREIS's "YN" ending (tester notes, 28 Oct 2026).
+// Our team's MLS sheet and work sheets keep the exact MLS label.
+export function builderLabel(f: Pick<MlsField, "label" | "question">) {
+  return f.question ?? f.label.replace(/\s+YN$/, "");
+}
 
 export type DeriveContext = { home: HomeForMls; get: (key: string) => unknown };
 

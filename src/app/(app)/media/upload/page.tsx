@@ -46,6 +46,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
     const job = jobs.find((j) => j.id === sp.request) ?? null;
     const comms = new Map(jobs.map((j) => [j.community_id, { id: j.community_id, name: j.community_name, builder_id: j.builder_id, builderName: j.builder_name.replace(" (demo)", "") }]));
     const formProps = {
+      aiOn: aiTaggingAvailable(),
       tagList,
       communities: [...comms.values()],
       homes: jobs.filter((j) => j.home_id).map((j) => ({ id: j.home_id!, community_id: j.community_id, unparsed_address: j.address })),
@@ -136,6 +137,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
         <div className="mt-8">
           <UploadForm
             tagList={tagList}
+            aiOn={aiTaggingAvailable()}
             communities={formCommunities}
             homes={homes ?? []}
             presetCommunity={presetCommunity}
@@ -162,6 +164,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
       <div className="mt-8">
         <UploadForm
           tagList={tagList}
+            aiOn={aiTaggingAvailable()}
           communities={formCommunities}
           homes={homes ?? []}
           presetCommunity={presetCommunity}

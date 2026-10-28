@@ -2,11 +2,13 @@ import type { ReactNode } from "react";
 import { cx } from "@/lib/format";
 import { SourceBadge } from "@/components/badges";
 import { RequiredPill } from "@/components/required-pill";
-import type { MlsField } from "@/lib/mls-fields";
+import { builderLabel, type MlsField } from "@/lib/mls-fields";
+import { ChoiceBox } from "@/components/choice-box";
 import { NTREIS_SECTIONS } from "@/lib/ntreis-fields";
 
 // The NTREIS questions a builder answers, in Matrix's order, with NTREIS's
-// exact labels and choices and a short plain-English note under anything
+// exact choices, a plain-English question as each name (NTREIS's own label in
+// small type under it when they differ) and a short note under anything
 // that's easy to get wrong.
 //
 // mode "new":  Add a home. Asks the home's own columns (price, beds, ...) and
@@ -87,11 +89,12 @@ function Question({ f, mode, value, source, canEdit }: { f: MlsField; mode: "new
     <>
       <span className="flex flex-wrap items-center gap-x-2 text-sm font-medium">
         <span>
-          {f.label}
+          {builderLabel(f)}
           {f.required && <RequiredPill />}
         </span>
         {mode === "edit" && <SourceBadge source={source} />}
       </span>
+      {builderLabel(f) !== f.label && <span className="block text-[11px] text-muted">On NTREIS: {f.label}</span>}
       {f.help && <span className="mt-0.5 block text-xs leading-snug text-muted">{f.help}</span>}
       <span className="mt-1.5 block">
         <MlsInput f={f} name={name} start={start} disabled={!canEdit} />
@@ -101,7 +104,7 @@ function Question({ f, mode, value, source, canEdit }: { f: MlsField; mode: "new
 
   const span = wide ? (mode === "new" ? "sm:col-span-2" : "sm:col-span-2 lg:col-span-3") : undefined;
   // data-required: the step bar counts what NTREIS still needs.
-  const req = f.required ? { "data-required": f.label } : {};
+  const req = f.required ? { "data-required": builderLabel(f) } : {};
   if (!isAnswer) return <label {...req} className={cx("block", span)}>{body}</label>;
   // NTREIS answers: a fieldset, so hiding it for another MLS also stops it posting.
   return (
@@ -119,14 +122,14 @@ export function MlsInput({ f, name, start, disabled }: { f: MlsField; name: stri
     const on = new Set(Array.isArray(start) ? (start as string[]).map(String) : []);
     const long = (f.options?.length ?? 0) > 12;
     return (
-      <span className={cx("choice-box grid gap-x-4 gap-y-1.5 rounded-xl border border-line p-3 sm:grid-cols-2 lg:grid-cols-3", long && "max-h-64 overflow-y-auto")}>
+      <ChoiceBox noneValue={f.options!.includes("None") ? "None" : undefined} className={cx("choice-box grid gap-x-4 gap-y-1.5 rounded-xl border border-line p-3 sm:grid-cols-2 lg:grid-cols-3", long && "max-h-64 overflow-y-auto")}>
         {f.options!.map((o) => (
           <label key={o} className="flex items-start gap-2 text-sm leading-snug">
             <input type="checkbox" name={name} value={o} defaultChecked={on.has(o)} disabled={disabled} className="mt-0.5 h-4 w-4 shrink-0 accent-[#3452c7]" />
             {o}
           </label>
         ))}
-      </span>
+      </ChoiceBox>
     );
   }
   if (f.type === "select" || f.type === "yesno") {
