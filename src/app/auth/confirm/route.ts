@@ -5,12 +5,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { safePath } from "@/lib/safe-path";
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
   const nextParam = url.searchParams.get("next") ?? "/account";
   // Only ever send people to a page on this site.
-  const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/account";
+  const next = safePath(nextParam, "/account");
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type") as EmailOtpType | null;

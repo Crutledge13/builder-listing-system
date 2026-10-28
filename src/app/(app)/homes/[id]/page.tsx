@@ -3,7 +3,7 @@ import { BuyerAgentFields } from "@/components/buyer-agent-fields";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { enterOwnMls } from "@/lib/mls-entry";
 import { featuresOff } from "@/lib/features";
 import {
@@ -137,6 +137,7 @@ async function HomeDetail({
   const { id } = await params;
   const sp = await searchParams;
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   const supabase = await createClient();
 
   const { data: home } = await supabase
@@ -1146,13 +1147,6 @@ const STAGE_SHORT: Record<string, string> = {
   to_be_built: "To be built",
   under_construction: "Under construction",
   move_in_ready: "Completed",
-};
-const MARKET_HINTS: Record<MarketStatus, string> = {
-  active: "Active on the MLS and showing to buyers.",
-  paused: "Paused: temporarily off the MLS. Make it active again any time.",
-  under_contract: "Under contract. Open houses have stopped.",
-  sold: "Sold and closed.",
-  withdrawn: "Taken off the market without selling.",
 };
 void MARKET_LABELS;
 const REQUEST_STYLES: Record<string, string> = {

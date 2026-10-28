@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ROLE_LABELS, type Role } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
@@ -18,6 +19,7 @@ export default function PeopleAdmin(props: PageProps<"/admin/people">) {
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
 
 async function People() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data: builders }, { data: people }, { data: communities }, { data: assignments }] = await Promise.all([
     supabase.from("builders").select("id, name").order("name"),

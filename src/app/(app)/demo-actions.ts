@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DEMO_USERS, demoModeOn } from "@/lib/auth";
+import { safePath } from "@/lib/safe-path";
 
 // Demo-only: sign in as a different fake user so you can show each role's view.
 // Works only when DEMO_MODE is on, only for someone already signed in as a
@@ -27,5 +28,5 @@ export async function switchDemoUser(formData: FormData) {
   if (error) redirect("/login?error=invalid");
 
   const back = String(formData.get("back") ?? "/communities");
-  redirect(back.startsWith("/") && !back.startsWith("//") ? back : "/communities");
+  redirect(safePath(back, "/communities"));
 }

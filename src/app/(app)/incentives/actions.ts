@@ -5,12 +5,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { canManageIncentives } from "@/lib/permissions";
+import { safePath } from "@/lib/safe-path";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function back(formData: FormData, params: Record<string, string>, anchor?: string): never {
   const to = String(formData.get("back") ?? "/incentives");
-  const safe = to.startsWith("/") && !to.startsWith("//") ? to.split("#")[0] : "/incentives";
+  const safe = safePath(to, "/incentives").split("#")[0];
   revalidatePath("/incentives");
   revalidatePath("/homes", "layout");
   revalidatePath("/communities", "layout");

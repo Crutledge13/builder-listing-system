@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
@@ -16,6 +17,7 @@ export default function BuildersAdmin(props: PageProps<"/admin/builders">) {
 }
 
 async function Builders() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data: builders }, { data: communities }, { data: homes }, { data: people }, { data: boards }, { data: settings }] = await Promise.all([
     supabase.from("builders").select("id, name, created_at, builder_branding(logo_updated_at)").order("name"),

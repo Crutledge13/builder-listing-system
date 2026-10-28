@@ -110,7 +110,7 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | See comp requests and delivered comps | all | all | own | own | own requests + assigned | own | ➖ |
 | Add comps, deliver files | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Builder Tasks board (start, assign; tasks come only from the system) | 👁 all | 👁 all | own | own | ➖ | own | ➖ |
-| Extend a listing that's about to expire | ✅ | ✅ | own | own | ➖ | own | ➖ |
+| Extend a listing that's about to expire (our staff: change the Expire Date on the MLS sheet; builders: "Extend listing" on Tasks) | ✅ | ✅ | own | own | ➖ | own | ➖ |
 | Inbox (own notices) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | See floor plans and room sizes | all | all | own | own | own | own | ➖ |
 | Set up floor plans, upload plan files | ✅ | ✅ | own | own | ➖ | own | ➖ |
@@ -123,7 +123,7 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 - One builder never sees another builder's homes, people, photos, website or MLS data.
 - Turned-off people can't sign in and their role gives no access.
 - Nothing is sent to the MLS by the system; our team enters it by hand.
-- Nothing is public except realtor share links: one home each, unlisted, expiring, revocable, logged.
+- Nothing is public except realtor share links: one home each, unlisted, never indexed, replaceable or deletable at any time, every view and download logged. Each home's standing link has no end date (owners' decision, 27 Oct 2026); older one-off links still expire.
 - Emails are read and marked sent only by our server (service key), never by signed-in users.
 
 ## Questions for the owners

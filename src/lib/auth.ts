@@ -48,6 +48,14 @@ export async function requireProfile(): Promise<Profile> {
   };
 }
 
+// For Admin pages: each page checks for itself, not only the Admin layout (a
+// page can be fetched without its layout). Non-admins get nothing from the
+// page; the layout shows them "Admin is for our platform admins".
+export async function isPlatformAdmin() {
+  const me = await requireProfile();
+  return me.role === "platform_admin";
+}
+
 // Photographers only use their jobs page; send them there from everywhere else.
 export function sendPhotographersToJobs(me: Profile) {
   if (me.role === "photographer") redirect("/jobs");

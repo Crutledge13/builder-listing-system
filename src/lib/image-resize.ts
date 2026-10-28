@@ -117,12 +117,19 @@ export function saveBlob(blob: Blob, fileName: string) {
 
 // Which size to start on: the person's last pick, else the builder's default, else the built-in default.
 export function startingPreset(presets: DownloadPreset[], builderDefault: string | null) {
+  let last: string | null = null;
   try {
-    const last = localStorage.getItem("download-preset");
-    if (last && presets.some((p) => p.id === last)) return last;
+    last = localStorage.getItem(PRESET_KEY);
   } catch {
     // no saved choice
   }
+  return pickStartingPreset(presets, builderDefault, last);
+}
+
+// The same choice, given the person's last pick (null if none). Pure, so screens
+// can work it out while drawing.
+export function pickStartingPreset(presets: DownloadPreset[], builderDefault: string | null, last: string | null) {
+  if (last && presets.some((p) => p.id === last)) return last;
   return (
     (builderDefault && presets.some((p) => p.id === builderDefault) ? builderDefault : undefined) ??
     presets.find((p) => p.builder_id === null && p.is_default)?.id ??
@@ -131,9 +138,31 @@ export function startingPreset(presets: DownloadPreset[], builderDefault: string
   );
 }
 
+export const PRESET_KEY = "download-preset";
+const PRESET_EVENT = "download-preset-change";
+
+// The person's last download size, read from this browser after the page loads
+// (null while drawing on the server). Updates when they pick a new one.
+export function readRememberedPreset(): string | null {
+  try {
+    return localStorage.getItem(PRESET_KEY);
+  } catch {
+    return null;
+  }
+}
+export function subscribeRememberedPreset(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(PRESET_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(PRESET_EVENT, onChange);
+  };
+}
+
 export function rememberPreset(id: string) {
   try {
-    localStorage.setItem("download-preset", id);
+    localStorage.setItem(PRESET_KEY, id);
+    window.dispatchEvent(new Event(PRESET_EVENT));
   } catch {
     // private window: fine, just not remembered
   }

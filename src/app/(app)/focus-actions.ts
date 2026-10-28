@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
 import { FOCUS_COOKIE } from "@/lib/builder-focus";
+import { safePath } from "@/lib/safe-path";
 
 // Our team: show one builder everywhere, or all of them.
 export async function setBuilderFocus(formData: FormData) {
@@ -21,5 +22,5 @@ export async function setBuilderFocus(formData: FormData) {
     u.searchParams.delete("builder");
     to = `${u.pathname}${u.search}`;
   }
-  redirect(to.startsWith("/") && !to.startsWith("//") ? to : "/tasks");
+  redirect(safePath(to, "/tasks"));
 }

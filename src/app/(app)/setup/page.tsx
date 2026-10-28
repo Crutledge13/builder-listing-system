@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { builderFocus } from "@/lib/builder-focus";
 import { isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
@@ -22,6 +22,7 @@ export default function SetupPage(props: PageProps<"/setup">) {
 
 async function Setup({ searchParams }: { searchParams: PageProps<"/setup">["searchParams"] }) {
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   if (!canRunSetup(me.role)) redirect("/communities");
   const staff = isStaff(me.role);
   const sp = await searchParams;

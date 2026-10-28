@@ -206,3 +206,8 @@ create policy "media files: upload into your builder's folder" on storage.object
     and (private.my_role() = 'platform_admin'
          or (private.my_role() in ('builder_owner', 'manager', 'marketing')
              and (storage.foldername(name))[1] = private.my_builder_id()::text)));
+
+-- Photographer role (used from the next migration on). Added here, in its own
+-- transaction, because Postgres won't let a new enum value be used in the same
+-- transaction that adds it, and `supabase db push` runs each file as one.
+alter type public.user_role add value if not exists 'photographer';

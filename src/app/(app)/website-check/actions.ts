@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { hasFeature } from "@/lib/features";
 import { allowedTransitions, canAddHomes, editableFields, isStaff, type HomeField } from "@/lib/permissions";
 import { sendQueuedEmails } from "@/lib/email";
 import { COMPARE_FIELDS } from "./fields";
@@ -25,7 +26,15 @@ function friendly(msg: string) {
 }
 
 // The builder's website feed: on/off, address, and how we read it.
+// The page is hidden when this feature is off for the builder; refuse its
+// actions too, so nothing works around a turned-off feature.
+async function featureOn(formData: FormData) {
+  const me = await requireProfile();
+  if (!(await hasFeature(me, "website_check"))) back(formData, { error: "Website check isn’t turned on for your company." });
+}
+
 export async function saveFeedSettings(formData: FormData) {
+  await featureOn(formData);
   const builderId = String(formData.get("builder_id"));
   const supabase = await createClient();
   const source = String(formData.get("website_feed_source") ?? "") || null;
@@ -43,6 +52,7 @@ export async function saveFeedSettings(formData: FormData) {
 
 // Demo only: the real feed would run on a schedule through the shared import door.
 export async function syncFeedNow(formData: FormData) {
+  await featureOn(formData);
   const builderId = String(formData.get("builder_id"));
   const supabase = await createClient();
   const { error } = await supabase
@@ -56,6 +66,7 @@ export async function syncFeedNow(formData: FormData) {
 
 // One click: make a home from what's on the builder's website.
 export async function addFromWebsite(formData: FormData) {
+  await featureOn(formData);
   const me = await requireProfile();
   if (!canAddHomes(me.role)) back(formData, { error: "Ask a manager or owner to add homes." });
   const listingId = String(formData.get("listing_id"));
@@ -122,6 +133,7 @@ export async function addFromWebsite(formData: FormData) {
 }
 
 export async function dismissWebsiteListing(formData: FormData) {
+  await featureOn(formData);
   const supabase = await createClient();
   const { error } = await supabase.from("website_listings").update({ dismissed_at: new Date().toISOString() }).eq("id", String(formData.get("listing_id")));
   if (error) back(formData, { error: friendly(error.message) });
@@ -131,6 +143,7 @@ export async function dismissWebsiteListing(formData: FormData) {
 
 // Copy one value from the website into Builder Listings.
 export async function useWebsiteValue(formData: FormData) {
+  await featureOn(formData);
   const me = await requireProfile();
   const homeId = String(formData.get("home_id"));
   const field = String(formData.get("field")) as HomeField;
@@ -158,6 +171,7 @@ export async function useWebsiteValue(formData: FormData) {
 
 // The MLS shows something different from Builder Listings: ask our team to fix the MLS.
 export async function askToFixMls(formData: FormData) {
+  await featureOn(formData);
   const me = await requireProfile();
   const homeId = String(formData.get("home_id"));
   const address = String(formData.get("address"));
@@ -192,6 +206,7 @@ export async function askToFixMls(formData: FormData) {
 // builder's website. Only pairs the database suggests (same builder, same
 // address) can be linked; it never happens on its own.
 export async function linkWebsiteMatch(formData: FormData) {
+  await featureOn(formData);
   const homeId = String(formData.get("home_id"));
   const listingId = String(formData.get("website_listing_id"));
   const supabase = await createClient();

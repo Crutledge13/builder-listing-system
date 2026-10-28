@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddCommunities } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { createCommunity } from "./actions";
@@ -23,6 +23,7 @@ export default function NewCommunityPage(props: PageProps<"/communities/new">) {
 
 async function NewCommunityForm() {
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   if (!canAddCommunities(me.role)) redirect("/communities");
   const supabase = await createClient();
   const { data: builders } = me.role === "platform_admin"

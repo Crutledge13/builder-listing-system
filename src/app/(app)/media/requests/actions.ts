@@ -4,12 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { centralToUtc } from "@/lib/time";
+import { safePath } from "@/lib/safe-path";
 
 const NEEDS = new Set(["photos", "twilight", "video", "vertical_video", "drone", "floor_plan", "virtual_tour"]);
 
 function safeBack(raw: FormDataEntryValue | null, fallback: string) {
   const s = String(raw ?? "");
-  return s.startsWith("/") && !s.startsWith("//") ? s : fallback;
+  return safePath(s, fallback);
 }
 
 function go(back: string, params: Record<string, string>): never {

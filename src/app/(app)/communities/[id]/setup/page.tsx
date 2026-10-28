@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
 import { cx } from "@/lib/format";
 import { Notice } from "@/components/notice";
@@ -63,6 +63,7 @@ async function CommunitySetup({
 }) {
   const { id } = await params;
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   if (me.role === "sales" || me.role === "photographer") redirect(`/communities/${id}`);
   const supabase = await createClient();
   const { data: c } = await supabase
