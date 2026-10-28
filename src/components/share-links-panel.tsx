@@ -21,6 +21,12 @@ type Link = {
 //   home (salespeople, our coordinators) just copies it.
 // highlight: the older link just changed, marked with the message next to it.
 // undo: the older link just deleted, offered back next to the message.
+// Whether an end date has passed. Kept outside the component: this page is drawn
+// on the server for each request, so "now" is read once per request here.
+function hasPassed(iso: string) {
+  return new Date(iso).getTime() <= Date.now();
+}
+
 export async function ShareLinksPanel({
   homeId, token, canManage, notice, highlight, undo,
 }: { homeId: string; token: string | null; canManage: boolean; notice: React.ReactNode; highlight?: string | null; undo?: string | null }) {
@@ -48,7 +54,6 @@ export async function ShareLinksPanel({
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
   const url = `${origin}/s/${token}`;
-  const now = Date.now();
 
   return (
     <section id="share" className="scroll-mt-28 border-b border-line py-8">
@@ -151,7 +156,7 @@ export async function ShareLinksPanel({
           <ul className="divide-y divide-line border-t border-line">
             {older.map((l) => {
               const off = !!l.revoked_at;
-              const expired = !off && new Date(l.expires_at!).getTime() <= now;
+              const expired = !off && hasPassed(l.expires_at!);
               const live = !off && !expired;
               return (
                 <li key={l.id} id={`share-${l.id}`} className={cx("scroll-mt-28 p-4", !live && "bg-soft/60", l.id === highlight && "ring-2 ring-accent ring-inset")}>

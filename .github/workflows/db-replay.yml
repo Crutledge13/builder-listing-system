@@ -1,0 +1,24 @@
+# Practice run on every change to the database files: build a brand-new
+# database from supabase/migrations and load the demo seed. If this fails, the
+# live project couldn't be built from the repo either.
+name: Database practice run
+
+on:
+  push:
+    paths: ["supabase/**", "scripts/db-replay/**", ".github/workflows/db-replay.yml"]
+  pull_request:
+    paths: ["supabase/**", "scripts/db-replay/**", ".github/workflows/db-replay.yml"]
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+        working-directory: scripts/db-replay
+      - run: node replay.mjs ../..
+        working-directory: scripts/db-replay

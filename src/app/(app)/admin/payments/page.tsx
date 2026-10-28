@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
 import { cx, dateTime } from "@/lib/format";
@@ -15,6 +16,7 @@ export default function PaymentsAdmin(props: PageProps<"/admin/payments">) {
 }
 
 async function Payments() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data: payments }, { data: rates }, { data: people }] = await Promise.all([
     supabase.from("photographer_payments").select("id, photographer_id, address, line_items, amount_cents, status, approved_at, paid_at, created_at").order("created_at", { ascending: false }),

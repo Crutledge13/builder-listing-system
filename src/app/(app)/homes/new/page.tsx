@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { WEBSITE_PAGE_HELP } from "@/lib/website-page";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddHomes, canRequestMedia, isStaff, NEED_LABELS, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
 import { createHome } from "./actions";
 import { questionSections, SectionFields } from "@/components/ntreis-questions";
@@ -26,6 +26,7 @@ type Input = { name: string; label: string; type?: string; step?: string; placeh
 async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/new">["searchParams"] }) {
   const { error, community: preset } = await searchParams;
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
 
   if (!canAddHomes(me.role)) {
     return (

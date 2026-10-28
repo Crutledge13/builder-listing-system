@@ -53,7 +53,9 @@ async function Header() {
   } else if (["builder_owner", "manager", "marketing"].includes(me.role)) {
     const supabase = await createClient();
     const [{ count }, { count: mls }] = await Promise.all([
-      supabase.from("builder_tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]),
+      off.has("builder_tasks")
+        ? Promise.resolve({ count: 0 })
+        : supabase.from("builder_tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]),
       ownMls ? supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]) : Promise.resolve({ count: 0 }),
     ]);
     badges = { "/todo": count ?? 0, "/tasks": mls ?? 0 };

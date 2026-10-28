@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { hasFeature } from "@/lib/features";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { money } from "@/lib/format";
@@ -39,6 +39,7 @@ async function CommunityDetail({
   const sp = await searchParams;
   const status = typeof sp.status === "string" && STATUSES.includes(sp.status as WorkflowStatus) ? (sp.status as WorkflowStatus) : null;
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   const supabase = await createClient();
   const staff = isStaff(me.role);
   const compsOn = await hasFeature(me, "comps");

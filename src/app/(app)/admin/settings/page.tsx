@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
 import { cx, dateTime } from "@/lib/format";
@@ -22,6 +23,7 @@ const EMAIL_STYLE: Record<string, string> = {
 const EMAIL_LABEL: Record<string, string> = { sent: "Sent", skipped: "Not sent (email not set up)", failed: "Failed", queued: "Waiting" };
 
 async function Settings() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data: settings }, { data: emails }] = await Promise.all([
     supabase.from("app_settings").select("key, value"),

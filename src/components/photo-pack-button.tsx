@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { isUntouched, rememberPreset, renderFileBlob, renderSvg, startingPreset, extFor, type DownloadPreset } from "@/lib/image-resize";
+import { useState, useSyncExternalStore } from "react";
+import { isUntouched, rememberPreset, renderFileBlob, renderSvg, pickStartingPreset, readRememberedPreset, subscribeRememberedPreset, extFor, type DownloadPreset } from "@/lib/image-resize";
 
 export type PackPhoto = { id: string; label: string; file: boolean };
 type Size = Pick<DownloadPreset, "long_edge" | "format" | "quality">;
@@ -35,10 +35,14 @@ export function PhotoPackButton({
 }) {
   const [state, setState] = useState<"idle" | "working" | "done" | "error">("idle");
   const [done, setDone] = useState(0);
-  const [choice, setChoice] = useState("");
-  useEffect(() => {
-    if (presets) setChoice(startingPreset(presets, builderDefault));
-  }, [presets, builderDefault]);
+  const [picked, setChoice] = useState<string | null>(null);
+  // Start from the person's last size (remembered in this browser), else the builder's default.
+  const remembered = useSyncExternalStore(subscribeRememberedPreset, readRememberedPreset, () => null);
+  const choice = !presets
+    ? ""
+    : picked && presets.some((p) => p.id === picked)
+      ? picked
+      : pickStartingPreset(presets, builderDefault ?? null, remembered);
 
   const chosen: Size | undefined = presets ? presets.find((p) => p.id === choice) : size;
 

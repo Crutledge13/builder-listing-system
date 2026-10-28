@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
 import { RequestsInbox } from "@/components/requests-inbox";
@@ -18,6 +19,7 @@ export default function RequestsAdmin(props: PageProps<"/admin/requests">) {
 }
 
 async function HelpReports() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const { data } = await supabase.from("issue_reports").select("id, reporter_name, reporter_role, kind, page, message, created_at").eq("status", "open").order("created_at");
   return (

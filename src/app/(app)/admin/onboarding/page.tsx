@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
@@ -40,6 +41,7 @@ const STAGE_STYLES: Record<Stage, string> = {
 };
 
 async function OnboardingList() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data: builders }, { data: details }, { data: boards }, { data: branding }] = await Promise.all([
     supabase.from("builders").select("id, name, legal_name").order("name"),

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { canEditBranding } from "@/lib/permissions";
 import { BRAND_MODEL, brandScanAvailable, scanBrandGuide, type BrandScan } from "@/lib/brand-scan";
 import { creditStatus, finishCredits, outOfCreditsMessage, spendCredits } from "@/lib/ai-credits";
 
@@ -79,6 +80,11 @@ export async function removeLogo(builderId: string) {
 
 // Read the guide with AI and keep what it found as a suggestion.
 async function runScan(builderId: string): Promise<{ error?: string }> {
+  // Check the role before the paid AI read, not only when saving what it found.
+  const me = await requireProfile();
+  if (!canEditBranding(me.role) || (me.role !== "platform_admin" && me.builder_id !== builderId)) {
+    return { error: "Your role can’t change this builder’s branding." };
+  }
   if (!brandScanAvailable()) return { error: "Reading brand guides needs the AI key (ANTHROPIC_API_KEY) set up on the server." };
   const supabase = await createClient();
   const { data: b } = await supabase.from("builder_branding").select("brand_guide_path").eq("builder_id", builderId).maybeSingle();

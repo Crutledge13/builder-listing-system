@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
@@ -15,6 +16,7 @@ export default function AdminOverview(props: PageProps<"/admin">) {
 }
 
 async function Overview() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const count = async (table: string, f?: (q: ReturnType<ReturnType<typeof supabase.from>["select"]>) => unknown) => {
     let q = supabase.from(table).select("*", { count: "exact", head: true });
@@ -74,6 +76,7 @@ const size = (b: number) => (b >= 1_073_741_824 ? `${(b / 1_073_741_824).toFixed
 
 // File storage used vs the plan's limit (app_settings.storage_limit_mb).
 async function StorageMeter() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data: rows }, { data: limitRow }] = await Promise.all([
     supabase.rpc("storage_usage"),
@@ -118,6 +121,7 @@ const usd = (n: number) => (n < 0.01 && n > 0 ? "under $0.01" : `$${n.toFixed(2)
 
 // This month's AI credits per builder, what they really cost us, and the controls.
 async function AiCredits() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data }, { data: def }, { data: own }] = await Promise.all([
     supabase.rpc("ai_usage_summary"),

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canEditBranding, isStaff } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { BuilderLogo } from "@/components/avatar";
@@ -50,6 +50,7 @@ type BrandingRow = {
 async function Branding({ searchParams }: { searchParams: PageProps<"/branding">["searchParams"] }) {
   const sp = await searchParams;
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   const staff = isStaff(me.role);
   const supabase = await createClient();
 

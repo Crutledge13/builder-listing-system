@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
 import { baseSections, type MlsBoard } from "@/lib/mls-fields";
@@ -23,6 +24,7 @@ const NUMBERS: { key: keyof MlsBoard["rules"]; label: string; unit: string }[] =
 ];
 
 async function Boards() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const { data } = await supabase.from("mls_boards").select("*").order("code");
   const boards = (data ?? []) as (MlsBoard & { active: boolean; updated_at: string })[];

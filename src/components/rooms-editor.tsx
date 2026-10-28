@@ -8,10 +8,8 @@ import { ROOM_LEVELS, ROOM_TYPES, type Room } from "@/lib/rooms";
 export function RoomsEditor({ name = "rooms_json", initial, formId, disabled }: { name?: string; initial: Room[]; formId?: string; disabled?: boolean }) {
   const [rooms, setRooms] = useState<Room[]>(initial);
   const [filledFrom, setFilledFrom] = useState<string | null>(null);
-  const [typed, setTyped] = useState(false); // a person's own room edits are never replaced by "start from"
-
-  const typedRef = useRef(typed);
-  typedRef.current = typed;
+  // A person's own room edits are never replaced by "start from".
+  const typedRef = useRef(false);
 
   useEffect(() => {
     if (!formId) return;
@@ -29,7 +27,7 @@ export function RoomsEditor({ name = "rooms_json", initial, formId, disabled }: 
 
   const set = (i: number, patch: Partial<Room>) => {
     setFilledFrom(null);
-    setTyped(true);
+    typedRef.current = true;
     setRooms((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   };
 

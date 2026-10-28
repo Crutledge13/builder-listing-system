@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { requireFeature } from "@/lib/features";
 import { builderFocus } from "@/lib/builder-focus";
 import { canRequestComps, isStaff } from "@/lib/permissions";
@@ -19,6 +19,7 @@ export default function CompsPage() {
 
 async function Comps() {
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   await requireFeature(me, "comps");
   const staff = isStaff(me.role);
   const supabase = await createClient();

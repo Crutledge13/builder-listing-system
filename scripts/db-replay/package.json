@@ -1,0 +1,13 @@
+{
+  "name": "db-replay",
+  "private": true,
+  "type": "module",
+  "description": "Practice run: build a blank database from supabase/migrations and the demo seed.",
+  "scripts": {
+    "replay": "node replay.mjs ../.."
+  },
+  "dependencies": {
+    "embedded-postgres": "17.10.0-beta.17",
+    "pg": "^8.16.3"
+  }
+}

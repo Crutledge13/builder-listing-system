@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
@@ -14,6 +15,7 @@ export default function CommunitiesAdmin(props: PageProps<"/admin/communities">)
 }
 
 async function Communities() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data: builders }, { data: communities }, { data: homes }, { data: team }] = await Promise.all([
     supabase.from("builders").select("id, name").order("name"),

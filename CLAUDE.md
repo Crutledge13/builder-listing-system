@@ -32,7 +32,7 @@ The full permission grid is `docs/permission-grid.md` (draft until the owners ap
 ## Non-negotiable rules
 
 1. **Each builder company is a separate tenant.** Builder A can never see Builder B's data, photos or videos.
-2. **Permissions are enforced in the database** with Supabase row-level security (RLS), not just by hiding things on screen. Every new table gets RLS policies in the same change that creates it. Every new `public` trigger function gets `revoke execute ... from public, anon, authenticated` in the same change (triggers still fire); every new callable `security definer` function checks the caller itself and revokes `anon` unless it's a share-link function.
+2. **Permissions are enforced in the database** with Supabase row-level security (RLS), not just by hiding things on screen. Every new table gets RLS policies in the same change that creates it. Every new `public` trigger function gets `revoke execute ... from public, anon, authenticated` in the same change (triggers still fire); every new callable `security definer` function checks the caller itself and revokes `anon` unless it's a share-link function. Yes/no permission helpers (`private.can_*`) always return true or false, never null (wrap them in `coalesce(..., false)`): people with no builder (photographers) or who were just turned off would otherwise slip past a check written as `if not private.can_...`.
 3. **Every field records its source:** website, staff, or MLS.
 4. **Imports never silently overwrite staff edits.** New or changed data from builder websites goes to a review queue.
 5. **Media is private.** Files are locked by default and viewed only through links that expire. Uploads go straight from the browser to storage, not through our server. Target home is Cloudflare (R2 for photos, Stream for video); for the test phase, uploads use a private Supabase Storage bucket (`media`). Storage calls live in `src/app/api/media/[id]/route.ts` and `src/app/(app)/media/upload/`, so moving to Cloudflare before launch is contained.
@@ -61,7 +61,9 @@ Demo build with fake data: a thin, real version of the app (logins, two fake bui
 
 ## How the code is laid out
 
-- `supabase/migrations/` — every database change, in order. The database's security rules live here. Never change the database by hand without adding a migration file.
+- `supabase/migrations/` — every database change, in order. The database's security rules live here. Never change the database by hand without adding a migration file. Each file's leading number is unique and the files sort in the order they were applied; a new enum value is added in an earlier file than the one that first uses it (Postgres won't use a new value in the same transaction).
+- `scripts/db-replay/` — the practice run: builds a brand-new Postgres 17 from `supabase/migrations/` and loads the demo seed (`cd scripts/db-replay && npm install && node replay.mjs ../..`, as a normal user, not root). It runs on GitHub for every change to `supabase/` (`.github/workflows/db-replay.yml`); a failure there means the live project couldn't be built from the repo.
+- `src/lib/safe-path.ts` — `safePath()`: the only check for "send them back to this page" addresses (form `back` fields, `next=`, notification links). It refuses anything that could lead off the site, including `/\evil.com`.
 - `supabase/seed/demo_data.sql` — fake builders, homes and `@demo.test` logins for the TEST project only. The demo password is not in the repo. Then, in order: `demo_media.sql`, `demo_photo_requests.sql`, `demo_round3.sql`, `demo_mls.sql`, `demo_plans.sql`, `demo_incentives.sql`, `demo_tasks.sql`.
 - `src/proxy.ts` — sends anyone signed out to `/login`.
 - `src/lib/permissions.ts` — what each role sees on screen. Mirrors the database rules; the database is the real enforcement.
@@ -181,7 +183,7 @@ Everything that differs between builders lives in the database, set per builder:
 - `builder_photo_info`: who photographers call and access notes.
 - Community-level `mls_details`: shared MLS answers for every home in a community.
 
-**Feature switches:** `builder_settings.features_off` lists the optional features a builder doesn't have; empty means everything is on, so new features are on for everyone unless turned off. Today's switches: comp requests, reverse prospecting, website check, reports, the builder's Tasks board. The list is `FEATURES` in `src/lib/features.ts` and the check on the `features_off` column; add a key to both (new migration) to make another feature switchable. Only platform admins change it (`builder_settings_mls_entry_guard`). Screens use `featuresOff()` / `hasFeature()` to hide tabs, menu links and buttons, and `requireFeature()` at the top of a feature's pages. Comp and reverse prospecting requests are also refused in the database when off (`feature_request_guard`, via `private.builder_feature_on`), since they create work for our team. Our staff always see every feature for every builder.
+**Feature switches:** `builder_settings.features_off` lists the optional features a builder doesn't have; empty means everything is on, so new features are on for everyone unless turned off. Today's switches: comp requests, reverse prospecting, website check, reports, the builder's Tasks board. The list is `FEATURES` in `src/lib/features.ts` and the check on the `features_off` column; add a key to both (new migration) to make another feature switchable. Only platform admins change it (`builder_settings_mls_entry_guard`, which also guards `mls_entry`, `mls_boards` and `mls_locked`; builder owners, managers and marketing can still save their website feed settings). Screens use `featuresOff()` / `hasFeature()` to hide tabs, menu links and buttons, and `requireFeature()` at the top of a feature's pages. Comp and reverse prospecting requests are also refused in the database when off (`feature_request_guard`, via `private.builder_feature_on`), since they create work for our team. Our staff always see every feature for every builder.
 
 When a builder asks for something different, first check whether an existing setting covers it; if not, add a setting or switch with a default that leaves other builders unchanged, and list it here.
 
@@ -271,7 +273,7 @@ Three backup layers, set up per `docs/backups.md`: Supabase point-in-time recove
 
 - Turn on leaked-password protection in Supabase Auth before the live project goes out.
 - Move media storage to Cloudflare R2/Stream before launch, and add a 30-day job that purges trashed files.
-- Whole-home zip download (the MLS photo pack zip exists). Previews exist for new uploads; uploads made before `20261027000034_media_previews` have none and show the original until re-uploaded or backfilled.
+- Whole-home zip download (the MLS photo pack zip exists). Previews exist for new uploads; uploads made before `20261027000035_media_previews` have none and show the original until re-uploaded or backfilled.
 - When moving to Cloudflare, video stills can come from Cloudflare Stream instead of the browser; keep `thumb_path` as the column the app reads.
 - Email or text notifications (new photo request, photographer assigned, delivered) once Resend is set up. Reverse prospecting and help emails are already wired (they log until Resend is set).
 - Real website feed and MLS read-only feed connectors (through the shared import door); the demo uses seeded rows.

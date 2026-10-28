@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
-  FORMAT_LABELS, extFor, isUntouched, rememberPreset, renderFileBlob, renderSvg, saveBlob, startingPreset, type DownloadPreset,
+  FORMAT_LABELS, extFor, isUntouched, rememberPreset, renderFileBlob, renderSvg, saveBlob, pickStartingPreset, readRememberedPreset, subscribeRememberedPreset, type DownloadPreset,
 } from "@/lib/image-resize";
 
 const CUSTOM = "custom";
@@ -28,13 +28,16 @@ export function DownloadMenu({
   disclaimer?: string; // always drawn on (the builder turned the disclaimer on)
   offerDisclaimer?: string; // optional, ticked by the person (plan library photos)
 }) {
-  const [choice, setChoice] = useState("");
+  const [picked, setChoice] = useState<string | null>(null);
   const [custom, setCustom] = useState({ long_edge: 1600, format: "jpeg" as DownloadPreset["format"], quality: 85 });
   const [addStrip, setAddStrip] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setChoice(startingPreset(presets, builderDefault)), [presets, builderDefault]);
+  // Start from the person's last size (remembered in this browser), else the builder's default.
+  const remembered = useSyncExternalStore(subscribeRememberedPreset, readRememberedPreset, () => null);
+  const choice =
+    picked && (picked === CUSTOM || presets.some((p) => p.id === picked)) ? picked : pickStartingPreset(presets, builderDefault, remembered);
 
   const preset: Pick<DownloadPreset, "long_edge" | "format" | "quality"> =
     choice === CUSTOM ? custom : presets.find((p) => p.id === choice) ?? { long_edge: null, format: "original", quality: 100 };
@@ -54,7 +57,9 @@ export function DownloadMenu({
       }
       // Full quality with nothing drawn on it: hand over the original file as it is.
       if (isUntouched(preset) && !strip) {
-        window.location.href = `${fileBase}${mediaId}?download=1`;
+        const a = document.createElement("a");
+        a.href = `${fileBase}${mediaId}?download=1`;
+        a.click();
         return;
       }
       const res = await fetch(`${fileBase}${mediaId}?download=1`);

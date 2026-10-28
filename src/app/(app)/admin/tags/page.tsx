@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { isPlatformAdmin } from "@/lib/auth";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
@@ -27,6 +28,7 @@ type Request = {
 };
 
 async function Tags() {
+  if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [list, { data: reqRows }, { data: mediaRows }] = await Promise.all([
     loadTagList(supabase, { includeRetired: true }),

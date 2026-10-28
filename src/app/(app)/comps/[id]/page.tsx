@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { requireFeature } from "@/lib/features";
 import { isStaff } from "@/lib/permissions";
 import { cx, dateTime, money, num } from "@/lib/format";
@@ -34,6 +34,7 @@ type Item = {
 async function Request({ params }: { params: PageProps<"/comps/[id]">["params"] }) {
   const { id } = await params;
   const me = await requireProfile();
+  sendPhotographersToJobs(me);
   await requireFeature(me, "comps");
   const staff = isStaff(me.role);
   const supabase = await createClient();
