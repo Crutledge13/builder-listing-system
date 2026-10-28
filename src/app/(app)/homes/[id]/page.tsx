@@ -98,9 +98,8 @@ const SECTIONS: { title: string; fields: FieldDef[] }[] = [
     fields: [{ name: "public_remarks", label: "Listing description (goes in the MLS public remarks)", type: "textarea", wide: true }],
   },
   {
-    title: "Price and specs",
+    title: "Specs",
     fields: [
-      { name: "list_price", label: "List price ($)", type: "number", step: "1" },
       { name: "bedrooms_total", label: "Bedrooms", type: "number" },
       { name: "bathrooms_full", label: "Full baths", type: "number" },
       { name: "bathrooms_half", label: "Half baths", type: "number" },
@@ -409,15 +408,7 @@ async function HomeDetail({
             </section>
           )}
 
-          <HomeSection id="incentives" title="Incentives" badge={incentives.length ? `${incentives.length} current` : null} hint={incentives.length ? incentives.map((i) => i.title).join(" · ") : "None right now"}>
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <p className="text-sm text-muted">What a buyer gets on this home right now: its own incentives, its community&rsquo;s, and any that cover every community.</p>
-              {canManageIncentives(me.role) && <Link href={`/incentives?home=${home.id}`} className="text-sm font-semibold underline">+ Add one for this home</Link>}
-            </div>
-            <div className="mt-4">
-              {incentives.length ? <IncentiveList items={incentives} manageHref={canManageIncentives(me.role) ? "/incentives" : undefined} /> : <p className="text-sm text-muted">No current incentives.</p>}
-            </div>
-          </HomeSection>
+          <p className="mt-10 border-b border-line pb-2 text-xs font-semibold uppercase tracking-wide text-muted first:mt-6">Day to day<span className="ml-2 font-normal normal-case tracking-normal">open houses, incentives, price and requests from the team</span></p>
 
           <HomeSection id="open-houses" title="Open houses" open={at === "open-houses"}
             badge={upcomingOH.length ? `${upcomingOH.length} scheduled` : activeSeries.length ? "Repeating" : null}
@@ -520,6 +511,67 @@ async function HomeDetail({
             )}
           </HomeSection>
 
+          <HomeSection id="incentives" title="Incentives" badge={incentives.length ? `${incentives.length} current` : null} hint={incentives.length ? incentives.map((i) => i.title).join(" · ") : "None right now"}>
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <p className="text-sm text-muted">What a buyer gets on this home right now: its own incentives, its community&rsquo;s, and any that cover every community.</p>
+              {canManageIncentives(me.role) && <Link href={`/incentives?home=${home.id}`} className="text-sm font-semibold underline">+ Add one for this home</Link>}
+            </div>
+            <div className="mt-4">
+              {incentives.length ? <IncentiveList items={incentives} manageHref={canManageIncentives(me.role) ? "/incentives" : undefined} /> : <p className="text-sm text-muted">No current incentives.</p>}
+            </div>
+          </HomeSection>
+
+          <HomeSection id="price" title="Price" badge={home.list_price ? money(home.list_price) : null}
+            hint={home.list_price ? (status === "live_on_mls" ? "Changing it adds an MLS update for the new price" : "Open to change it") : "No price yet"}>
+            <form action={saveHome} className="flex flex-wrap items-end gap-3">
+              <input type="hidden" name="id" value={home.id} />
+              <div className="w-60">
+                <Field def={{ name: "list_price", label: "List price ($)", type: "number", step: "1" }} value={home.list_price} source={sources.list_price} canEdit={editable.has("list_price")} />
+              </div>
+              {editable.has("list_price") && <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save price</button>}
+            </form>
+          </HomeSection>
+
+          <HomeSection id="requests" title="Change requests" open={at === "requests"} tone="attention"
+            badge={openRequests.length ? `${openRequests.length} open` : null}
+            hint={openRequests.length ? openRequests[0].message : "Spot something wrong or missing? Ask for it here."}>
+            {sectionNotice("requests")}
+            <p className="text-sm text-muted">
+              Spot something wrong or missing? Ask for it here. Managers, owners and marketing see and resolve requests.
+            </p>
+            <form action={requestChange} className="mt-4 space-y-3">
+              <input type="hidden" name="id" value={home.id} />
+              <textarea name="message" rows={3} required placeholder="For example: the price changed to $384,990, or add the upgraded patio to the description" className="field-input leading-relaxed" />
+              <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Request a change</button>
+            </form>
+            <ul className="mt-6 space-y-3">
+              {(requests ?? []).map((r) => (
+                <li key={r.id} className={cx("rounded-2xl border p-4", r.status === "open" ? "border-amber-300 bg-amber-50/50" : "border-line")}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="min-w-0 flex-1 whitespace-pre-line">{r.message}</p>
+                    <span className={cx("rounded-full px-2.5 py-0.5 text-xs font-semibold", REQUEST_STYLES[r.status])}>{REQUEST_LABELS[r.status]}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted">
+                    {actorName.get(r.requested_by) ?? "Someone"}, {dateTime(r.created_at)}
+                    {r.resolved_by && `. ${REQUEST_LABELS[r.status].toLowerCase()} by ${actorName.get(r.resolved_by) ?? "a teammate"}`}
+                    {r.resolution_note && `: “${r.resolution_note}”`}
+                  </p>
+                  {canResolve && r.status === "open" && (
+                    <form action={resolveRequest} className="mt-3 flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="id" value={home.id} />
+                      <input type="hidden" name="request_id" value={r.id} />
+                      <input name="note" placeholder="Note (optional)" className="field-input max-w-xs flex-1 py-2 text-sm" />
+                      <button name="status" value="done" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Mark done</button>
+                      <button name="status" value="declined" className="rounded-lg border border-foreground px-3 py-2 text-sm font-semibold hover:bg-white">Decline</button>
+                    </form>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </HomeSection>
+
+          <p className="mt-10 border-b border-line pb-2 text-xs font-semibold uppercase tracking-wide text-muted first:mt-6">Ask our team<span className="ml-2 font-normal normal-case tracking-normal">lists and photo shoots</span></p>
+
           {!off.has("reverse_prospecting") && (
           <HomeSection id="reverse-prospecting" title="Reverse prospecting" open={at === "reverse-prospecting"}
             badge={openReverse.length ? `${openReverse.length} in progress` : null}
@@ -574,6 +626,30 @@ async function HomeDetail({
           </HomeSection>
           )}
 
+          {canRequestMedia(me.role) && (
+          <HomeSection id="photo-requests" title="Photo requests" open={at === "photo-requests"}
+            badge={openMediaRequests.length ? `${openMediaRequests.length} open` : null}
+            hint={openMediaRequests.length ? "A shoot is in the works" : "Send a photographer for photos, video, drone or a floor plan"}>
+            <p className="text-sm text-muted">Need new photos, video, drone or a floor plan? Ask here and we’ll send a photographer. Files land in this home’s media.</p>
+            {sectionNotice("photo-requests")}
+            <div className="mt-4 space-y-4">
+              {mediaRequests.slice(0, 4).map((r) => (
+                <RequestCard key={r.id} r={r} role={me.role} back={`/homes/${home.id}#photo-requests`} />
+              ))}
+            </div>
+            {canRequestMedia(me.role) && (
+              <details className="mt-4" open={mediaRequests.length === 0}>
+                <summary className="cursor-pointer list-none font-semibold underline">Request photos for this home</summary>
+                <div className="mt-3">
+                  <RequestForm back={`/homes/${home.id}#photo-requests`} homeId={home.id} />
+                </div>
+              </details>
+            )}
+          </HomeSection>
+          )}
+
+          <p className="mt-10 border-b border-line pb-2 text-xs font-semibold uppercase tracking-wide text-muted first:mt-6">Photos and marketing<span className="ml-2 font-normal normal-case tracking-normal">what goes on the MLS and what you share</span></p>
+
           <ListingMediaPanel
             home={{ id: home.id, community_name: (home.communities as { name: string } | null)?.name ?? "the community", plan_name: home.plan_name, address: home.unparsed_address, disclaimer: !!home.show_representative_disclaimer }}
             listing={listing}
@@ -597,100 +673,7 @@ async function HomeDetail({
             <ShareLinksPanel homeId={home.id} token={typeof shareToken === "string" ? shareToken : null} canManage={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} undo={at === "share" && typeof sp.undo === "string" ? sp.undo : null} fold={{ open: at === "share", hint: "The realtor page, its views and downloads" }} />
           )}
 
-          {canRequestMedia(me.role) && (
-          <HomeSection id="photo-requests" title="Photo requests" open={at === "photo-requests"}
-            badge={openMediaRequests.length ? `${openMediaRequests.length} open` : null}
-            hint={openMediaRequests.length ? "A shoot is in the works" : "Send a photographer for photos, video, drone or a floor plan"}>
-            <p className="text-sm text-muted">Need new photos, video, drone or a floor plan? Ask here and we’ll send a photographer. Files land in this home’s media.</p>
-            {sectionNotice("photo-requests")}
-            <div className="mt-4 space-y-4">
-              {mediaRequests.slice(0, 4).map((r) => (
-                <RequestCard key={r.id} r={r} role={me.role} back={`/homes/${home.id}#photo-requests`} />
-              ))}
-            </div>
-            {canRequestMedia(me.role) && (
-              <details className="mt-4" open={mediaRequests.length === 0}>
-                <summary className="cursor-pointer list-none font-semibold underline">Request photos for this home</summary>
-                <div className="mt-3">
-                  <RequestForm back={`/homes/${home.id}#photo-requests`} homeId={home.id} />
-                </div>
-              </details>
-            )}
-          </HomeSection>
-          )}
-
-          <HomeSection id="requests" title="Change requests" open={at === "requests"} tone="attention"
-            badge={openRequests.length ? `${openRequests.length} open` : null}
-            hint={openRequests.length ? openRequests[0].message : "Spot something wrong or missing? Ask for it here."}>
-            {sectionNotice("requests")}
-            <p className="text-sm text-muted">
-              Spot something wrong or missing? Ask for it here. Managers, owners and marketing see and resolve requests.
-            </p>
-            <form action={requestChange} className="mt-4 space-y-3">
-              <input type="hidden" name="id" value={home.id} />
-              <textarea name="message" rows={3} required placeholder="For example: the price changed to $384,990, or add the upgraded patio to the description" className="field-input leading-relaxed" />
-              <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Request a change</button>
-            </form>
-            <ul className="mt-6 space-y-3">
-              {(requests ?? []).map((r) => (
-                <li key={r.id} className={cx("rounded-2xl border p-4", r.status === "open" ? "border-amber-300 bg-amber-50/50" : "border-line")}>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="min-w-0 flex-1 whitespace-pre-line">{r.message}</p>
-                    <span className={cx("rounded-full px-2.5 py-0.5 text-xs font-semibold", REQUEST_STYLES[r.status])}>{REQUEST_LABELS[r.status]}</span>
-                  </div>
-                  <p className="mt-1 text-sm text-muted">
-                    {actorName.get(r.requested_by) ?? "Someone"}, {dateTime(r.created_at)}
-                    {r.resolved_by && `. ${REQUEST_LABELS[r.status].toLowerCase()} by ${actorName.get(r.resolved_by) ?? "a teammate"}`}
-                    {r.resolution_note && `: “${r.resolution_note}”`}
-                  </p>
-                  {canResolve && r.status === "open" && (
-                    <form action={resolveRequest} className="mt-3 flex flex-wrap items-center gap-2">
-                      <input type="hidden" name="id" value={home.id} />
-                      <input type="hidden" name="request_id" value={r.id} />
-                      <input name="note" placeholder="Note (optional)" className="field-input max-w-xs flex-1 py-2 text-sm" />
-                      <button name="status" value="done" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Mark done</button>
-                      <button name="status" value="declined" className="rounded-lg border border-foreground px-3 py-2 text-sm font-semibold hover:bg-white">Decline</button>
-                    </form>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </HomeSection>
-
-          <HomeSection id="rooms" title="Room sizes" open={at === "rooms"} tone={rooms.length ? undefined : "attention"}
-            badge={rooms.length ? `${rooms.length} rooms` : home.mls_board === "NTREIS" ? "Needed for NTREIS" : null}
-            hint={rooms.length ? rooms.slice(0, 4).map((r) => r.RoomType).join(", ") + (rooms.length > 4 ? "…" : "") : planRooms.length ? `Fill them from the ${planRow?.name} plan` : "No room sizes yet"}>
-            <p className="text-sm text-muted">
-              The MLS lists each room with its level and size (feet).{" "}
-              {planRow ? <>Pull them from the <Link href={`/plans/${planRow.id}`} className="underline">{planRow.name} plan</Link>, then adjust anything this home does differently.</> : home.plan_name ? <>Our team hasn&rsquo;t set up the {home.plan_name} plan yet, so add the rooms here.</> : "Pick this home's floor plan to pull rooms from it."}
-            </p>
-            {sectionNotice("rooms")}
-            {canEditRooms ? (
-              <>
-                {planRooms.length > 0 && (
-                  <form action={saveRooms} className="mt-4">
-                    <input type="hidden" name="id" value={home.id} />
-                    <input type="hidden" name="rooms_json" value={JSON.stringify(planRooms)} />
-                    <button className="rounded-xl border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">
-                      {rooms.length ? `Replace with the ${planRow!.name} plan’s ${planRooms.length} rooms` : `Fill from the ${planRow!.name} plan (${planRooms.length} rooms)`}
-                    </button>
-                  </form>
-                )}
-                <form action={saveRooms} className="mt-4">
-                  <input type="hidden" name="id" value={home.id} />
-                  <RoomsEditor key={JSON.stringify(rooms)} initial={rooms} />
-                  <button className="mt-4 rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save room sizes</button>
-                </form>
-              </>
-            ) : rooms.length ? (
-              <table className="mt-4 w-full max-w-xl text-sm">
-                <thead className="text-left text-xs text-muted"><tr><th className="pb-1 font-medium">Room</th><th className="pb-1 font-medium">Level</th><th className="pb-1 font-medium">Size (ft)</th></tr></thead>
-                <tbody className="divide-y divide-line">{rooms.map((r, i) => <tr key={i}><td className="py-1.5">{r.RoomType}</td><td className="py-1.5">{levelLabel(r.RoomLevel)}</td><td className="py-1.5 tabular-nums">{roomSize(r)}</td></tr>)}</tbody>
-              </table>
-            ) : (
-              <p className="mt-4 text-sm text-muted">No room sizes yet.</p>
-            )}
-          </HomeSection>
+          <p className="mt-10 border-b border-line pb-2 text-xs font-semibold uppercase tracking-wide text-muted first:mt-6">Listing details<span className="ml-2 font-normal normal-case tracking-normal">set up once; change only when something changes</span></p>
 
           <form id="edit" action={saveHome} className="scroll-mt-28 divide-y divide-line">
             <input type="hidden" name="id" value={home.id} />
@@ -734,6 +717,41 @@ async function HomeDetail({
               )}
             </div>
           </form>
+
+          <HomeSection id="rooms" title="Room sizes" open={at === "rooms"} tone={rooms.length ? undefined : "attention"}
+            badge={rooms.length ? `${rooms.length} rooms` : home.mls_board === "NTREIS" ? "Needed for NTREIS" : null}
+            hint={rooms.length ? rooms.slice(0, 4).map((r) => r.RoomType).join(", ") + (rooms.length > 4 ? "…" : "") : planRooms.length ? `Fill them from the ${planRow?.name} plan` : "No room sizes yet"}>
+            <p className="text-sm text-muted">
+              The MLS lists each room with its level and size (feet).{" "}
+              {planRow ? <>Pull them from the <Link href={`/plans/${planRow.id}`} className="underline">{planRow.name} plan</Link>, then adjust anything this home does differently.</> : home.plan_name ? <>Our team hasn&rsquo;t set up the {home.plan_name} plan yet, so add the rooms here.</> : "Pick this home's floor plan to pull rooms from it."}
+            </p>
+            {sectionNotice("rooms")}
+            {canEditRooms ? (
+              <>
+                {planRooms.length > 0 && (
+                  <form action={saveRooms} className="mt-4">
+                    <input type="hidden" name="id" value={home.id} />
+                    <input type="hidden" name="rooms_json" value={JSON.stringify(planRooms)} />
+                    <button className="rounded-xl border border-foreground px-4 py-2 text-sm font-semibold hover:bg-soft">
+                      {rooms.length ? `Replace with the ${planRow!.name} plan’s ${planRooms.length} rooms` : `Fill from the ${planRow!.name} plan (${planRooms.length} rooms)`}
+                    </button>
+                  </form>
+                )}
+                <form action={saveRooms} className="mt-4">
+                  <input type="hidden" name="id" value={home.id} />
+                  <RoomsEditor key={JSON.stringify(rooms)} initial={rooms} />
+                  <button className="mt-4 rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save room sizes</button>
+                </form>
+              </>
+            ) : rooms.length ? (
+              <table className="mt-4 w-full max-w-xl text-sm">
+                <thead className="text-left text-xs text-muted"><tr><th className="pb-1 font-medium">Room</th><th className="pb-1 font-medium">Level</th><th className="pb-1 font-medium">Size (ft)</th></tr></thead>
+                <tbody className="divide-y divide-line">{rooms.map((r, i) => <tr key={i}><td className="py-1.5">{r.RoomType}</td><td className="py-1.5">{levelLabel(r.RoomLevel)}</td><td className="py-1.5 tabular-nums">{roomSize(r)}</td></tr>)}</tbody>
+              </table>
+            ) : (
+              <p className="mt-4 text-sm text-muted">No room sizes yet.</p>
+            )}
+          </HomeSection>
 
           <HomeSection id="activity" title="Activity" hint={activity?.length ? `Latest: ${dateTime(activity[0].created_at)}` : "No activity yet"}>
             <ul className="space-y-4">
@@ -1156,8 +1174,8 @@ const REQUEST_STYLES: Record<string, string> = {
 
 function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse, canRequestPhotos, shareUrl, canComps, showReverse }: { homeId: string; openRequests: number; upcomingOH: number; openShoots: number; openReverse: number; canRequestPhotos: boolean; shareUrl: string | null; canComps: boolean; showReverse: boolean }) {
   const items = [
-    { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
     { href: "#open-houses", title: "Open houses", sub: upcomingOH ? `${upcomingOH} scheduled` : "Schedule one" },
+    { href: "#requests", title: "Request changes", sub: openRequests ? `${openRequests} open` : "Ask the builder team" },
     ...(showReverse ? [{ href: "#reverse-prospecting", title: "Reverse prospecting", sub: openReverse ? "In progress" : "Request a list" }] : []),
     ...(canComps ? [{ href: `/comps/new?home=${homeId}`, title: "Request comps", sub: "Check the price" }] : []),
     ...(canRequestPhotos ? [{ href: "#photo-requests", title: "Request photos", sub: openShoots ? `${openShoots} in progress` : "Send a photographer" }] : []),
