@@ -8,6 +8,8 @@ import { ProgressBar } from "@/components/progress-bar";
 import { cx } from "@/lib/format";
 import { loadOnboarding, STAGES, STAGE_LABELS, type Onboarding, type Stage } from "@/lib/onboarding";
 import { addBuilder, invitePerson, saveOnboarding } from "../actions";
+import { TitleCompanyFields } from "@/components/title-company-fields";
+import { TITLE_COMPANY_SELECT, type TitleCompany } from "@/lib/mls-fields";
 
 export default function OnboardingAdmin(props: PageProps<"/admin/onboarding">) {
   return (
@@ -43,11 +45,12 @@ const STAGE_STYLES: Record<Stage, string> = {
 async function OnboardingList() {
   if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
-  const [{ data: builders }, { data: details }, { data: boards }, { data: branding }] = await Promise.all([
+  const [{ data: builders }, { data: details }, { data: boards }, { data: branding }, { data: titles }] = await Promise.all([
     supabase.from("builders").select("id, name, legal_name").order("name"),
     supabase.from("builder_onboarding").select("builder_id, billing_contact_name, billing_contact_email, billing_contact_phone, pricing, agreement_signed_on, listing_authorization_on, website_platform, sends_listing_feed, notes"),
     supabase.from("mls_boards").select("code, short_name").eq("active", true).order("code"),
     supabase.from("builder_branding").select("builder_id, logo_updated_at"),
+    supabase.from("builder_settings").select(`builder_id, ${TITLE_COMPANY_SELECT}`),
   ]);
   const list = await loadOnboarding(supabase, (builders ?? []).map((b) => b.id), { staff: true });
   // Builders still onboarding first, earliest stage first; finished ones last.
@@ -68,6 +71,7 @@ async function OnboardingList() {
             legalName={(builders ?? []).find((b) => b.id === ob.builderId)?.legal_name ?? ""}
             d={(details ?? []).find((x) => x.builder_id === ob.builderId) as Details | undefined}
             logoAt={(branding ?? []).find((x) => x.builder_id === ob.builderId)?.logo_updated_at ?? null}
+            title={(titles ?? []).find((x) => (x as { builder_id: string }).builder_id === ob.builderId) as TitleCompany | undefined}
             canInvite={canInvite}
           />
         ))}
@@ -101,7 +105,7 @@ async function OnboardingList() {
   );
 }
 
-function BuilderCard({ ob, legalName, d, logoAt, canInvite }: { ob: Onboarding; legalName: string; d?: Details; logoAt: string | null; canInvite: boolean }) {
+function BuilderCard({ ob, legalName, d, logoAt, canInvite, title }: { ob: Onboarding; legalName: string; d?: Details; logoAt: string | null; canInvite: boolean; title?: TitleCompany }) {
   const ourOpen = ob.ourSteps.filter((s) => !s.done);
   const ownerMissing = ob.ourSteps.find((s) => s.key === "owner" && !s.done);
   const nextForThem = ob.steps.find((s) => !s.done);
@@ -149,7 +153,7 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite }: { ob: Onboarding; 
         <form action={saveOnboarding} className="px-4 pb-4">
           <input type="hidden" name="builder_id" value={ob.builderId} />
           <Field label="Legal company name" name="legal_name" defaultValue={legalName} hint="Goes in the MLS Owner Name box. Must match their deeds." />
-          <DetailFields d={d} />
+          <DetailFields d={d} t={title} />
           <button className="mt-4 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-white hover:bg-black">Save details</button>
         </form>
       </details>
@@ -158,9 +162,12 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite }: { ob: Onboarding; 
 }
 
 // The details we collect before the invite (shared by Add a builder and each card).
-function DetailFields({ d }: { d?: Details }) {
+function DetailFields({ d, t }: { d?: Details; t?: TitleCompany }) {
   return (
     <>
+      <h3 className="mt-6 text-sm font-semibold">Default title company</h3>
+      <p className="mb-2 text-xs text-muted">Goes on every listing; a community can use a different one. The builder can change it on Company branding.</p>
+      <TitleCompanyFields t={t} />
       <h3 className="mt-6 text-sm font-semibold">Agreement</h3>
       <div className="grid gap-x-3 sm:grid-cols-2">
         <Field label="Service agreement signed" name="agreement_signed_on" type="date" defaultValue={d?.agreement_signed_on ?? ""} />

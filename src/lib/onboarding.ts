@@ -10,12 +10,12 @@ import { communityCompleteness, communitySections, mergeCommunityDetails, MLS_BO
 
 export type StepKey =
   | "agreement" | "legal_name" | "markets" | "owner"
-  | "team" | "logo" | "brand_guide" | "website" | "photo_contact"
+  | "team" | "logo" | "brand_guide" | "website" | "photo_contact" | "title_company"
   | "communities" | "community_setup" | "sales"
   | "plans" | "first_home" | "first_approval";
 
-export type SkippableStep = "team" | "brand_guide" | "website";
-export const SKIPPABLE: readonly SkippableStep[] = ["team", "brand_guide", "website"];
+export type SkippableStep = "team" | "brand_guide" | "website" | "title_company";
+export const SKIPPABLE: readonly SkippableStep[] = ["team", "brand_guide", "website", "title_company"];
 
 export type Step = {
   key: StepKey;
@@ -82,7 +82,7 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
   const ids = builderIds;
   const [builders, settings, people, assignments, branding, photo, communities, details, plans, homes, onboarding] = await Promise.all([
     supabase.from("builders").select("id, name, legal_name").in("id", ids),
-    supabase.from("builder_settings").select("builder_id, mls_boards").in("builder_id", ids),
+    supabase.from("builder_settings").select("builder_id, mls_boards, title_company_name").in("builder_id", ids),
     supabase.from("profiles").select("id, builder_id, role, is_active").in("builder_id", ids),
     supabase.from("community_assignments").select("profile_id, community_id"),
     supabase.from("builder_branding").select("builder_id, logo_path, brand_guide_path, website_url").in("builder_id", ids),
@@ -137,6 +137,7 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
     const live = homeRows.filter((h) => h.workflow_status === "live_on_mls").length;
     const planCount = by(plans.data as Row[], id).length;
     const markets = ((by(settings.data as Row[], id)[0]?.mls_boards ?? []) as string[]);
+    const titleCompany = (by(settings.data as Row[], id)[0]?.title_company_name ?? null) as string | null;
     const owners = team.filter((p) => p.role === "builder_owner").length;
 
     const ourSteps: Step[] = [
@@ -171,6 +172,10 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
         done: !!contact?.contact_name && !!contact?.contact_phone,
         detail: contact?.contact_name ? `${contact.contact_name}${contact.contact_phone ? `, ${contact.contact_phone}` : ""}` : undefined,
         href: "/media/requests#photo-contact", cta: "Add a contact" },
+      { key: "title_company", group: "company", title: "Your default title company", optional: true, skipLabel: "We don’t use one",
+        why: "Goes on every listing as the preferred title company. A community that uses a different one can set its own.",
+        done: !!titleCompany || skipped.has("title_company"), skipped: skipped.has("title_company") && !titleCompany,
+        detail: titleCompany ?? undefined, href: "/branding#title-company", cta: "Add title company" },
       { key: "communities", group: "communities", title: "Add your communities",
         why: "Each community holds its homes, its own photos and its sales team.",
         done: comms.length > 0, detail: comms.length ? `${comms.length} ${comms.length === 1 ? "community" : "communities"}` : undefined,

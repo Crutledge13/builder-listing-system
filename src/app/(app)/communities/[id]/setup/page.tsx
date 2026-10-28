@@ -11,8 +11,8 @@ import { RequiredPill } from "@/components/required-pill";
 import { MlsInput } from "@/components/ntreis-questions";
 import { canEditCommunitySetup } from "@/lib/onboarding";
 import {
-  communityCompleteness, communitySections, formatMls, mergeCommunityDetails, MLS_BOARD_SELECT,
-  type MlsBoard, type MlsField,
+  communityCompleteness, communitySections, formatMls, mergeCommunityDetails, MLS_BOARD_SELECT, TITLE_COMPANY_SELECT, titleDefaults,
+  type MlsBoard, type MlsField, type TitleCompany,
 } from "@/lib/mls-fields";
 import { saveCommunitySetup } from "./actions";
 
@@ -47,6 +47,8 @@ const HELP: Record<string, string> = {
   ShowingContactName: "The person or office agents call.",
   ShowingInstructions: "Anything agents should know before a showing, like where to park or which homes are models.",
   Directions: "Real turn-by-turn directions from a main road. NTREIS fines listings that only say “use GPS”.",
+  TitleCompanyPreferred: "The title company buyers close with here.",
+  TitleCompanyLocation: "The title office’s address or branch.",
   Heating: "What most homes here use. A single home can still differ.",
   Cooling: "What most homes here use. A single home can still differ.",
   TaxRate: "Combined property tax rate, as a percent.",
@@ -71,14 +73,17 @@ async function CommunitySetup({
     .maybeSingle();
   if (!c) notFound();
 
-  const [{ data: board }, { data: staffRow }] = await Promise.all([
+  const [{ data: board }, { data: staffRow }, { data: settings }] = await Promise.all([
     c.mls_board ? supabase.from("mls_boards").select(MLS_BOARD_SELECT).eq("code", c.mls_board).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("mls_details").select("data").eq("community_id", id).maybeSingle(),
+    supabase.from("builder_settings").select(TITLE_COMPANY_SELECT).eq("builder_id", c.builder_id).maybeSingle(),
   ]);
+  // The builder's default title company, used when this community leaves those boxes blank.
+  const defaults = titleDefaults(settings as TitleCompany | null);
   const sections = communitySections(board as MlsBoard | null);
   const answers = (c.mls_fields ?? {}) as Record<string, unknown>;
   const staff = (staffRow?.data ?? {}) as Record<string, unknown>;
-  const score = communityCompleteness(c, mergeCommunityDetails(answers, staff), sections);
+  const score = communityCompleteness(c, mergeCommunityDetails(answers, staff, defaults), sections);
   const missing = new Set(score.missing.map((f) => f.key));
   const canEdit = canEditCommunitySetup(me.role);
   const builderName = (c.builders as unknown as { name: string } | null)?.name.replace(" (demo)", "");
@@ -140,7 +145,7 @@ async function CommunitySetup({
               <h2 className="text-lg font-semibold">{s.title}</h2>
               <div className="mt-4 grid gap-x-4 gap-y-6 sm:grid-cols-2">
                 {s.fields.map((f) => (
-                  <Question key={f.key} f={f} value={answers[f.key]} staffValue={staff[f.key]} needed={missing.has(f.key)} disabled={!canEdit} placeholder={f.key === "SubdivisionName" ? c.name : undefined} />
+                  <Question key={f.key} f={f} value={answers[f.key]} staffValue={staff[f.key]} needed={missing.has(f.key)} disabled={!canEdit} placeholder={f.key === "SubdivisionName" ? c.name : typeof defaults[f.key] === "string" ? String(defaults[f.key]) : undefined} usesDefault={f.key in defaults} />
                 ))}
               </div>
             </section>
@@ -156,8 +161,8 @@ async function CommunitySetup({
   );
 }
 
-function Question({ f, value, staffValue, needed, disabled, placeholder }: {
-  f: MlsField; value: unknown; staffValue: unknown; needed: boolean; disabled: boolean; placeholder?: string;
+function Question({ f, value, staffValue, needed, disabled, placeholder, usesDefault }: {
+  f: MlsField; value: unknown; staffValue: unknown; needed: boolean; disabled: boolean; placeholder?: string; usesDefault?: boolean;
 }) {
   const wide = f.type === "multi" || f.type === "longtext";
   const hasStaff = staffValue !== undefined && staffValue !== null && staffValue !== "";
@@ -175,6 +180,9 @@ function Question({ f, value, staffValue, needed, disabled, placeholder }: {
           <MlsInput f={f} name={`cf__${f.key}`} start={value} disabled={disabled} />
         )}
       </span>
+      {usesDefault && (value === undefined || value === null || value === "") && (
+        <span className="mt-1 block text-xs text-muted">Blank uses your company’s default title company. Type here only if this community uses a different one.</span>
+      )}
       {hasStaff && (
         <span className="mt-1 block text-xs text-muted">Our team has this on the MLS as: <b className="font-medium text-foreground">{formatMls(f, staffValue)}</b></span>
       )}

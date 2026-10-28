@@ -276,9 +276,31 @@ export function completeness(
 export const HOME_MLS_SELECT = "*, builders(name, legal_name), communities(name, county, mls_fields)";
 
 // A community's shared answers as the MLS sheet uses them: the builder's
-// community setup answers, with our team's own entry (mls_details) winning.
-export function mergeCommunityDetails(answers: Record<string, unknown> | null | undefined, staff: Record<string, unknown> | null | undefined) {
-  return { ...(answers ?? {}), ...(staff ?? {}) };
+// defaults (its default title company), then the community setup answers,
+// with our team's own entry (mls_details) winning.
+export function mergeCommunityDetails(
+  answers: Record<string, unknown> | null | undefined,
+  staff: Record<string, unknown> | null | undefined,
+  defaults: Record<string, unknown> = {},
+) {
+  return { ...defaults, ...(answers ?? {}), ...(staff ?? {}) };
+}
+
+// The builder's default title company, under the MLS field names it fills.
+export const TITLE_COMPANY_SELECT = "title_company_name, title_company_location, title_company_phone, title_company_contact, title_company_email";
+export type TitleCompany = {
+  title_company_name: string | null;
+  title_company_location: string | null;
+  title_company_phone: string | null;
+  title_company_contact?: string | null;
+  title_company_email?: string | null;
+};
+export function titleDefaults(s: Partial<TitleCompany> | null | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (s?.title_company_name) out.TitleCompanyPreferred = s.title_company_name;
+  if (s?.title_company_location) out.TitleCompanyLocation = s.title_company_location;
+  if (s?.title_company_phone) out.TitleCompanyPhone = s.title_company_phone;
+  return out;
 }
 
 // The questions set once per community, for this MLS, in the MLS's order.
@@ -311,7 +333,7 @@ export function sheetRuleProblems(
   communityDetails: Record<string, unknown>,
 ): string[] {
   const problems: string[] = [];
-  const contactOk = new Set(["PrivateRemarks", "ShowingInstructions", "ShowingContactName", "ShowingContactPhone", "AssociationPhone",
+  const contactOk = new Set(["PrivateRemarks", "ShowingInstructions", "ShowingContactName", "ShowingContactPhone", "AssociationPhone", "TitleCompanyPhone",
     // IDs and codes that are long numbers, not phone numbers
     "ParcelNumber", "AdditionalParcelsDescription", "LockBoxSerialNumber", "AccessCode", "Lot", "TaxBlock"]);
   for (const f of sections.flatMap((x) => x.fields)) {

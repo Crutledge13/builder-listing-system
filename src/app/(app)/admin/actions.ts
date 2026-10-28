@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { SUPABASE_URL } from "@/lib/supabase/config";
 import { FEATURES } from "@/lib/features";
+import { readTitleCompany } from "@/lib/title-company";
 
 // Every action here is for our platform admins. The database rules enforce
 // this too; the check below just gives a clear message.
@@ -55,7 +56,7 @@ export async function addBuilder(formData: FormData) {
     .single();
   if (error || !created) go(back, { error: friendly(error?.message ?? "unknown") });
   const markets = formData.getAll("mls").map(String);
-  await supabase.from("builder_settings").upsert({ builder_id: created.id, mls_boards: markets, mls_locked: true });
+  await supabase.from("builder_settings").upsert({ builder_id: created.id, mls_boards: markets, mls_locked: true, ...readTitleCompany(formData) });
   // The branding and onboarding rows are made by the database when a builder is added.
   if (website) await supabase.from("builder_branding").update({ website_url: website }).eq("builder_id", created.id);
   const { error: oErr } = await supabase.from("builder_onboarding").update(onboardingFields(formData)).eq("builder_id", created.id);
@@ -95,11 +96,13 @@ export async function saveOnboarding(formData: FormData) {
   const back = `/admin/onboarding`;
   const supabase = await createClient();
   const legal = String(formData.get("legal_name") ?? "").trim().slice(0, 200) || null;
-  const [{ error: bErr }, { error: oErr }] = await Promise.all([
+  const [{ error: bErr }, { error: oErr }, { error: tErr }] = await Promise.all([
     supabase.from("builders").update({ legal_name: legal }).eq("id", builderId),
     supabase.from("builder_onboarding").upsert({ builder_id: builderId, ...onboardingFields(formData) }),
+    // Their default title company (the builder can change it later on Company branding).
+    supabase.from("builder_settings").upsert({ builder_id: builderId, ...readTitleCompany(formData), updated_at: new Date().toISOString() }),
   ]);
-  const err = bErr ?? oErr;
+  const err = bErr ?? oErr ?? tErr;
   if (err) go(back, { error: friendly(err.message) });
   revalidatePath("/", "layout");
   go(back, { saved: "Onboarding details saved." });

@@ -320,6 +320,10 @@ export const NTREIS_SECTIONS: MlsSection[] = [
         help: "When the buyer gets the keys. Finished home: Closing/Funding. Still being built: Upon Completion." },
       { key: "ExistingLoanType", label: "Loan Type", source: "derived", type: "select", required: true, options: ["Assumable Non Qualifying", "Assumable Qualifying", "Treat As Clear"], derive: () => "Treat As Clear" },
       { key: "SecondMortgageYN", label: "Second Mortgage YN", source: "derived", type: "yesno", options: YN, required: true, derive: () => "No" },
+      // Set once for the builder (its default title company) or per community.
+      { key: "TitleCompanyPreferred", label: "Title Company Preferred", source: "community", type: "text" },
+      { key: "TitleCompanyLocation", label: "Title Company Location", source: "community", type: "text" },
+      { key: "TitleCompanyPhone", label: "Title Company Phone", source: "community", type: "text" },
     ],
   },
   {

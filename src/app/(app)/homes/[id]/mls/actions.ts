@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { enterOwnMls } from "@/lib/mls-entry";
 import { isStaff } from "@/lib/permissions";
-import { MLS_BOARD_SELECT, sectionsForBoard, type MlsBoard, type MlsField } from "@/lib/mls-fields";
+import { MLS_BOARD_SELECT, sectionsForBoard, TITLE_COMPANY_SELECT, titleDefaults, type MlsBoard, type MlsField, type TitleCompany } from "@/lib/mls-fields";
 
 function read(f: MlsField, formData: FormData): unknown {
   if (f.type === "multi") return formData.getAll(f.key).map(String).filter(Boolean);
@@ -42,7 +42,7 @@ export async function saveMlsSheet(formData: FormData) {
   if (!isStaff(me.role) && !(await enterOwnMls(me.role, me.builder_id))) go({ error: "Only our team fills in the MLS sheet." });
 
   const supabase = await createClient();
-  const { data: home } = await supabase.from("homes").select("id, community_id, mls_board, communities(mls_fields)").eq("id", homeId).maybeSingle();
+  const { data: home } = await supabase.from("homes").select("id, builder_id, community_id, mls_board, communities(mls_fields)").eq("id", homeId).maybeSingle();
   if (!home) return go({ error: "Home not found." });
   const { data: rows } = await supabase.from("mls_details").select("id, home_id, community_id, data").or(`home_id.eq.${homeId},community_id.eq.${home.community_id}`);
   const homeRow = rows?.find((r) => r.home_id === homeId);
@@ -58,7 +58,11 @@ export async function saveMlsSheet(formData: FormData) {
   const commData = merge((commRow?.data ?? {}) as Record<string, unknown>, commFields, formData);
   // A shared value that matches the builder's community setup answer isn't
   // stored as ours, so it keeps following the builder if they change it.
-  const answers = ((home.communities as unknown as { mls_fields: Record<string, unknown> } | null)?.mls_fields ?? {}) as Record<string, unknown>;
+  const { data: settings } = await supabase.from("builder_settings").select(TITLE_COMPANY_SELECT).eq("builder_id", home.builder_id).maybeSingle();
+  const answers = {
+    ...titleDefaults(settings as TitleCompany | null),
+    ...((home.communities as unknown as { mls_fields: Record<string, unknown> } | null)?.mls_fields ?? {}),
+  } as Record<string, unknown>;
   for (const f of commFields) {
     if (formData.has(`present_${f.key}`) && f.key in answers && JSON.stringify(commData[f.key] ?? null) === JSON.stringify(answers[f.key])) delete commData[f.key];
   }
