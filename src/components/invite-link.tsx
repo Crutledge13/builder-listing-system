@@ -31,7 +31,7 @@ export function InviteLink({ profileId, name }: { profileId: string; name: strin
           <button type="button" onClick={() => copy(state.link!)} className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-white hover:brightness-110">
             {copied ? "Link copied" : "Copy link"}
           </button>
-          <p className="w-full text-xs text-muted">Works once and expires after about an hour. If it runs out, make a new one here.</p>
+          <p className="w-full text-xs text-muted">Works for 2 days, and they can open it more than once until they’ve set their password. Making a new link turns this one off.</p>
         </div>
       ) : null}
       {state.error && <p className="mt-2 text-sm text-red-800">{state.error}</p>}

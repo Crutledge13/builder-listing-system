@@ -22,6 +22,6 @@ export async function getInviteLink(_prev: InviteLinkState, formData: FormData):
     me.role === "platform_admin" ||
     (!!me.builder_id && target.builder_id === me.builder_id && rolesICanGive(me.role).includes(target.role as Role));
   if (!allowed) return { error: "Your role can’t make an invite link for that person." };
-  const res = await freshInviteLink(id);
+  const res = await freshInviteLink(id, me.id);
   return "error" in res ? { error: res.error } : { link: res.link, at: Date.now() };
 }

@@ -39,8 +39,10 @@ export async function proxy(request: NextRequest) {
   const isShare = request.nextUrl.pathname.startsWith("/s/");
   // Join links: the page checks the link's code itself (see /join/[token]).
   const isJoin = request.nextUrl.pathname.startsWith("/join/");
+  // Invite links: the page checks the link itself and signs in only on its Continue button (see /accept/[token]).
+  const isAccept = request.nextUrl.pathname.startsWith("/accept/");
 
-  if (!user && !isLogin && !isConfirm && !isShare && !isJoin) {
+  if (!user && !isLogin && !isConfirm && !isShare && !isJoin && !isAccept) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
@@ -50,7 +52,7 @@ export async function proxy(request: NextRequest) {
   // Opened an invite link but hasn't chosen a password yet: finish that first,
   // or they'd have no way back in once this sign-in runs out.
   const path = request.nextUrl.pathname;
-  if (user?.user_metadata?.needs_password && path !== "/welcome" && !isConfirm && !path.startsWith("/signed-out") && !path.startsWith("/api/")) {
+  if (user?.user_metadata?.needs_password && path !== "/welcome" && !isConfirm && !isAccept && !path.startsWith("/signed-out") && !path.startsWith("/api/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/welcome";
     url.search = "";

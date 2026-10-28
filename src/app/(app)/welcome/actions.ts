@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { setupOpen } from "@/lib/onboarding";
+import { finishInvites } from "@/lib/invite-links";
 
 function back(error: string): never {
   redirect(`/welcome?${new URLSearchParams({ error }).toString()}`);
@@ -25,6 +26,7 @@ export async function setFirstPassword(formData: FormData) {
 
   const { error } = await supabase.auth.updateUser({ password, data: { needs_password: false } });
   if (error) back(/weak|pwned|leaked/i.test(error.message) ? "That password is too easy to guess. Try a longer one." : `Couldn’t save your password: ${error.message}`);
+  await finishInvites(me.id); // their invite link stops working now
   if (name && name !== me.full_name) await supabase.rpc("update_my_profile", { p_full_name: name, p_phone: me.phone, p_job_title: me.job_title });
 
   // Builders who run the setup go straight to their checklist.
