@@ -5,7 +5,8 @@ export type MenuLink = { href: string; label: string; hint?: string };
 
 // The few tabs that always show along the top, by role.
 // `off` is the builder's turned-off features (src/lib/features.ts).
-export function primaryTabs(role: Role, enterOwnMls = false, off: ReadonlySet<Feature> = new Set()): MenuLink[] {
+// `setupOpen`: the builder's setup checklist isn't marked done yet (owners and managers).
+export function primaryTabs(role: Role, enterOwnMls = false, off: ReadonlySet<Feature> = new Set(), setupOpen = false): MenuLink[] {
   if (role === "photographer") return [{ href: "/jobs", label: "Your jobs" }];
   if (role === "platform_admin" || role === "listing_coordinator") {
     return [
@@ -22,6 +23,7 @@ export function primaryTabs(role: Role, enterOwnMls = false, off: ReadonlySet<Fe
     { href: "/media", label: "Media" },
   ];
   if (enterOwnMls) tabs.unshift({ href: "/tasks", label: "MLS work" });
+  if (setupOpen) tabs.unshift({ href: "/setup", label: "Setup" });
   if (!off.has("builder_tasks") && (role === "builder_owner" || role === "manager" || role === "marketing")) tabs.push({ href: "/todo", label: "Tasks" });
   if (!off.has("reports") && (role === "builder_owner" || role === "manager" || role === "sales")) tabs.push({ href: "/reports", label: "Reports" });
   return tabs;
@@ -48,6 +50,10 @@ export function menuLinks(role: Role, off: ReadonlySet<Feature> = new Set()): Me
   }
   if (role === "builder_owner" || role === "manager") {
     links.push({ href: "/team", label: "Your team", hint: "Add people and set their access" });
+    links.push({ href: "/setup", label: "Setup checklist", hint: "Everything we need to get your company set up" });
+  }
+  if (role === "platform_admin" || role === "listing_coordinator") {
+    links.push({ href: "/setup", label: "Builder setup", hint: "Each builder’s setup checklist" });
   }
   if (role === "platform_admin" || role === "listing_coordinator") {
     links.push({ href: "/todo", label: "Builders’ tasks", hint: "What each builder’s team has open" });

@@ -95,7 +95,7 @@ async function ShootContact({ builderId }: { builderId: string }) {
   const { data: c } = await supabase.from("builder_photo_info").select("contact_name, contact_phone, contact_email, access_notes").eq("builder_id", builderId).maybeSingle();
   const missing = !c?.contact_name && !c?.contact_phone;
   return (
-    <details className="mt-6 max-w-3xl rounded-2xl border border-line" open={missing}>
+    <details id="photo-contact" className="mt-6 max-w-3xl scroll-mt-28 rounded-2xl border border-line" open={missing}>
       <summary className="cursor-pointer list-none px-5 py-4">
         <span className="font-semibold">Who photographers call</span>
         <span className="mt-0.5 block text-sm text-muted">

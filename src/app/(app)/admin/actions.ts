@@ -33,17 +33,76 @@ function friendly(msg: string) {
 // ---------------------------------------------------------------------------
 // Builders
 // ---------------------------------------------------------------------------
+// Step 0 of onboarding: the builder's account, what we agreed, and the
+// owner's invite. The owner then signs in to their setup checklist.
 export async function addBuilder(formData: FormData) {
-  await requireAdmin("/admin/builders");
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) go("/admin/builders", { error: "Enter the builder’s name." });
+  const back = String(formData.get("back") ?? "/admin/builders");
+  await requireAdmin(back);
+  const text = (k: string) => String(formData.get(k) ?? "").trim();
+  const name = text("name");
+  if (!name) go(back, { error: "Enter the builder’s name." });
+  const website = text("website_url");
+  if (website && !/^https?:\/\//i.test(website)) go(back, { error: "The website must start with http:// or https://." });
+  const ownerEmail = text("owner_email").toLowerCase();
+  const ownerName = text("owner_name");
+  if (ownerEmail && !ownerName) go(back, { error: "Enter the owner’s name to send the invite." });
+
   const supabase = await createClient();
-  const { data: created, error } = await supabase.from("builders").insert({ name, slug: `${slugify(name)}-${Date.now().toString(36).slice(-4)}` }).select("id").single();
-  if (error || !created) go("/admin/builders", { error: friendly(error?.message ?? "unknown") });
+  const { data: created, error } = await supabase
+    .from("builders")
+    .insert({ name, legal_name: text("legal_name") || null, slug: `${slugify(name)}-${Date.now().toString(36).slice(-4)}` })
+    .select("id")
+    .single();
+  if (error || !created) go(back, { error: friendly(error?.message ?? "unknown") });
   const markets = formData.getAll("mls").map(String);
   await supabase.from("builder_settings").upsert({ builder_id: created.id, mls_boards: markets, mls_locked: true });
-  revalidatePath("/admin", "layout");
-  go("/admin/builders", { saved: `Added ${name}.` });
+  // The branding and onboarding rows are made by the database when a builder is added.
+  if (website) await supabase.from("builder_branding").update({ website_url: website }).eq("builder_id", created.id);
+  const { error: oErr } = await supabase.from("builder_onboarding").update(onboardingFields(formData)).eq("builder_id", created.id);
+
+  let invited = "";
+  if (ownerEmail) {
+    const problem = await inviteOne({ email: ownerEmail, fullName: ownerName, role: "builder_owner", builderId: created.id });
+    invited = problem ? ` The owner invite didn’t go out: ${problem}` : ` Invited ${ownerName}; they’ll get an email to set a password and see their setup checklist.`;
+  }
+  revalidatePath("/", "layout");
+  go("/admin/onboarding", {
+    saved: `Added ${name}.${oErr ? ` Some onboarding details didn’t save: ${friendly(oErr.message)}` : ""}${invited}`,
+  });
+}
+
+// The onboarding details form (Admin > Onboarding and Add a builder share it).
+function onboardingFields(formData: FormData) {
+  const text = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max) || null;
+  const date = (k: string) => (/^\d{4}-\d{2}-\d{2}$/.test(String(formData.get(k) ?? "")) ? String(formData.get(k)) : null);
+  const feed = String(formData.get("sends_listing_feed") ?? "unknown");
+  return {
+    billing_contact_name: text("billing_contact_name", 80),
+    billing_contact_email: text("billing_contact_email", 200)?.toLowerCase() ?? null,
+    billing_contact_phone: text("billing_contact_phone", 30),
+    pricing: text("pricing", 300),
+    agreement_signed_on: date("agreement_signed_on"),
+    listing_authorization_on: date("listing_authorization_on"),
+    website_platform: text("website_platform", 100),
+    sends_listing_feed: ["yes", "no", "unknown"].includes(feed) ? feed : "unknown",
+    notes: text("notes", 2000),
+  };
+}
+
+export async function saveOnboarding(formData: FormData) {
+  await requireAdmin("/admin/onboarding");
+  const builderId = String(formData.get("builder_id"));
+  const back = `/admin/onboarding`;
+  const supabase = await createClient();
+  const legal = String(formData.get("legal_name") ?? "").trim().slice(0, 200) || null;
+  const [{ error: bErr }, { error: oErr }] = await Promise.all([
+    supabase.from("builders").update({ legal_name: legal }).eq("id", builderId),
+    supabase.from("builder_onboarding").upsert({ builder_id: builderId, ...onboardingFields(formData) }),
+  ]);
+  const err = bErr ?? oErr;
+  if (err) go(back, { error: friendly(err.message) });
+  revalidatePath("/", "layout");
+  go(back, { saved: "Onboarding details saved." });
 }
 
 export async function renameBuilder(formData: FormData) {
@@ -143,35 +202,44 @@ export async function setAssignments(formData: FormData) {
   go(back, { saved: "Sales assignments saved." });
 }
 
-export async function invitePerson(formData: FormData) {
-  await requireAdmin("/admin/people");
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const fullName = String(formData.get("full_name") ?? "").trim();
-  const role = String(formData.get("role") ?? "");
-  const builderId = String(formData.get("builder_id") ?? "") || null;
-  if (!email || !fullName) go("/admin/people", { error: "Enter a name and email." });
-  if (![...BUILDER_ROLES, ...STAFF_ROLES].includes(role)) go("/admin/people", { error: "Pick a role." });
-  if (BUILDER_ROLES.includes(role) && !builderId) go("/admin/people", { error: "Builder roles need a builder." });
-
+// Sends one invite and sets up the person's account. Returns a problem in
+// plain words, or null when it worked. Callers check the admin role first.
+async function inviteOne(p: { email: string; fullName: string; role: string; builderId: string | null }): Promise<string | null> {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) go("/admin/people", { error: "Inviting people needs the SUPABASE_SERVICE_ROLE_KEY setting in Vercel. See the note on this page." });
+  if (!serviceKey) return "inviting people needs the SUPABASE_SERVICE_ROLE_KEY setting in Vercel. Invite them later from Admin > Onboarding.";
 
   // Creating a login needs Supabase's admin key, which stays on the server.
   const admin = createAdminSupabase(SUPABASE_URL, serviceKey, { auth: { persistSession: false } });
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName } });
-  if (error || !data.user) go("/admin/people", { error: `Couldn’t invite: ${error?.message ?? "unknown error"}` });
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(p.email, { data: { full_name: p.fullName } });
+  if (error || !data.user) return `couldn’t invite: ${error?.message ?? "unknown error"}`;
 
   const supabase = await createClient();
   const { error: pErr } = await supabase.from("profiles").insert({
     id: data.user.id,
-    email,
-    full_name: fullName,
-    role,
-    builder_id: STAFF_ROLES.includes(role) ? null : builderId,
+    email: p.email,
+    full_name: p.fullName,
+    role: p.role,
+    builder_id: STAFF_ROLES.includes(p.role) ? null : p.builderId,
   });
-  if (pErr) go("/admin/people", { error: `The invite went out, but the account setup failed: ${friendly(pErr.message)}` });
-  revalidatePath("/admin/people");
-  go("/admin/people", { saved: `Invited ${fullName}. They’ll get an email to set a password.` });
+  if (pErr) return `the invite went out, but the account setup failed: ${friendly(pErr.message)}`;
+  return null;
+}
+
+export async function invitePerson(formData: FormData) {
+  const back = String(formData.get("back") ?? "/admin/people");
+  await requireAdmin(back);
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const role = String(formData.get("role") ?? "");
+  const builderId = String(formData.get("builder_id") ?? "") || null;
+  if (!email || !fullName) go(back, { error: "Enter a name and email." });
+  if (![...BUILDER_ROLES, ...STAFF_ROLES].includes(role)) go(back, { error: "Pick a role." });
+  if (BUILDER_ROLES.includes(role) && !builderId) go(back, { error: "Builder roles need a builder." });
+
+  const problem = await inviteOne({ email, fullName, role, builderId });
+  if (problem) go(back, { error: problem[0].toUpperCase() + problem.slice(1) });
+  revalidatePath("/", "layout");
+  go(back, { saved: `Invited ${fullName}. They’ll get an email to set a password.` });
 }
 
 // ---------------------------------------------------------------------------

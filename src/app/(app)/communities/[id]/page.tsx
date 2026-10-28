@@ -15,6 +15,7 @@ import { HomeArt } from "@/components/home-art";
 import { openHouseWhen } from "@/lib/time";
 import { setAssignments } from "@/app/(app)/admin/actions";
 import { Notice } from "@/components/notice";
+import { communityCompleteness, communitySections, mergeCommunityDetails, MLS_BOARD_SELECT, type MlsBoard } from "@/lib/mls-fields";
 
 export default function CommunityPage(props: PageProps<"/communities/[id]">) {
   return (
@@ -44,7 +45,7 @@ async function CommunityDetail({
 
   const { data: community } = await supabase
     .from("communities")
-    .select("id, name, city, county, builder_id, builders(name)")
+    .select("id, name, city, county, builder_id, mls_board, mls_fields, builders(name)")
     .eq("id", id)
     .maybeSingle();
   // Sales see only assigned communities; anything else looks like it doesn't exist.
@@ -82,6 +83,16 @@ async function CommunityDetail({
     ? await supabase.from("community_assignments").select("profile_id").eq("community_id", id)
     : { data: null };
   const onTeam = new Set((thisTeam ?? []).map((t) => t.profile_id));
+
+  // How much of the community's shared MLS setup is answered (not for sales).
+  let setup: { filled: number; required: number } | null = null;
+  if (me.role !== "sales") {
+    const [{ data: board }, { data: staffRow }] = await Promise.all([
+      community.mls_board ? supabase.from("mls_boards").select(MLS_BOARD_SELECT).eq("code", community.mls_board).maybeSingle() : Promise.resolve({ data: null }),
+      supabase.from("mls_details").select("data").eq("community_id", id).maybeSingle(),
+    ]);
+    setup = communityCompleteness(community, mergeCommunityDetails(community.mls_fields as Record<string, unknown>, (staffRow?.data ?? {}) as Record<string, unknown>), communitySections(board as MlsBoard | null));
+  }
 
   const counts = new Map<string, number>();
   all.forEach((h) => counts.set(h.workflow_status, (counts.get(h.workflow_status) ?? 0) + 1));
@@ -121,6 +132,16 @@ async function CommunityDetail({
           <Link href={`/homes/new?community=${community.id}`} className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">
             <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
             Add a home here
+          </Link>
+        )}
+        {setup && (
+          <Link
+            href={`/communities/${community.id}/setup`}
+            className={setup.filled < setup.required
+              ? "rounded-full border border-accent bg-accent-soft px-4 py-2.5 text-sm font-semibold text-accent hover:brightness-95"
+              : "rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft"}
+          >
+            Community setup {setup.filled < setup.required ? `(${setup.filled} of ${setup.required})` : "✓"}
           </Link>
         )}
         <Link href={`/media?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">

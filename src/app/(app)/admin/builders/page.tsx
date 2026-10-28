@@ -3,7 +3,7 @@ import Link from "next/link";
 import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
-import { addBuilder, renameBuilder, setBuilderMarkets } from "../actions";
+import { renameBuilder, setBuilderMarkets } from "../actions";
 import { FEATURES } from "@/lib/features";
 
 export default function BuildersAdmin(props: PageProps<"/admin/builders">) {
@@ -92,27 +92,11 @@ async function Builders() {
         ))}
       </div>
 
-      <form action={addBuilder} className="h-fit rounded-2xl border border-line p-5">
+      <div className="h-fit rounded-2xl border border-line p-5">
         <h2 className="font-semibold">Add a builder</h2>
-        <p className="mt-1 text-sm text-muted">Their data stays completely separate from every other builder.</p>
-        <label className="mt-4 block">
-          <span className="mb-1 block text-sm font-medium">Company name</span>
-          <input name="name" required placeholder="Lone Star Homes" className="field-input" />
-        </label>
-        <fieldset className="mt-3">
-          <legend className="mb-1 text-sm font-medium">Where they build (MLS)</legend>
-          <div className="space-y-1.5">
-            {(boards ?? []).map((m) => (
-              <label key={m.code} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="mls" value={m.code} defaultChecked={m.code === "NTREIS"} className="h-4 w-4 accent-[#3452c7]" /> {m.short_name}
-              </label>
-            ))}
-          </div>
-          <p className="mt-1 text-xs text-muted">One market: every home goes to that MLS. Several: each community gets a suggestion from its county.</p>
-        </fieldset>
-        <button className="mt-4 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Add builder</button>
-        <p className="mt-3 text-xs text-muted">Next: add their communities, then invite their people.</p>
-      </form>
+        <p className="mt-1 text-sm text-muted">New builders start in Onboarding: their account, what we agreed, and the owner&rsquo;s invite in one form.</p>
+        <Link href="/admin/onboarding#add" className="mt-4 block w-full rounded-xl bg-accent px-4 py-2.5 text-center font-semibold text-white hover:brightness-110">Add a builder</Link>
+      </div>
     </div>
   );
 }

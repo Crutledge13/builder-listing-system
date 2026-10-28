@@ -193,13 +193,17 @@ MLS_FIELD_FOR_COLUMN.build_stage = { key: "PropertyCondition", label: "Construct
 for (const f of NTREIS_SECTIONS.flatMap((x) => x.fields)) {
   if (f.source === "builder") MLS_FIELD_FOR_COLUMN[`mls_fields.${f.key}`] = f;
 }
+// The builder's community answers, as recorded on update tasks ("community.AssociationFee").
+for (const f of [...ALL_MLS_FIELDS, ...NTREIS_SECTIONS.flatMap((x) => x.fields)]) {
+  if (f.source === "community") MLS_FIELD_FOR_COLUMN[`community.${f.key}`] = f;
+}
 
 export type HomeForMls = Record<string, unknown> & {
   id: string;
   build_stage: string;
   mls_fields?: Record<string, unknown> | null;
-  builders: { name: string } | null;
-  communities: { name: string; county: string | null } | null;
+  builders: { name: string; legal_name?: string | null } | null;
+  communities: { name: string; county: string | null; mls_fields?: Record<string, unknown> | null } | null;
 };
 
 export const CONDITION: Record<string, string> = {
@@ -269,7 +273,33 @@ export function completeness(
 }
 
 // Select for a home's MLS sheet.
-export const HOME_MLS_SELECT = "*, builders(name), communities(name, county)";
+export const HOME_MLS_SELECT = "*, builders(name, legal_name), communities(name, county, mls_fields)";
+
+// A community's shared answers as the MLS sheet uses them: the builder's
+// community setup answers, with our team's own entry (mls_details) winning.
+export function mergeCommunityDetails(answers: Record<string, unknown> | null | undefined, staff: Record<string, unknown> | null | undefined) {
+  return { ...(answers ?? {}), ...(staff ?? {}) };
+}
+
+// The questions set once per community, for this MLS, in the MLS's order.
+export function communitySections(board: MlsBoard | null | undefined): MlsSection[] {
+  return sectionsForBoard(board)
+    .map((s) => ({ title: s.title, fields: s.fields.filter((f) => f.source === "community") }))
+    .filter((s) => s.fields.length > 0);
+}
+
+// How much of a community's setup is done: the MLS-required community answers
+// (anything worked out automatically counts as answered).
+export function communityCompleteness(
+  community: { name: string; county: string | null },
+  details: Record<string, unknown>,
+  sections: MlsSection[],
+) {
+  const home: HomeForMls = { id: "", build_stage: "", mls_fields: {}, builders: null, communities: { name: community.name, county: community.county } };
+  const required = sections.flatMap((s) => s.fields).filter((f) => f.required);
+  const missing = required.filter((f) => resolveField(f, home, {}, details).from === "missing");
+  return { required: required.length, filled: required.length - missing.length, missing };
+}
 
 // Rules that apply to every field our team types into the MLS (not just the
 // builder's description): no buyer-agent compensation anywhere, no contact

@@ -42,7 +42,7 @@ export async function saveMlsSheet(formData: FormData) {
   if (!isStaff(me.role) && !(await enterOwnMls(me.role, me.builder_id))) go({ error: "Only our team fills in the MLS sheet." });
 
   const supabase = await createClient();
-  const { data: home } = await supabase.from("homes").select("id, community_id, mls_board").eq("id", homeId).maybeSingle();
+  const { data: home } = await supabase.from("homes").select("id, community_id, mls_board, communities(mls_fields)").eq("id", homeId).maybeSingle();
   if (!home) return go({ error: "Home not found." });
   const { data: rows } = await supabase.from("mls_details").select("id, home_id, community_id, data").or(`home_id.eq.${homeId},community_id.eq.${home.community_id}`);
   const homeRow = rows?.find((r) => r.home_id === homeId);
@@ -54,7 +54,14 @@ export async function saveMlsSheet(formData: FormData) {
     : { data: null };
   const fields = sectionsForBoard(board as MlsBoard | null).flatMap((s) => s.fields);
   const homeData = merge((homeRow?.data ?? {}) as Record<string, unknown>, fields.filter((f) => f.source === "detail"), formData);
-  const commData = merge((commRow?.data ?? {}) as Record<string, unknown>, fields.filter((f) => f.source === "community"), formData);
+  const commFields = fields.filter((f) => f.source === "community");
+  const commData = merge((commRow?.data ?? {}) as Record<string, unknown>, commFields, formData);
+  // A shared value that matches the builder's community setup answer isn't
+  // stored as ours, so it keeps following the builder if they change it.
+  const answers = ((home.communities as unknown as { mls_fields: Record<string, unknown> } | null)?.mls_fields ?? {}) as Record<string, unknown>;
+  for (const f of commFields) {
+    if (formData.has(`present_${f.key}`) && f.key in answers && JSON.stringify(commData[f.key] ?? null) === JSON.stringify(answers[f.key])) delete commData[f.key];
+  }
 
   const writes = [
     homeRow

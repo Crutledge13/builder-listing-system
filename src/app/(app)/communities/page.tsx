@@ -9,6 +9,7 @@ import { money } from "@/lib/format";
 import { HomeArt } from "@/components/home-art";
 import { AttentionPanel, loadAlerts } from "@/components/alerts";
 import { Notice } from "@/components/notice";
+import { SetupBanner } from "@/components/setup-banner";
 
 export default function CommunitiesPage(props: PageProps<"/communities">) {
   return (
@@ -73,6 +74,8 @@ async function CommunityList() {
           )}
         </div>
       </div>
+
+      {(me.role === "builder_owner" || me.role === "manager") && me.builder_id && <SetupBanner builderId={me.builder_id} />}
 
       <AttentionPanel alerts={alerts} back="/communities" canAnswer={me.role !== "marketing"} staff={false} fullHref="/attention" />
 

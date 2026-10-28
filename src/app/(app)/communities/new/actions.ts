@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { canEditCommunitySetup } from "@/lib/onboarding";
 
 function back(params: Record<string, string>): never {
   redirect(`/communities/new?${new URLSearchParams(params).toString()}`);
@@ -27,5 +28,9 @@ export async function createCommunity(formData: FormData) {
     .single();
   if (error || !data) back({ error: error?.message.includes("row-level security") ? "Your role can’t add communities." : "Couldn’t add that community." });
   revalidatePath("/", "layout");
+  // Owners, managers and our admins answer the community's shared MLS questions next.
+  if (canEditCommunitySetup(me.role)) {
+    redirect(`/communities/${data.id}/setup?saved=${encodeURIComponent(`Added ${name}. Next, answer its shared MLS questions so every home here starts with them.`)}`);
+  }
   redirect(`/communities/${data.id}?saved=${encodeURIComponent(`Added ${name}. Add its homes and assign your sales team below.`)}`);
 }

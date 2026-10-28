@@ -94,7 +94,7 @@ function Question({ f, mode, value, source, canEdit }: { f: MlsField; mode: "new
       </span>
       {f.help && <span className="mt-0.5 block text-xs leading-snug text-muted">{f.help}</span>}
       <span className="mt-1.5 block">
-        <Input f={f} name={name} start={start} disabled={!canEdit} />
+        <MlsInput f={f} name={name} start={start} disabled={!canEdit} />
       </span>
     </>
   );
@@ -112,7 +112,8 @@ function Question({ f, mode, value, source, canEdit }: { f: MlsField; mode: "new
   );
 }
 
-function Input({ f, name, start, disabled }: { f: MlsField; name: string; start: unknown; disabled: boolean }) {
+// One MLS answer's input, by type (also used by community setup).
+export function MlsInput({ f, name, start, disabled }: { f: MlsField; name: string; start: unknown; disabled: boolean }) {
   const text = start === null || start === undefined ? "" : String(start);
   if (f.type === "multi") {
     const on = new Set(Array.isArray(start) ? (start as string[]).map(String) : []);

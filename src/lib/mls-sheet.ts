@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadListingMedia } from "@/lib/listing-media";
 import { cleanRooms } from "@/lib/rooms";
 import type { Incentive } from "@/lib/incentives";
-import { completeness, HOME_MLS_SELECT, MLS_BOARD_SELECT, sectionsForBoard, type HomeForMls, type MlsBoard } from "@/lib/mls-fields";
+import { completeness, HOME_MLS_SELECT, MLS_BOARD_SELECT, mergeCommunityDetails, sectionsForBoard, type HomeForMls, type MlsBoard } from "@/lib/mls-fields";
 
 // Everything our team needs to enter one home on the MLS.
 export async function loadMlsSheet(supabase: SupabaseClient, homeId: string) {
@@ -20,11 +20,16 @@ export async function loadMlsSheet(supabase: SupabaseClient, homeId: string) {
   const board = (boardRow ?? null) as MlsBoard | null;
   const sections = sectionsForBoard(board);
   const homeDetails = (rows?.find((r) => r.home_id === homeId)?.data ?? {}) as Record<string, unknown>;
-  const communityDetails = (rows?.find((r) => r.community_id === h.community_id)?.data ?? {}) as Record<string, unknown>;
+  // Shared community answers: the builder's community setup, with our team's entry winning.
+  const communityStaff = (rows?.find((r) => r.community_id === h.community_id)?.data ?? {}) as Record<string, unknown>;
+  const communityAnswers = (h.communities?.mls_fields ?? {}) as Record<string, unknown>;
+  const communityDetails = mergeCommunityDetails(communityAnswers, communityStaff);
   return {
     home: h,
     homeDetails,
     communityDetails,
+    communityAnswers,
+    communityStaff,
     photos: listing.photos,
     mlsPhotos: listing.mlsPhotos,
     videos: listing.videos,

@@ -6,6 +6,7 @@ import { cx } from "@/lib/format";
 
 const TABS = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/onboarding", label: "Onboarding" },
   { href: "/admin/builders", label: "Builders" },
   { href: "/admin/communities", label: "Communities" },
   { href: "/admin/people", label: "People" },
