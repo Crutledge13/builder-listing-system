@@ -862,7 +862,7 @@ async function HomeDetail({
               <p className="mt-1 text-sm">
                 <b>{SALE_LABELS[(home.market_status ?? "active") as MarketStatus]}</b>
                 {home.market_status === "under_contract" && home.purchase_contract_date ? `, since ${new Date(home.purchase_contract_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
-                {home.market_status === "under_contract" && (home.buyer_unrepresented || home.buyer_agent_full_name) && (
+                {(home.market_status === "under_contract" || home.market_status === "sold") && (home.buyer_unrepresented || home.buyer_agent_full_name) && (
                   <span className="block text-xs text-muted">
                     {home.buyer_unrepresented ? "Buyer has no agent" : `Buyer’s agent: ${home.buyer_agent_full_name}${home.buyer_office_name ? `, ${home.buyer_office_name}` : ""}${home.co_buyer_agent_full_name ? ` and ${home.co_buyer_agent_full_name}` : ""}`}
                   </span>
@@ -896,6 +896,13 @@ async function HomeDetail({
                                 <span className="mb-1 block font-medium">Close price ($)</span>
                                 <input name="close_price" inputMode="decimal" required defaultValue={home.list_price ?? ""} className="field-input py-2" />
                               </label>
+                              {/* The MLS needs the buyer's agent on a closed sale too; filled in from the contract when there was one. */}
+                              <BuyerAgentFields initial={{
+                                buyer_agent_full_name: home.buyer_agent_full_name, buyer_office_name: home.buyer_office_name,
+                                buyer_agent_mls_id: home.buyer_agent_mls_id, buyer_agent_state_license: home.buyer_agent_state_license,
+                                co_buyer_agent_full_name: home.co_buyer_agent_full_name, co_buyer_office_name: home.co_buyer_office_name,
+                                buyer_unrepresented: home.buyer_unrepresented,
+                              }} />
                             </>
                           )}
                           {live && <p className="text-xs text-muted">The MLS requires this to change the status.</p>}

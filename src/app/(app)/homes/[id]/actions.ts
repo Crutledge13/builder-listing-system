@@ -264,6 +264,9 @@ export async function setMarketStatus(formData: FormData) {
     if (!price || Number.isNaN(price)) back(id, { error: "Enter the close price." });
     patch.close_date = d;
     patch.close_price = price;
+    // The MLS needs the buyer's agent on a closed sale too (the database checks this as well).
+    if (missingBuyerAgent(formData)) back(id, { error: "Enter the buyer’s agent and their brokerage, or tick “The buyer has no agent”.", at: "home-status" });
+    Object.assign(patch, readBuyerAgent(formData));
   }
   const { data, error } = await supabase.from("homes").update(patch).eq("id", id).select("id, workflow_status");
   if (error) back(id, { error: friendly(error.message), at: "home-status" });

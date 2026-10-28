@@ -24,14 +24,14 @@ export async function answerAvailability(formData: FormData) {
   const priceRaw = String(formData.get("price") ?? "").replace(/[$,]/g, "");
   const price = priceRaw ? Number(priceRaw) : null;
   if (answer === "sold" && (!price || Number.isNaN(price))) back(formData, { error: "Enter the close price so the MLS can be updated." });
-  if (answer === "under_contract" && missingBuyerAgent(formData)) back(formData, { error: "Enter the buyer’s agent and their brokerage, or tick “The buyer has no agent”." });
+  if ((answer === "under_contract" || answer === "sold") && missingBuyerAgent(formData)) back(formData, { error: "Enter the buyer’s agent and their brokerage, or tick “The buyer has no agent”." });
   const supabase = await createClient();
   const { error } = await supabase.rpc("confirm_availability", {
     p_home: homeId,
     p_answer: answer,
     p_date: date,
     p_price: price,
-    p_buyer: answer === "under_contract" ? buyerAgentForRpc(formData) : null,
+    p_buyer: answer === "under_contract" || answer === "sold" ? buyerAgentForRpc(formData) : null,
   });
   if (error) back(formData, { error: error.message.includes("can't") || error.message.includes("isn't") ? error.message : `Couldn’t save: ${error.message}` });
   revalidatePath("/", "layout");

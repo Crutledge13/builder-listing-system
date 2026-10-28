@@ -90,6 +90,7 @@ export function AlertCard({ a, back, canAnswer, staff, showHome = true }: { a: A
               <input type="hidden" name="answer" value="sold" />
               <label className="text-sm"><span className="mb-1 block font-medium">Close date</span><input type="date" name="date" required className="field-input py-1.5" /></label>
               <label className="text-sm"><span className="mb-1 block font-medium">Close price</span><input name="price" required inputMode="decimal" defaultValue={a.homes?.list_price ?? ""} className="field-input w-36 py-1.5" /></label>
+              <div className="w-full sm:w-80"><BuyerAgentFields compact /></div>
               <button className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white">Save</button>
             </form>
           </details>
