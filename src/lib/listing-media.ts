@@ -100,6 +100,8 @@ export async function loadListingMedia(supabase: SupabaseClient, home: HomeRef) 
   }
   const onListing = new Set([...mediaIds, ...tourIds]);
   const notOn = <T extends { id: string }>(xs: T[]) => xs.filter((x) => !onListing.has(x.id));
+  // Social media reels never go on the MLS listing (the database refuses them too).
+  const notReel = (xs: MediaRow[]) => xs.filter((m) => !isReel(m));
 
   const photos = items.filter((i): i is Extract<ListingItem, { type: "media" }> => i.type === "media" && i.media.kind !== "video");
   return {
@@ -108,10 +110,16 @@ export async function loadListingMedia(supabase: SupabaseClient, home: HomeRef) 
     mlsPhotos: photos.map((i) => i.media).filter((m) => m.mls_ready),
     videos: items.filter((i) => i.type === "media" && i.media.kind === "video").map((i) => (i as Extract<ListingItem, { type: "media" }>).media),
     tours: items.filter((i): i is Extract<ListingItem, { type: "tour" }> => i.type === "tour").map((i) => i.tour),
-    community: notOn((community ?? []) as unknown as MediaRow[]),
-    plan: notOn((plan ?? []) as unknown as MediaRow[]),
+    community: notReel(notOn((community ?? []) as unknown as MediaRow[])),
+    plan: notReel(notOn((plan ?? []) as unknown as MediaRow[])),
     communityTours: notOn((communityTours ?? []) as Tour[]),
   };
+}
+
+// A vertical social media reel (for realtors to post; never on the MLS).
+export const REEL_TAG = "Vertical reel";
+export function isReel(m: { kind: string; tags?: string[] | null }) {
+  return m.kind === "video" && !!m.tags?.includes(REEL_TAG);
 }
 
 export type ListingMedia = Awaited<ReturnType<typeof loadListingMedia>>;

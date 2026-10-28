@@ -113,6 +113,44 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
     ? (homes ?? []).find((h) => h.id === presetHome)?.community_id ?? null
     : typeof sp.community === "string" ? sp.community : null;
 
+  const formCommunities = (communities ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    builder_id: c.builder_id,
+    builderName: (c.builders as unknown as { name: string })?.name.replace(" (demo)", "") ?? "",
+  }));
+
+  // A home's social media reel ("Upload a reel" on the home page): video only,
+  // already marked as a reel, back to the home's reel section when done.
+  const reelHome = presetHome && sp.reel ? (homes ?? []).find((h) => h.id === presetHome) : null;
+  if (reelHome) {
+    const back = `/homes/${reelHome.id}#social-reel`;
+    return (
+      <div className="mx-auto max-w-3xl">
+        <BackButton href={back} label="Back to the home" />
+        <h1 className="mt-4 text-[28px] font-bold leading-tight tracking-tight">Upload a social media reel</h1>
+        <p className="mt-1 text-muted">
+          For {reelHome.unparsed_address}. A vertical video (9:16, MP4 or MOV) for realtors to post. It never goes on the MLS listing; it shows on
+          this home&rsquo;s realtor share link, ready to download.
+        </p>
+        <div className="mt-8">
+          <UploadForm
+            tagList={tagList}
+            communities={formCommunities}
+            homes={homes ?? []}
+            presetCommunity={presetCommunity}
+            presetHome={presetHome}
+            showBuilder={isStaff(me.role)}
+            mode="videos"
+            videoPreset="reel"
+            doneHref={`/homes/${reelHome.id}?at=social-reel#social-reel`}
+            cancelHref={back}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
       <BackButton href={presetHome ? `/media?home=${presetHome}` : presetCommunity ? `/media?community=${presetCommunity}` : "/media"} label="Back to media" />
@@ -124,12 +162,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
       <div className="mt-8">
         <UploadForm
           tagList={tagList}
-          communities={(communities ?? []).map((c) => ({
-            id: c.id,
-            name: c.name,
-            builder_id: c.builder_id,
-            builderName: (c.builders as unknown as { name: string })?.name.replace(" (demo)", "") ?? "",
-          }))}
+          communities={formCommunities}
           homes={homes ?? []}
           presetCommunity={presetCommunity}
           presetHome={presetHome}

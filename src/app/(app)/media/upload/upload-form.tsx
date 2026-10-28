@@ -50,7 +50,10 @@ export function UploadForm({
   tagList = [],
   mode = "all",
   cancelHref,
+  videoPreset,
 }: {
+  // Fixes the kind of video (e.g. "reel" for a home's social media reel upload) and hides the picker.
+  videoPreset?: string;
   mode?: keyof typeof MODES;
   cancelHref?: string;
   tagList?: ListTag[];
@@ -67,7 +70,7 @@ export function UploadForm({
   const [homeId, setHomeId] = useState(presetHome ?? "");
   const wholeCommunityOk = !communityWide || communityWide.includes(communityId);
   const [room, setRoom] = useState("");
-  const [videoType, setVideoType] = useState("walkthrough");
+  const [videoType, setVideoType] = useState(videoPreset ?? "walkthrough");
   const [tags, setTags] = useState<string[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<Record<string, "waiting" | "uploading" | "done" | "failed">>({});
@@ -148,7 +151,7 @@ export function UploadForm({
       setMessage({ kind: "error", text: `Uploaded ${result.count}. ${failedText()} The ones listed are still here to try again.` });
       return;
     }
-    router.push(doneHref ? `${doneHref}?saved=${encodeURIComponent(`Uploaded ${result.count} ${result.count === 1 ? "file" : "files"}. Tap any of them to add tags.`)}` : homeId ? `/media?home=${homeId}` : `/media?community=${community.id}`);
+    router.push(doneHref ? doneUrl(doneHref, `Uploaded ${result.count} ${result.count === 1 ? "file" : "files"}.${videoPreset === "reel" ? " It's on this home's realtor share link, not the MLS." : " Tap any of them to add tags."}`) : homeId ? `/media?home=${homeId}` : `/media?community=${community.id}`);
   }
 
   return (
@@ -169,7 +172,12 @@ export function UploadForm({
             {homesHere.map((h) => <option key={h.id} value={h.id}>{h.unparsed_address}</option>)}
           </select>
         </label>
-        {mode === "videos" ? (
+        {mode === "videos" && videoPreset ? (
+          <div className="block">
+            <span className="mb-1.5 block text-sm font-medium">What kind of video?</span>
+            <p className="field-input bg-soft">{VIDEO_TYPES.find((v) => v.key === videoPreset)?.label ?? "Video"}</p>
+          </div>
+        ) : mode === "videos" ? (
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium">What kind of video?</span>
             <select value={videoType} onChange={(e) => setVideoType(e.target.value)} className="field-input">
@@ -201,7 +209,7 @@ export function UploadForm({
             const ok = MODES[mode].accept.split(",");
             // A taller-than-wide video is a social reel: pick that type for them.
             const firstVideo = Array.from(e.target.files ?? []).find((f) => f.type.startsWith("video/"));
-            if (mode === "videos" && firstVideo) {
+            if (mode === "videos" && firstVideo && !videoPreset) {
               const v = document.createElement("video");
               v.preload = "metadata";
               v.onloadedmetadata = () => {
@@ -257,4 +265,11 @@ export function UploadForm({
       </div>
     </form>
   );
+}
+
+// Where to go after uploading, with the "Uploaded N files" message. The done
+// address may already have a query (?at=...) and a #section to scroll to.
+function doneUrl(href: string, message: string) {
+  const [path, hash] = href.split("#");
+  return `${path}${path.includes("?") ? "&" : "?"}saved=${encodeURIComponent(message)}${hash ? `#${hash}` : ""}`;
 }

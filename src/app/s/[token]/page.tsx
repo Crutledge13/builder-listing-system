@@ -208,7 +208,7 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
                     <figure key={v.id} className="w-[260px]">
                       <video src={`${fileBase}${v.id}`} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-2xl bg-black object-cover" />
                       <figcaption className="mt-2 space-y-2 text-sm">
-                        <span className="block font-medium">{v.title} <span className="font-normal text-muted">· Vertical reel (9:16)</span></span>
+                        <span className="block font-medium">{v.title} <span className="font-normal text-muted">· Social media reel (9:16), ready to post</span></span>
                         <a href={`${fileBase}${v.id}?download=1`} className="inline-block rounded-full border border-foreground px-4 py-1.5 font-semibold hover:bg-soft">Download reel</a>
                       </figcaption>
                     </figure>

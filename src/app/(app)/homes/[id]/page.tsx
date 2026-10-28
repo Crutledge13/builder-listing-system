@@ -60,9 +60,10 @@ import { loadMlsSheet } from "@/lib/mls-sheet";
 import { AlertCard, loadAlerts } from "@/components/alerts";
 import { NtreisQuestions } from "@/components/ntreis-questions";
 import { canEditMlsAnswers } from "@/lib/ntreis-form";
-import { loadListingMedia } from "@/lib/listing-media";
+import { isReel, loadListingMedia } from "@/lib/listing-media";
 import { ListingMediaPanel } from "@/components/listing-media-panel";
 import { ShareLinksPanel } from "@/components/share-links-panel";
+import { SocialReelPanel } from "@/components/social-reel-panel";
 import { ShareLinkTile } from "@/components/share-link-tile";
 import { PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
 import { headers } from "next/headers";
@@ -581,6 +582,15 @@ async function HomeDetail({
             canRequest={canRequestMedia(me.role)}
             notice={sectionNotice("listing-media")}
             fold={{ open: at === "listing-media", badge: `${listing.photos.filter((m) => m.kind === "photo").length} photos`, hint: "What goes on the MLS, in order, plus downloads" }}
+          />
+
+          <SocialReelPanel
+            homeId={home.id}
+            reels={((mediaRows ?? []) as unknown as MediaRow[]).filter(isReel)}
+            canUpload={canManageMedia(me.role)}
+            canRequest={canRequestMedia(me.role)}
+            notice={sectionNotice("social-reel")}
+            open={at === "social-reel"}
           />
 
           {(canShareLinks(me.role) || isStaff(me.role) || me.role === "sales") && (
