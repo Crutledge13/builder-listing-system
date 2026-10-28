@@ -5,10 +5,9 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 // Every click that loads something gets feedback right away, everywhere in
 // the app, so nobody wonders whether it "took" or clicks twice:
-//   - a blue bar slides across the top (<html data-busy>); the pointer stays normal
-//   - the link or button that was clicked dims and shows a small spinner
-//     (data-pending), and further clicks on it are ignored
-//   - after half a second, a "One moment…" note appears under the header
+//   - a thin bar slides across the top (<html data-busy>); that's the only
+//     thing people see (owners' choice, 28 Oct 2026: no spinners or notes)
+//   - the link or button that was clicked ignores further clicks (data-pending)
 //   - a form can't be sent a second time while the first send is running
 // It starts on a click of a link to another page and on any form submit, and
 // stops when the new page arrives, when the page's content changes (forms
@@ -77,15 +76,7 @@ export function ClickFeedback() {
     };
   }, []);
 
-  return (
-    <>
-      <div className="busy-bar print:hidden" aria-hidden />
-      <div className="busy-note print:hidden" aria-hidden>
-        <span className="busy-note-spinner" aria-hidden />
-        One moment…
-      </div>
-    </>
-  );
+  return <div className="busy-bar print:hidden" aria-hidden />;
 }
 
 // Forms whose action is a server action: React cancels the browser's own
@@ -114,7 +105,6 @@ function whenLoaded(done: () => void) {
   });
   loadWatch.observe(document.body, { childList: true, subtree: true });
 }
-let noteTimer: ReturnType<typeof setTimeout> | undefined;
 let observer: MutationObserver | undefined;
 
 function start({ el, watchContent }: { el: Element | null | undefined; watchContent: boolean }) {
@@ -122,11 +112,7 @@ function start({ el, watchContent }: { el: Element | null | undefined; watchCont
   html.dataset.busy = "1";
   el?.setAttribute("data-pending", "");
   clearTimeout(timer);
-  clearTimeout(noteTimer);
   timer = setTimeout(stop, 15000);
-  noteTimer = setTimeout(() => {
-    if (html.dataset.busy) html.dataset.busyNote = "1";
-  }, 500);
   observer?.disconnect();
   if (watchContent) {
     // Forms that save in place: done when the page's content changes. The
@@ -143,12 +129,10 @@ function stop() {
   loadWatch?.disconnect();
   loadWatch = undefined;
   clearTimeout(timer);
-  clearTimeout(noteTimer);
   observer?.disconnect();
   observer = undefined;
   const html = document.documentElement;
   delete html.dataset.busy;
-  delete html.dataset.busyNote;
   document.querySelectorAll("[data-pending]").forEach((el) => el.removeAttribute("data-pending"));
   document.querySelectorAll("[data-pending-form]").forEach((el) => el.removeAttribute("data-pending-form"));
 }
