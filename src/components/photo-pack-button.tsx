@@ -22,8 +22,13 @@ export function PhotoPackButton({
   builderDefault = null,
   disclaimer,
   fileBase = "/api/media/",
+  buttonClassName,
+  buttonStyle,
 }: {
   fileBase?: string;
+  // Optional look for the button (the realtor share page draws it in the builder's color).
+  buttonClassName?: string;
+  buttonStyle?: React.CSSProperties;
   name: string;
   photos: PackPhoto[];
   readme: string;
@@ -94,7 +99,7 @@ export function PhotoPackButton({
   }
 
   const button = (
-    <button type="button" onClick={build} disabled={state === "working" || (!!presets && !choice)} className="font-semibold text-accent underline disabled:no-underline disabled:opacity-70">
+    <button type="button" onClick={build} disabled={state === "working" || (!!presets && !choice)} className={buttonClassName ?? "font-semibold text-accent underline disabled:no-underline disabled:opacity-70"} style={buttonStyle}>
       {state === "working" ? `Packing ${done} of ${photos.length}…` : state === "error" ? "Download failed, try again" : label}
     </button>
   );
