@@ -67,15 +67,10 @@ async function Setup({ searchParams }: { searchParams: PageProps<"/setup">["sear
       {staff && <StepGroup title={GROUP_TITLES.ours} steps={ob.ourSteps} ob={ob} staff />}
       {groups.map(({ g, steps }) => <StepGroup key={g} title={GROUP_TITLES[g]} steps={steps} ob={ob} staff={staff} contact={contact} />)}
 
+      {/* Once marked done, the checklist lives only in the menu for good: no
+          reopening, so the Setup tab never comes back to the top bar. */}
+      {!ob.finishedAt && (
       <div className="mt-10 rounded-2xl bg-soft p-5">
-        {ob.finishedAt ? (
-          <form action={finishSetup} className="flex flex-wrap items-center justify-between gap-3">
-            <input type="hidden" name="builder_id" value={ob.builderId} />
-            <input type="hidden" name="done" value="false" />
-            <p className="text-sm">Setup was marked done on {new Date(ob.finishedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "America/Chicago" })}.</p>
-            <button className="rounded-lg border border-foreground px-3 py-1.5 text-sm font-semibold hover:bg-white">Reopen the checklist</button>
-          </form>
-        ) : (
           <form action={finishSetup} className="flex flex-wrap items-center justify-between gap-3">
             <input type="hidden" name="builder_id" value={ob.builderId} />
             <input type="hidden" name="done" value="true" />
@@ -86,8 +81,8 @@ async function Setup({ searchParams }: { searchParams: PageProps<"/setup">["sear
               {allDone ? "We’re all set" : "Hide the checklist"}
             </button>
           </form>
-        )}
       </div>
+      )}
     </div>
   );
 }

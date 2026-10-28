@@ -41,10 +41,12 @@ export async function skipStep(formData: FormData) {
 
 export async function finishSetup(formData: FormData) {
   const { builderId, staff } = await target(formData);
-  const done = formData.get("done") === "true";
+  // Setup can be marked done but never reopened (owners, 28 Oct 2026): once done,
+  // the checklist stays in the menu and the Setup tab doesn't come back.
+  const done = true;
   const supabase = await createClient();
   const { error } = await supabase.rpc("finish_setup", { p_builder: builderId, p_done: done });
   if (error) back(builderId, staff, { error: friendly(error.message) });
   revalidatePath("/", "layout");
-  back(builderId, staff, { saved: done ? "Setup marked done. The checklist stays under Setup checklist in the menu." : "Checklist reopened." });
+  back(builderId, staff, { saved: "Setup marked done. The checklist stays under Setup checklist in the menu." });
 }
