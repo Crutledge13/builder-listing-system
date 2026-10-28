@@ -7,6 +7,8 @@ import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddCommunities, isStaff } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { HomeArt } from "@/components/home-art";
+import { MediaPicture } from "@/components/media-tile";
+import { loadCommunityCovers, loadHomeCovers } from "@/lib/covers";
 import { AttentionPanel, loadAlerts } from "@/components/alerts";
 import { Notice } from "@/components/notice";
 import { SetupBanner } from "@/components/setup-banner";
@@ -47,7 +49,12 @@ async function CommunityList() {
   });
 
   // Builders: what needs an answer from them (still available? completion date passed?).
-  const alerts = staff ? [] : await loadAlerts();
+  // Real photos for each card: the community's cover, and its homes' card photos.
+  const [alerts, communityCovers, homeCovers] = await Promise.all([
+    staff ? Promise.resolve([]) : loadAlerts(),
+    loadCommunityCovers(supabase, (communities ?? []).map((c) => c.id)),
+    loadHomeCovers(supabase, (homes ?? []).map((h) => h.id)),
+  ]);
   const title = me.role === "sales" ? "Your communities" : "Communities";
   const subtitle =
     me.role === "sales"
@@ -87,6 +94,9 @@ async function CommunityList() {
           const waiting = list.filter((h) => h.workflow_status === "in_review" || h.workflow_status === "approved_for_mls").length;
           const oh = upcoming.get(c.id) ?? 0;
           const picks = list.slice(0, 3);
+          const main = communityCovers.get(c.id);
+          // Small pictures: other homes' photos (not the one already shown big).
+          const small = list.map((h) => homeCovers.get(h.id)).filter((m): m is NonNullable<typeof m> => !!m && m.id !== main?.id).slice(0, 2);
           const brand = c.builders as unknown as { name: string; builder_branding: { logo_updated_at: string | null } | null } | null;
           const logoAt = brand?.builder_branding?.logo_updated_at;
           return (
@@ -98,10 +108,18 @@ async function CommunityList() {
                   </span>
                 )}
                 <div className="col-span-2 row-span-2 overflow-hidden">
-                  <HomeArt seed={picks[0]?.id ?? c.id} stories={picks[0]?.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+                  {main ? (
+                    <MediaPicture m={main} size="web" className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+                  ) : (
+                    <HomeArt seed={picks[0]?.id ?? c.id} stories={picks[0]?.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+                  )}
                 </div>
-                <div className="overflow-hidden"><HomeArt seed={picks[1]?.id ?? c.id + "b"} stories={picks[1]?.stories} scene="golden" className="h-full w-full" /></div>
-                <div className="overflow-hidden"><HomeArt seed={picks[2]?.id ?? c.id + "c"} stories={picks[2]?.stories} scene="twilight" className="h-full w-full" /></div>
+                <div className="overflow-hidden">
+                  {small[0] ? <MediaPicture m={small[0]} className="h-full w-full" /> : <HomeArt seed={picks[1]?.id ?? c.id + "b"} stories={picks[1]?.stories} scene="golden" className="h-full w-full" />}
+                </div>
+                <div className="overflow-hidden">
+                  {small[1] ? <MediaPicture m={small[1]} className="h-full w-full" /> : <HomeArt seed={picks[2]?.id ?? c.id + "c"} stories={picks[2]?.stories} scene="twilight" className="h-full w-full" />}
+                </div>
               </div>
               <div className="mt-3 flex items-baseline justify-between gap-3">
                 <h2 className="truncate text-lg font-bold group-hover:underline">{c.name}</h2>

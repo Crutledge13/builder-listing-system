@@ -12,6 +12,8 @@ import { IncentiveList } from "@/components/incentive-list";
 import { canManageIncentives, canRequestComps } from "@/lib/permissions";
 import { StatusChips } from "@/components/status-chips";
 import { HomeArt } from "@/components/home-art";
+import { MediaPicture } from "@/components/media-tile";
+import { loadCommunityCovers, loadHomeCovers } from "@/lib/covers";
 import { openHouseWhen } from "@/lib/time";
 import { setAssignments } from "@/app/(app)/admin/actions";
 import { Notice } from "@/components/notice";
@@ -60,7 +62,12 @@ async function CommunityDetail({
     .order("unparsed_address");
   const all = (homeRows ?? []) as unknown as HomeCardData[];
   const homes = status ? all.filter((h) => h.workflow_status === status) : all;
-  const { data: incentiveRows } = await supabase.from("incentives").select(INCENTIVE_SELECT).eq("builder_id", community.builder_id).eq("status", "active").order("ends_on");
+  const [{ data: incentiveRows }, homeCovers, communityCovers] = await Promise.all([
+    supabase.from("incentives").select(INCENTIVE_SELECT).eq("builder_id", community.builder_id).eq("status", "active").order("ends_on"),
+    loadHomeCovers(supabase, all.map((h) => h.id)),
+    loadCommunityCovers(supabase, [community.id]),
+  ]);
+  const banner = communityCovers.get(community.id);
   const incentives = (incentiveRows ?? []) as Incentive[];
   // What the community page lists: this community's and the builder-wide ones.
   const communityIncentives = forHome(incentives, { id: "", builder_id: community.builder_id, community_id: community.id });
@@ -116,7 +123,11 @@ async function CommunityDetail({
       </Link>
 
       <div className="relative mt-4 overflow-hidden rounded-3xl">
-        <HomeArt seed={all[0]?.id ?? community.id} stories={2} scene="golden" className="h-56 w-full sm:h-72" />
+        {banner ? (
+          <MediaPicture m={banner} size="web" className="h-56 w-full sm:h-72" />
+        ) : (
+          <HomeArt seed={all[0]?.id ?? community.id} stories={2} scene="golden" className="h-56 w-full sm:h-72" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-6 text-white sm:p-8">
           <h1 className="text-[32px] font-bold leading-tight tracking-tight sm:text-[40px]">{community.name}</h1>
@@ -232,7 +243,7 @@ async function CommunityDetail({
         />
         <div className="mt-8">
           <HomeGrid>
-            {homes.map((h) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} />)}
+            {homes.map((h) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} cover={homeCovers.get(h.id)} />)}
           </HomeGrid>
           {homes.length === 0 && (
             <p className="rounded-2xl border border-dashed border-line px-6 py-12 text-center text-muted">No homes with this status here.</p>

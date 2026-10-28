@@ -8,6 +8,8 @@ import { whenCentral } from "@/lib/time";
 import { money } from "@/lib/format";
 import { StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
+import { MediaPicture } from "@/components/media-tile";
+import { loadHomeCovers } from "@/lib/covers";
 import { RequestsInbox } from "@/components/requests-inbox";
 import { Notice } from "@/components/notice";
 
@@ -61,6 +63,7 @@ async function Queues() {
     .order("updated_at", { ascending: true });
   if (focus) hq = hq.eq("builder_id", focus);
   const { data: homes } = await hq;
+  const covers = await loadHomeCovers(supabase, (homes ?? []).map((h) => h.id));
   // Our team: open MLS work besides new listings (open houses, changes, status).
   let wq = supabase
     .from("tasks")
@@ -111,7 +114,7 @@ async function Queues() {
                     className="flex items-center gap-4 rounded-2xl border border-line p-3 transition-shadow hover:shadow-md"
                   >
                     <div className="h-16 w-24 shrink-0 overflow-hidden rounded-xl sm:h-20 sm:w-28">
-                      <HomeArt seed={h.id} stories={h.stories} className="h-full w-full" />
+                      {covers.get(h.id) ? <MediaPicture m={covers.get(h.id)!} className="h-full w-full" /> : <HomeArt seed={h.id} stories={h.stories} className="h-full w-full" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-semibold">{h.unparsed_address}, {h.city}</div>

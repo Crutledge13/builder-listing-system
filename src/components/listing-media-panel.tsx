@@ -6,7 +6,7 @@ import { PhotoPackButton } from "@/components/photo-pack-button";
 import type { DownloadPreset } from "@/lib/image-resize";
 import type { MediaRow } from "@/lib/demo-media";
 import { TOUR_PROVIDERS, type ListingMedia, type Tour } from "@/lib/listing-media";
-import { addToListing, addTour, moveListingItem, removeFromListing, trashTour } from "@/app/(app)/homes/[id]/listing-actions";
+import { addToListing, addTour, makeListingCover, moveListingItem, removeFromListing, trashTour } from "@/app/(app)/homes/[id]/listing-actions";
 
 // Everything that goes on this home's MLS listing, in MLS order, and the
 // places more can come from: our photographer, the builder's own uploads, the
@@ -28,6 +28,10 @@ export function ListingMediaPanel({
   download?: { presets: DownloadPreset[]; builderDefault: string | null };
 }) {
   const media = listing.items.filter((i) => i.type === "media");
+  // The cover is always one of this home's own photos (what its cards show):
+  // the chosen one, or until then its first own photo in listing order.
+  const ownPhotos = media.map((i) => (i as Extract<typeof i, { type: "media" }>).media).filter((m) => m.kind === "photo" && m.home_id === home.id);
+  const coverId = (ownPhotos.find((m) => m.is_cover) ?? ownPhotos[0])?.id;
   // MLS photo numbers (videos aren't numbered).
   const numbers = media.reduce<number[]>((acc, i) => {
     const prev = acc.length ? Math.max(0, ...acc) : 0;
@@ -75,6 +79,12 @@ export function ListingMediaPanel({
       <h4 className="mt-6 text-sm font-semibold">
         On the listing <span className="font-normal text-muted">{plural(listing.photos.length, "photo")} · {plural(listing.videos.length, "video")} · {plural(listing.tours.length, "tour")}</span>
       </h4>
+      {canEdit && listing.photos.length > 1 && (
+        <p className="mt-1 text-xs text-muted">
+          <b className="font-semibold text-foreground">★ Cover:</b> the photo on this home&rsquo;s cards and at the top of its page. Pick one with
+          &ldquo;Make cover&rdquo;; it also becomes photo 1 on the MLS.
+        </p>
+      )}
       {media.length === 0 ? (
         <p className="mt-2 rounded-2xl border border-dashed border-line px-5 py-8 text-center text-sm text-muted">
           Nothing on the listing yet. Photos appear here when our photographer delivers or you upload them, or add community and floor plan photos below.
@@ -84,13 +94,18 @@ export function ListingMediaPanel({
           {media.map((item, idx) => {
             const m = (item as Extract<typeof item, { type: "media" }>).media;
             const isVideo = m.kind === "video";
+            // The cover: the chosen one, or (until one is chosen) photo 1.
+            const isCover = m.id === coverId;
             return (
               <li key={item.id} className="min-w-0">
-                <Link href={`/media/${m.id}`} className="relative block aspect-[3/2] overflow-hidden rounded-lg bg-soft">
+                <Link href={`/media/${m.id}`} className={cx("relative block aspect-[3/2] overflow-hidden rounded-lg bg-soft", isCover && "ring-2 ring-accent ring-offset-2")}>
                   <MediaPicture m={m} className="h-full w-full" />
                   <span className="absolute left-1.5 top-1.5 rounded bg-white/95 px-1.5 text-[11px] font-bold shadow-sm">{isVideo ? "Video" : numbers[idx]}</span>
                   <span className="absolute right-1.5 top-1.5 rounded bg-white/95 px-1.5 text-[10px] font-semibold text-muted shadow-sm">{whereFrom(m)}</span>
-                  {!isVideo && !m.mls_ready && (
+                  {isCover && (
+                    <span className="absolute bottom-1.5 left-1.5 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm">★ Cover</span>
+                  )}
+                  {!isVideo && !m.mls_ready && !isCover && (
                     <span className="absolute inset-x-1.5 bottom-1.5 rounded bg-amber-100/95 px-1.5 py-0.5 text-center text-[10px] font-semibold text-amber-900">Not MLS-ready: check it</span>
                   )}
                 </Link>
@@ -99,6 +114,13 @@ export function ListingMediaPanel({
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                     {idx > 0 && <Move homeId={home.id} itemId={item.id} dir="up" label="← Earlier" />}
                     {idx < media.length - 1 && <Move homeId={home.id} itemId={item.id} dir="down" label="Later →" />}
+                    {!isVideo && !isCover && m.home_id === home.id && (
+                      <form action={makeListingCover}>
+                        <input type="hidden" name="home_id" value={home.id} />
+                        <input type="hidden" name="media_id" value={m.id} />
+                        <button className="font-semibold text-accent underline">★ Make cover</button>
+                      </form>
+                    )}
                     {idx > 0 && !isVideo && <Move homeId={home.id} itemId={item.id} dir="first" label="Make first" />}
                     <form action={removeFromListing}>
                       <input type="hidden" name="home_id" value={home.id} />

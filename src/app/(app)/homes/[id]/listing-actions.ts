@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { detectProvider } from "@/lib/listing-media";
+import { setCover } from "@/lib/set-cover";
 
 // Changes to what goes on a home's MLS listing. The database decides who may
 // (owners, managers, marketing and our admins) and checks every item belongs
@@ -84,6 +85,18 @@ export async function moveListingItem(formData: FormData) {
     if (error) back(homeId, { error: friendly(error.message) });
   }
   back(homeId, { saved: dir === "first" ? "Now the first photo on the MLS." : "Order saved." });
+}
+
+// "Make cover": the picture on this home's cards, and photo 1 on the MLS.
+export async function makeListingCover(formData: FormData) {
+  const homeId = homeIdFrom(formData);
+  await requireProfile();
+  const supabase = await createClient();
+  const problem = await setCover(supabase, String(formData.get("media_id")));
+  if (problem) back(homeId, { error: problem });
+  revalidatePath("/homes");
+  revalidatePath("/communities", "layout");
+  back(homeId, { saved: "Cover photo set. It shows on this home’s cards and is now photo 1 on the MLS." });
 }
 
 // Add a tour link to this home (it goes on the listing) or to the whole

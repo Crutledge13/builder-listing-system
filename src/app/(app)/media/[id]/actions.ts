@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { aiTaggingAvailable, tagMedia } from "@/lib/ai-tagging";
+import { setCover } from "@/lib/set-cover";
 
 function back(id: string, params: Record<string, string>): never {
   redirect(`/media/${id}?${new URLSearchParams(params).toString()}`);
@@ -31,16 +32,15 @@ export async function saveMedia(formData: FormData) {
   back(id, { saved: "1" });
 }
 
+// The home's (or community's) card picture; a home's cover also becomes photo 1 on the MLS.
 export async function makeCover(formData: FormData) {
   const id = String(formData.get("id"));
-  const homeId = String(formData.get("home_id") ?? "");
   const supabase = await createClient();
-  if (homeId) {
-    await supabase.from("media").update({ is_cover: false }).eq("home_id", homeId).eq("is_cover", true);
-  }
-  const { data } = await supabase.from("media").update({ is_cover: true }).eq("id", id).select("id");
-  if (!data?.length) back(id, { error: "Your role can’t change the cover photo." });
+  const problem = await setCover(supabase, id);
+  if (problem) back(id, { error: problem });
   revalidatePath("/media");
+  revalidatePath("/homes", "layout");
+  revalidatePath("/communities", "layout");
   back(id, { saved: "cover" });
 }
 

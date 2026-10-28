@@ -26,7 +26,7 @@ export default function MediaItemPage(props: PageProps<"/media/[id]">) {
 
 const MESSAGES: Record<string, string> = {
   "1": "Saved.",
-  cover: "This is now the cover photo for the home.",
+  cover: "This is now the cover photo: it shows on the cards (and for a home, it's photo 1 on the MLS).",
   trashed: "Moved to the trash. It’s kept for 30 days and can be restored until then.",
   restored: "Restored from the trash.",
   ai: "AI took another look.",
@@ -218,11 +218,10 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
 
           {manage && (
             <div className="space-y-2">
-              {!photographer && m.home_id && m.kind === "photo" && !m.is_cover && !m.deleted_at && (
+              {!photographer && (m.home_id || m.community_id) && !m.plan_name && m.kind === "photo" && !m.is_cover && !m.deleted_at && (
                 <form action={makeCover}>
                   <input type="hidden" name="id" value={m.id} />
-                  <input type="hidden" name="home_id" value={m.home_id} />
-                  <button className="w-full rounded-xl border border-foreground px-4 py-2.5 font-semibold hover:bg-soft">Make this the cover photo</button>
+                  <button className="w-full rounded-xl border border-foreground px-4 py-2.5 font-semibold hover:bg-soft">★ Make this the cover photo</button>
                 </form>
               )}
               <form action={setTrashed}>

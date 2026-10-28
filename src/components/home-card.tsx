@@ -3,6 +3,8 @@ import { baths, money, num } from "@/lib/format";
 import type { WorkflowStatus } from "@/lib/permissions";
 import { MarketBadge, StageText, StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
+import { MediaPicture } from "@/components/media-tile";
+import type { MediaRow } from "@/lib/demo-media";
 
 export type HomeCardData = {
   id: string;
@@ -28,11 +30,16 @@ export type HomeCardData = {
 export const HOME_CARD_SELECT =
   "id, unparsed_address, city, plan_name, lot_number, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, stories, build_stage, workflow_status, mls_number, market_status, community_id, builder_id, communities(name), builders(name)";
 
-export function HomeCard({ h, showBuilder, showCommunity = true, incentive }: { h: HomeCardData; showBuilder?: boolean; showCommunity?: boolean; incentive?: { title: string; more: number } }) {
+// cover: the home's real card photo (chosen cover, else first listing photo; loadHomeCovers). Drawn picture until there is one.
+export function HomeCard({ h, showBuilder, showCommunity = true, incentive, cover }: { h: HomeCardData; showBuilder?: boolean; showCommunity?: boolean; incentive?: { title: string; more: number }; cover?: MediaRow }) {
   return (
     <Link href={`/homes/${h.id}`} className="group block">
       <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-soft">
-        <HomeArt seed={h.id} stories={h.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+        {cover ? (
+          <MediaPicture m={cover} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+        ) : (
+          <HomeArt seed={h.id} stories={h.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+        )}
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
           <StatusBadge status={h.workflow_status} floating />
           <MarketBadge status={h.market_status} floating />
