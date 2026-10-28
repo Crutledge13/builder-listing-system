@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 // Every click that loads something gets feedback right away, everywhere in
 // the app, so nobody wonders whether it "took" or clicks twice:
-//   - a blue bar slides across the top and the cursor spins (<html data-busy>)
+//   - a blue bar slides across the top (<html data-busy>); the pointer stays normal
 //   - the link or button that was clicked dims and shows a small spinner
 //     (data-pending), and further clicks on it are ignored
 //   - after half a second, a "One moment…" note appears under the header

@@ -152,12 +152,8 @@ details > summary::-webkit-details-marker {
   }
 }
 
-/* "Working on it" after a click (ClickFeedback sets data-busy): spinning
-   cursor everywhere plus a thin blue bar across the top of the window. */
-html[data-busy],
-html[data-busy] * {
-  cursor: progress !important;
-}
+/* "Working on it" after a click (ClickFeedback sets data-busy): a thin blue
+   bar across the top of the window. The mouse pointer stays normal. */
 .busy-bar {
   position: fixed;
   inset: 0 0 auto 0;
@@ -194,10 +190,6 @@ html[data-busy] .busy-bar {
   opacity: 0.6;
   pointer-events: none;
   transition: opacity 120ms;
-}
-button[data-pending]:not([aria-busy="true"])::after,
-input[type="submit"][data-pending] {
-  cursor: progress;
 }
 button[data-pending]:not([aria-busy="true"])::after {
   content: "";

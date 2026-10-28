@@ -26,7 +26,7 @@ export function PendingButton({
       onClick={(e) => {
         if (confirm && !window.confirm(confirm)) e.preventDefault();
       }}
-      className={cx(className, "inline-flex items-center gap-2 disabled:cursor-wait disabled:opacity-70")}
+      className={cx(className, "inline-flex items-center gap-2 disabled:opacity-70")}
     >
       {pending && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />}
       {pending ? pendingText : children}
