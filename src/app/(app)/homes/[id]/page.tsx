@@ -331,7 +331,7 @@ async function HomeDetail({
               href={`/media/${m.id}`}
               className={i === 0 ? "relative aspect-[4/3] md:col-span-2 md:row-span-2 md:aspect-auto" : "relative hidden bg-soft md:block"}
             >
-              <MediaPicture m={m} size={i === 0 ? "web" : "thumb"} className="h-full w-full" />
+              <MediaPicture m={m} size={i === 0 ? "web" : "thumb"} priority={i === 0} className="h-full w-full" />
               {showDisclaimer && <DisclaimerOverlay small={i > 0} />}
               {!m.home_id && <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold shadow-sm">Plan photo</span>}
             </Link>

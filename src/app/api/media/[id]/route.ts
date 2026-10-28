@@ -12,14 +12,18 @@
 //   screen-size copy (a photo's own page). Falls back to the original when an
 //   upload has no preview. Downloads always get the original.
 //
-// The redirect may be reused by the browser for 50 minutes (the link itself
-// lasts an hour), so scrolling back through a grid doesn't ask again.
+// Speed: the small and screen-size copies (?size=thumb|web) get a link that
+// lasts a day, and the browser may reuse the redirect for 23 hours, so after
+// someone's first visit their cards load from their own browser all day
+// without asking us again. Originals and downloads keep hour-long links.
 
 import { createClient } from "@/lib/supabase/server";
 import { serveDemoVideo } from "@/lib/serve-demo-video";
 
 const LINK_SECONDS = 60 * 60;
 const REUSE_SECONDS = 50 * 60;
+const PREVIEW_LINK_SECONDS = 24 * 60 * 60;
+const PREVIEW_REUSE_SECONDS = 23 * 60 * 60;
 
 function fileName(title: string, ext: string) {
   return `${title.replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "media"}.${ext}`;
@@ -47,13 +51,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // A video's thumb is a still image; with no still, there is nothing small to show.
     if (size === "thumb" && m.kind === "video" && !m.thumb_path) return new Response("No preview", { status: 404 });
     const filePath = (size === "thumb" && m.thumb_path) || ((size === "thumb" || size === "web") && m.kind !== "video" && m.web_path) || m.storage_path;
+    // A preview copy (or a small original standing in for one) gets the day-long link.
+    const preview = !download && (size === "thumb" || size === "web");
     const { data, error } = await supabase.storage
       .from("media")
-      .createSignedUrl(filePath, LINK_SECONDS, download ? { download: fileName(m.title, ext) } : undefined);
+      .createSignedUrl(filePath, preview ? PREVIEW_LINK_SECONDS : LINK_SECONDS, download ? { download: fileName(m.title, ext) } : undefined);
     if (error || !data) return new Response("File not available", { status: 404 });
     return new Response(null, {
       status: 302,
-      headers: { Location: data.signedUrl, "Cache-Control": download ? "private, no-store" : `private, max-age=${REUSE_SECONDS}` },
+      headers: {
+        Location: data.signedUrl,
+        "Cache-Control": download ? "private, no-store" : `private, max-age=${preview ? PREVIEW_REUSE_SECONDS : REUSE_SECONDS}`,
+      },
     });
   }
 

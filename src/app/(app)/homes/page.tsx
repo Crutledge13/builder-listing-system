@@ -123,8 +123,8 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
 
       <div className="mt-8">
         <HomeGrid>
-          {homes.map((h) => (
-            <HomeCard key={h.id} h={h} showBuilder={staff} incentive={cardIncentive(incentives, h)} cover={covers.get(h.id)} />
+          {homes.map((h, i) => (
+            <HomeCard key={h.id} h={h} showBuilder={staff} incentive={cardIncentive(incentives, h)} cover={covers.get(h.id)} priority={i < 4} />
           ))}
         </HomeGrid>
       </div>

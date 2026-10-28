@@ -31,12 +31,12 @@ export const HOME_CARD_SELECT =
   "id, unparsed_address, city, plan_name, lot_number, list_price, bedrooms_total, bathrooms_full, bathrooms_half, living_area, stories, build_stage, workflow_status, mls_number, market_status, community_id, builder_id, communities(name), builders(name)";
 
 // cover: the home's real card photo (chosen cover, else first listing photo; loadHomeCovers). Drawn picture until there is one.
-export function HomeCard({ h, showBuilder, showCommunity = true, incentive, cover }: { h: HomeCardData; showBuilder?: boolean; showCommunity?: boolean; incentive?: { title: string; more: number }; cover?: MediaRow }) {
+export function HomeCard({ h, showBuilder, showCommunity = true, incentive, cover, priority }: { h: HomeCardData; showBuilder?: boolean; showCommunity?: boolean; incentive?: { title: string; more: number }; cover?: MediaRow; priority?: boolean }) {
   return (
     <Link href={`/homes/${h.id}`} className="group block">
       <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-soft">
         {cover ? (
-          <MediaPicture m={cover} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+          <MediaPicture m={cover} priority={priority} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
         ) : (
           <HomeArt seed={h.id} stories={h.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
         )}

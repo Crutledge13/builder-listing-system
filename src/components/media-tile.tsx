@@ -10,7 +10,8 @@ import { cx } from "@/lib/format";
 // own page. Videos show their still frame; only videos uploaded before stills
 // existed fall back to loading the video's first moments.
 // fileBase: where files come from (the signed-in route, or a share link's).
-export function MediaPicture({ m, className, size = "thumb", fileBase = "/api/media/" }: { m: MediaRow; className?: string; size?: "thumb" | "web"; fileBase?: string }) {
+// priority: one of the first few pictures on the page (above the fold): load it right away, first in line.
+export function MediaPicture({ m, className, size = "thumb", fileBase = "/api/media/", priority = false }: { m: MediaRow; className?: string; size?: "thumb" | "web"; fileBase?: string; priority?: boolean }) {
   if (m.source === "demo") return <DemoArt m={m} className={className} />;
   if (m.kind === "video" && !m.thumb_path) {
     return (
@@ -18,7 +19,7 @@ export function MediaPicture({ m, className, size = "thumb", fileBase = "/api/me
     );
   }
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={`${fileBase}${m.id}?size=${size}`} alt={m.title} loading="lazy" decoding="async" className={cx("object-cover", className)} />;
+  return <img src={`${fileBase}${m.id}?size=${size}`} alt={m.title} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" className={cx("object-cover", className)} />;
 }
 
 export const DISCLAIMER_TEXT = "Representative photo. Actual home, features and finishes may vary.";

@@ -8,7 +8,7 @@ import { canAddCommunities, isStaff } from "@/lib/permissions";
 import { money } from "@/lib/format";
 import { HomeArt } from "@/components/home-art";
 import { MediaPicture } from "@/components/media-tile";
-import { loadCommunityCovers, loadHomeCovers } from "@/lib/covers";
+import { loadCommunityCovers } from "@/lib/covers";
 import { AttentionPanel, loadAlerts } from "@/components/alerts";
 import { Notice } from "@/components/notice";
 import { SetupBanner } from "@/components/setup-banner";
@@ -49,11 +49,10 @@ async function CommunityList() {
   });
 
   // Builders: what needs an answer from them (still available? completion date passed?).
-  // Real photos for each card: the community's cover, and its homes' card photos.
-  const [alerts, communityCovers, homeCovers] = await Promise.all([
+  // A real photo for each card: the community's cover (or one of its homes').
+  const [alerts, communityCovers] = await Promise.all([
     staff ? Promise.resolve([]) : loadAlerts(),
     loadCommunityCovers(supabase, (communities ?? []).map((c) => c.id)),
-    loadHomeCovers(supabase, (homes ?? []).map((h) => h.id)),
   ]);
   const title = me.role === "sales" ? "Your communities" : "Communities";
   const subtitle =
@@ -87,39 +86,30 @@ async function CommunityList() {
       <AttentionPanel alerts={alerts} back="/communities" canAnswer staff={false} fullHref="/attention" />
 
       <div className="mt-8 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-        {communities?.map((c) => {
+        {communities?.map((c, i) => {
           const list = (homes ?? []).filter((h) => h.community_id === c.id);
           const prices = list.map((h) => Number(h.list_price)).filter((n) => n > 0);
           const live = list.filter((h) => h.workflow_status === "live_on_mls").length;
           const waiting = list.filter((h) => h.workflow_status === "in_review" || h.workflow_status === "approved_for_mls").length;
           const oh = upcoming.get(c.id) ?? 0;
-          const picks = list.slice(0, 3);
+          const picks = list.slice(0, 1);
           const main = communityCovers.get(c.id);
-          // Small pictures: other homes' photos (not the one already shown big).
-          const small = list.map((h) => homeCovers.get(h.id)).filter((m): m is NonNullable<typeof m> => !!m && m.id !== main?.id).slice(0, 2);
           const brand = c.builders as unknown as { name: string; builder_branding: { logo_updated_at: string | null } | null } | null;
           const logoAt = brand?.builder_branding?.logo_updated_at;
           return (
             <Link key={c.id} href={`/communities/${c.id}`} className="group block">
-              <div className="relative grid aspect-[4/3] grid-cols-3 grid-rows-2 gap-1 overflow-hidden rounded-2xl bg-soft">
+              {/* One picture per community: its cover, else one of its homes' photos (community_cover_photos). */}
+              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-soft">
                 {logoAt && (
                   <span className="absolute left-3 top-3 z-10 rounded-xl bg-white/95 px-2.5 py-1.5 shadow-sm">
                     <BuilderLogo builderId={c.builder_id} name={brand?.name ?? ""} version={logoAt} className="h-6 max-w-[110px]" />
                   </span>
                 )}
-                <div className="col-span-2 row-span-2 overflow-hidden">
-                  {main ? (
-                    <MediaPicture m={main} size="web" className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
-                  ) : (
-                    <HomeArt seed={picks[0]?.id ?? c.id} stories={picks[0]?.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
-                  )}
-                </div>
-                <div className="overflow-hidden">
-                  {small[0] ? <MediaPicture m={small[0]} className="h-full w-full" /> : <HomeArt seed={picks[1]?.id ?? c.id + "b"} stories={picks[1]?.stories} scene="golden" className="h-full w-full" />}
-                </div>
-                <div className="overflow-hidden">
-                  {small[1] ? <MediaPicture m={small[1]} className="h-full w-full" /> : <HomeArt seed={picks[2]?.id ?? c.id + "c"} stories={picks[2]?.stories} scene="twilight" className="h-full w-full" />}
-                </div>
+                {main ? (
+                  <MediaPicture m={main} priority={i < 3} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+                ) : (
+                  <HomeArt seed={picks[0]?.id ?? c.id} stories={picks[0]?.stories} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+                )}
               </div>
               <div className="mt-3 flex items-baseline justify-between gap-3">
                 <h2 className="truncate text-lg font-bold group-hover:underline">{c.name}</h2>

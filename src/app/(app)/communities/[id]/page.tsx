@@ -124,7 +124,7 @@ async function CommunityDetail({
 
       <div className="relative mt-4 overflow-hidden rounded-3xl">
         {banner ? (
-          <MediaPicture m={banner} size="web" className="h-56 w-full sm:h-72" />
+          <MediaPicture m={banner} size="web" priority className="h-56 w-full sm:h-72" />
         ) : (
           <HomeArt seed={all[0]?.id ?? community.id} stories={2} scene="golden" className="h-56 w-full sm:h-72" />
         )}
@@ -243,7 +243,7 @@ async function CommunityDetail({
         />
         <div className="mt-8">
           <HomeGrid>
-            {homes.map((h) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} cover={homeCovers.get(h.id)} />)}
+            {homes.map((h, i) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} cover={homeCovers.get(h.id)} priority={i < 4} />)}
           </HomeGrid>
           {homes.length === 0 && (
             <p className="rounded-2xl border border-dashed border-line px-6 py-12 text-center text-muted">No homes with this status here.</p>
