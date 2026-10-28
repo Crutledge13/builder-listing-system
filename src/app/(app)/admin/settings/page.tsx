@@ -44,6 +44,11 @@ async function Settings() {
           <input name="team_email" type="email" defaultValue={String(get("team_email") ?? "")} className="field-input" />
           <span className="mt-1 block text-xs text-muted">Where reverse prospecting requests and help reports are emailed.</span>
         </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">File storage limit (GB)</span>
+          <input name="storage_limit_gb" type="number" min={1} max={100000} step={1} defaultValue={Math.round(Number(get("storage_limit_mb") ?? 1024) / 1024)} className="field-input" />
+          <span className="mt-1 block text-xs text-muted">What the Supabase plan includes, for the storage meter on the Admin overview: 1 on the free plan, 100 on Pro.</span>
+        </label>
         <button className="w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Save settings</button>
       </form>
 

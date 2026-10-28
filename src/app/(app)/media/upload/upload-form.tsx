@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { makePreviews } from "@/lib/previews";
+import { uploadErrorText } from "@/lib/upload-errors";
 import { recordUploads, type UploadedFile } from "./actions";
 import { TagPicker } from "@/components/tag-picker";
 import type { ListTag } from "@/lib/tags";
@@ -89,6 +90,7 @@ export function UploadForm({
     const supabase = createBrowserSupabase();
     const folder = `${community.builder_id}/${community.id}/${homeId || "community"}`;
     const done: UploadedFile[] = [];
+    const failed: { name: string; why: string }[] = [];
 
     for (const f of files) {
       setProgress((p) => ({ ...p, [f.name]: "uploading" }));
@@ -96,6 +98,8 @@ export function UploadForm({
       const path = `${folder}/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from("media").upload(path, f, { contentType: f.type || undefined, upsert: false });
       if (error) {
+        console.warn("Upload failed", f.name, error);
+        failed.push({ name: f.name, why: uploadErrorText(error) });
         setProgress((p) => ({ ...p, [f.name]: "failed" }));
         continue;
       }
@@ -111,9 +115,14 @@ export function UploadForm({
       setProgress((p) => ({ ...p, [f.name]: "done" }));
     }
 
+    const failedText = () => {
+      const reasons = [...new Set(failed.map((x) => x.why))];
+      return `${failed.length} ${failed.length === 1 ? "file" : "files"} didn't upload (${failed.map((x) => x.name).join(", ")}): ${reasons.join("; ")}.`;
+    };
+
     if (done.length === 0) {
       setBusy(false);
-      setMessage({ kind: "error", text: "None of the files uploaded. Check that your role can add media for this builder." });
+      setMessage({ kind: "error", text: `None of the files uploaded. ${failedText()}` });
       return;
     }
 
@@ -131,6 +140,12 @@ export function UploadForm({
     setBusy(false);
     if (!result.ok) {
       setMessage({ kind: "error", text: result.error });
+      return;
+    }
+    // Some went through, some didn't: stay here so the person sees which ones.
+    if (failed.length) {
+      setFiles(files.filter((f) => failed.some((x) => x.name === f.name)));
+      setMessage({ kind: "error", text: `Uploaded ${result.count}. ${failedText()} The ones listed are still here to try again.` });
       return;
     }
     router.push(doneHref ? `${doneHref}?saved=${encodeURIComponent(`Uploaded ${result.count} ${result.count === 1 ? "file" : "files"}. Tap any of them to add tags.`)}` : homeId ? `/media?home=${homeId}` : `/media?community=${community.id}`);
@@ -210,11 +225,17 @@ export function UploadForm({
             <li key={f.name} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
               <span className="truncate">{f.name}</span>
               <span className={f.size > MAX_MB * 1_048_576 || progress[f.name] === "failed" ? "text-red-700" : "text-muted"}>
-                {f.size > MAX_MB * 1_048_576 ? "Too large" : { waiting: `${(f.size / 1_048_576).toFixed(1)} MB`, uploading: "Uploading…", done: "Uploaded", failed: "Failed" }[progress[f.name] ?? "waiting"]}
+                {f.size > MAX_MB * 1_048_576 ? `Too large (over ${MAX_MB} MB)` : { waiting: `${(f.size / 1_048_576).toFixed(1)} MB`, uploading: "Uploading…", done: "Uploaded", failed: "Failed" }[progress[f.name] ?? "waiting"]}
               </span>
             </li>
           ))}
         </ul>
+      )}
+
+      {tooBig.length > 0 && (
+        <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">
+          {tooBig.length === 1 ? "1 file is" : `${tooBig.length} files are`} over {MAX_MB} MB, the most our storage account takes per file. Pick the files again without {tooBig.length === 1 ? "it" : "them"}, or make a smaller copy (for video, export at 1080p).
+        </p>
       )}
 
       {message && (

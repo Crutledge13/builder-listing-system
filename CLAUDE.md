@@ -119,6 +119,8 @@ After an upload, `src/lib/ai-tagging.ts` sends each JPG/PNG/WebP photo (by a 10-
 
 Inviting people needs `SUPABASE_SERVICE_ROLE_KEY` set in Vercel (server only, never in code or the browser). Without it the invite form is off; everything else in Admin works.
 
+**Storage meter:** the Admin overview shows file storage used per bucket (`public.storage_usage()`, staff only) against `app_settings.storage_limit_mb` (set in Admin > Settings in GB: 1 on Supabase's free plan, 100 on Pro), and warns at 80%. Uploads that fail say why (`src/lib/upload-errors.ts`); when some files in a batch fail, the upload page stays put and lists them to retry.
+
 ## Our team's task board
 
 `tasks` (staff only) is our to-do list at `/tasks`. Database triggers add tasks on their own: approved homes (enter in MLS), edits to live listings (update MLS), listing status changes, open houses (add/remove on MLS), change requests, photo requests, reverse prospecting, and help reports. Finishing the source (e.g. delivering a reverse prospecting list) closes its task. `task_notes` holds comments.

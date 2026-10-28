@@ -232,11 +232,14 @@ export async function saveSettings(formData: FormData) {
   const email = String(formData.get("team_email") ?? "").trim().toLowerCase();
   if (!Number.isInteger(days) || days < 7 || days > 120) go("/admin/settings", { error: "The open house window should be 7 to 120 days." });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) go("/admin/settings", { error: "Enter a valid team email." });
+  const storageGb = Number(formData.get("storage_limit_gb") ?? 1);
+  if (!Number.isInteger(storageGb) || storageGb < 1 || storageGb > 100000) go("/admin/settings", { error: "The storage limit should be a whole number of GB (1 or more)." });
   const supabase = await createClient();
   const now = new Date().toISOString();
   const { error } = await supabase.from("app_settings").upsert([
     { key: "mls_open_house_window_days", value: days, updated_at: now },
     { key: "team_email", value: email, updated_at: now },
+    { key: "storage_limit_mb", value: storageGb * 1024, updated_at: now },
   ]);
   if (error) go("/admin/settings", { error: friendly(error.message) });
   revalidatePath("/", "layout");

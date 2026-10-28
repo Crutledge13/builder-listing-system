@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { uploadErrorText } from "@/lib/upload-errors";
 
 // Uploads one image straight from the browser to a private storage bucket,
 // then tells the server where it went. Storage's own rules check the folder.
@@ -45,7 +46,7 @@ export function ImageUpload({
     const { error: upError } = await createBrowserSupabase().storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
     if (upError) {
       setBusy(false);
-      return setError("The upload didn’t go through. Check your connection and try again.");
+      return setError(`The upload didn’t go through: ${uploadErrorText(upError)}.`);
     }
     const result = await save(path, file.name);
     setBusy(false);
