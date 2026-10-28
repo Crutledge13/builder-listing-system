@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { ClickFeedback } from "@/components/click-feedback";
 import { GeistMono } from "geist/font/mono";
 import "@fontsource-variable/figtree";
 import "./globals.css";
@@ -13,7 +15,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${GeistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Suspense>
+          <ClickFeedback />
+        </Suspense>
+      </body>
     </html>
   );
 }

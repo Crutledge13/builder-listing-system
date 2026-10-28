@@ -103,3 +103,59 @@ details > summary::-webkit-details-marker {
     transition: none !important;
   }
 }
+
+/* Pointing-hand cursor on everything you can click. Tailwind v4 resets
+   buttons to the plain arrow, which made menus and buttons feel dead. */
+@layer base {
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  select:not(:disabled),
+  label:has(> input[type="checkbox"], > input[type="radio"]),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="button"]:not(:disabled),
+  input[type="file"]::file-selector-button {
+    cursor: pointer;
+  }
+  button:disabled,
+  input[type="submit"]:disabled {
+    cursor: not-allowed;
+  }
+}
+
+/* "Working on it" after a click (ClickFeedback sets data-busy): spinning
+   cursor everywhere plus a thin blue bar across the top of the window. */
+html[data-busy],
+html[data-busy] * {
+  cursor: progress !important;
+}
+.busy-bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+html[data-busy] .busy-bar {
+  opacity: 1;
+}
+.busy-bar::before {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 40%;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+  animation: busy-slide 1.1s ease-in-out infinite;
+}
+@keyframes busy-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .busy-bar::before { animation: none; width: 100%; opacity: 0.6; }
+}
