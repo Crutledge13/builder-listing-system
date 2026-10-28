@@ -144,6 +144,7 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, title, pendingOwners
         <Link href={`/setup?builder=${ob.builderId}`} className="rounded-lg border border-foreground px-3 py-1.5 text-sm font-semibold hover:bg-soft">Open their checklist</Link>
         <Link href="/admin/builders" className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">Markets and features</Link>
         <Link href={`/admin/people#${ob.builderId}`} className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">People</Link>
+        <Link href={`/admin/billing/builders/${ob.builderId}`} className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">Billing plan</Link>
       </div>
 
       {pendingOwners.map((o) => <div key={o.id} className="mt-4"><InviteLink profileId={o.id} name={o.full_name} /></div>)}
@@ -185,7 +186,7 @@ function DetailFields({ d, t }: { d?: Details; t?: TitleCompany }) {
         <Field label="Service agreement signed" name="agreement_signed_on" type="date" defaultValue={d?.agreement_signed_on ?? ""} />
         <Field label="Listing authorization signed" name="listing_authorization_on" type="date" defaultValue={d?.listing_authorization_on ?? ""} hint="If our attorney requires one." />
       </div>
-      <Field label="What we charge" name="pricing" defaultValue={d?.pricing ?? ""} placeholder="e.g. monthly plus per listing" />
+      <Field label="What we agreed (notes)" name="pricing" defaultValue={d?.pricing ?? ""} placeholder="e.g. Listing Service+, $350 per listing for year one" hint="The actual plan and prices that get invoiced are set on Admin > Billing." />
       <h3 className="mt-6 text-sm font-semibold">Billing contact</h3>
       <Field label="Name" name="billing_contact_name" defaultValue={d?.billing_contact_name ?? ""} />
       <div className="grid gap-x-3 sm:grid-cols-2">

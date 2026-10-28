@@ -24,6 +24,8 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | See builder branding (logo, colors, notes) | all | all | own | own | own | own | ➖ |
 | Run the setup checklist (skip optional steps, mark setup done) | ✅ any builder | ✅ any builder | own | own | ➖ | own | ➖ |
 | Onboarding details (agreement, billing contact, pricing) | ✅ | 👁 | ➖ | ➖ | ➖ | ➖ | ➖ |
+| Billing: plans, prices, deal notes, charges, invoices | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
+| Billing: see own plan and prices (no deal notes), sent invoices, charges adding up | ✅ | ➖ | own | ➖ | ➖ | ➖ | ➖ |
 | Edit builder branding | ✅ any builder | ➖ | own | own | ➖ | own | ➖ |
 | See access history (who gave whom access) | all | all | own | own | ➖ | own | ➖ |
 

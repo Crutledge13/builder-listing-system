@@ -24,6 +24,7 @@ const KIND_LABELS: Record<string, string> = {
   mls: "MLS work",
   listing: "Listing",
   task: "To-do",
+  billing: "Billing",
 };
 
 async function Inbox() {

@@ -66,7 +66,11 @@ export function menuLinks(role: Role, off: ReadonlySet<Feature> = new Set()): Me
   if (role === "platform_admin" || role === "listing_coordinator") {
     links.push({ href: "/branding", label: "Builder branding", hint: "Each builder’s logo, colors and notes" });
   }
+  if (role === "builder_owner") {
+    links.push({ href: "/billing", label: "Billing", hint: "Your plan, invoices and what’s coming on the next one" });
+  }
   if (role === "platform_admin") {
+    links.push({ href: "/admin/billing", label: "Billing", hint: "Builder plans, charges and invoices" });
     links.push({ href: "/admin", label: "Admin", hint: "Builders, communities, people, payments, settings" });
   }
   return links;
