@@ -2,11 +2,13 @@ import { endsText } from "@/lib/incentives";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { baths, money, num } from "@/lib/format";
+import { baths, cx, money, num } from "@/lib/format";
 import type { MediaRow } from "@/lib/demo-media";
 import { DISCLAIMER_TEXT, DisclaimerOverlay, MediaPicture } from "@/components/media-tile";
 import { PhotoPackButton } from "@/components/photo-pack-button";
-import { cleanHex, contrast, headingFont, inkSafe, textOn } from "@/lib/brand-theme";
+import { cleanHex, contrast, headingFont, INK, inkSafe, textOn } from "@/lib/brand-theme";
+import { socialPostIdeas } from "@/lib/social-posts";
+import { CopyPost, SharePageButton } from "./share-buttons";
 import { ShareGallery, SHARE_SIZES } from "./share-gallery";
 
 // The page a builder shares with a realtor: a branded flyer for one home that
@@ -134,24 +136,157 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
     ? new Date(s.link.expires_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: TZ })
     : null;
   const remarks = (h.public_remarks ?? "").trim().split(/\n\s*\n/).filter(Boolean);
+  const bathsN = h.bathrooms_full != null || h.bathrooms_half != null ? baths(h.bathrooms_full, h.bathrooms_half) : null;
   const facts = [
-    h.bedrooms_total != null && { n: String(h.bedrooms_total), label: h.bedrooms_total === 1 ? "bedroom" : "bedrooms" },
-    (h.bathrooms_full != null || h.bathrooms_half != null) && { n: baths(h.bathrooms_full, h.bathrooms_half), label: "baths" },
-    h.living_area != null && { n: num(h.living_area), label: "square feet" },
-    h.stories != null && { n: String(h.stories), label: h.stories === 1 ? "story" : "stories" },
-  ].filter(Boolean) as { n: string; label: string }[];
+    h.bedrooms_total != null && { n: String(h.bedrooms_total), label: h.bedrooms_total === 1 ? "Bedroom" : "Bedrooms", icon: ICONS.bed },
+    bathsN && { n: bathsN, label: bathsN === "1" ? "Bathroom" : "Bathrooms", icon: ICONS.bath },
+    h.living_area != null && { n: num(h.living_area), label: "Square feet", icon: ICONS.area },
+    h.stories != null && { n: String(h.stories), label: h.stories === 1 ? "Story" : "Stories", icon: ICONS.stories },
+  ].filter(Boolean) as { n: string; label: string; icon: React.ReactNode }[];
+  const ideas = socialPostIdeas(h, s.community.name, builderName, { incentives, openHouses, hasReel: reels.length > 0, photoCount: photos.length });
+  const [tour, ...moreTours] = s.tours;
+  const tourThumb = photos[1] ?? hero;
 
   const panel = (
-    <div className="px-5 py-6 sm:px-8 sm:py-8" style={{ background: brand, color: onBrand }}>
+    <div className="px-5 py-6 sm:px-7 sm:py-7" style={{ background: brand, color: onBrand }}>
       <span className="inline-block rounded-full px-3 py-1 text-sm font-semibold" style={{ background: chip, color: chip === onBrand ? brand : textOn(chip) }}>
         {statusLine(h)}
       </span>
-      <h1 className="mt-3 text-[32px] font-bold leading-[1.05] tracking-tight sm:text-[44px]" style={display}>{h.address}</h1>
-      <p className="mt-2 text-[17px] opacity-90">
+      <h1 className="mt-3 text-[30px] font-bold leading-[1.08] tracking-tight sm:text-[36px]" style={display}>{h.address}</h1>
+      <p className="mt-2 text-[16px] opacity-90">
         {h.city}, TX {h.postal_code}
         <span className="block">in {s.community.name}{h.plan_name ? `, the ${h.plan_name} plan` : ""}</span>
       </p>
-      {h.list_price != null && <p className="mt-5 text-[34px] font-bold leading-none tabular-nums sm:text-[40px]" style={display}>{money(h.list_price)}</p>}
+      {h.list_price != null && <p className="mt-4 text-[34px] font-bold leading-none tabular-nums sm:text-[38px]" style={display}>{money(h.list_price)}</p>}
+    </div>
+  );
+
+  // Beds, baths, square feet and the download, on a see-through bar over the photo.
+  const factBar = (
+    <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4 px-5 py-4 text-white sm:px-6">
+      {facts.length > 0 && (
+        <dl className="flex flex-wrap gap-x-8 gap-y-3">
+          {facts.map((f) => (
+            <div key={f.label} className="flex items-center gap-3">
+              <span className="opacity-85">{f.icon}</span>
+              <div>
+                <dt className="sr-only">{f.label}</dt>
+                <dd className="text-[22px] font-bold leading-none tabular-nums" style={display}>{f.n}</dd>
+                <dd className="mt-1 text-sm opacity-85">{f.label}</dd>
+              </div>
+            </div>
+          ))}
+        </dl>
+      )}
+      {photos.length > 0 && (
+        <div className="text-foreground">
+        <PhotoPackButton
+          name={`photos-${slug}`}
+          photos={photos.map((m, i) => ({ id: m.id, file: m.source !== "demo", label: `${String(i + 1).padStart(2, "0")}-${(m.room ?? m.kind).replace(/_/g, "-")}` }))}
+          readme={`Photos of ${h.address}, ${h.city}, from ${builderName}.\nFor marketing this home only.\n`}
+          label={`Download all ${photos.length} photos`}
+          presets={SHARE_SIZES}
+          builderDefault="full"
+          disclaimer={h.disclaimer ? DISCLAIMER_TEXT : undefined}
+          fileBase={fileBase}
+          buttonClassName="rounded-lg px-5 py-2.5 text-[15px] font-semibold hover:brightness-110 disabled:opacity-70"
+          buttonStyle={{ background: brand === "#ffffff" ? INK : brand, color: textOn(brand === "#ffffff" ? INK : brand) }}
+        />
+        </div>
+      )}
+    </div>
+  );
+
+  // Social post ideas, with the reel beside them when there is one.
+  const postSection = (ideas.length > 0 || reels.length > 0) && (
+    <section className="rounded-2xl p-5 sm:p-7" style={{ background: tint }}>
+      <h2 className="text-[24px] font-bold tracking-tight" style={display}>{reels.length > 0 ? "Ready to post" : "Social post ideas"}</h2>
+      <p className="mt-1 text-sm text-muted">
+        {reels.length > 0 ? "A vertical reel sized for Instagram, TikTok and Facebook, and posts written from this home’s details. " : "Posts written from this home’s details. "}
+        Add your name and brokerage before posting.
+      </p>
+      <div className={cx("mt-5 grid gap-6", reels.length > 0 && "md:grid-cols-[auto_minmax(0,1fr)]")}>
+        {reels.length > 0 && (
+          <div className="flex flex-wrap gap-4">
+            {reels.map((v) => (
+              <figure key={v.id} className="w-[200px] max-w-full">
+                <video src={`${fileBase}${v.id}#t=0.5`} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black object-cover" />
+                <a href={`${fileBase}${v.id}?download=1`} className="mt-2 block rounded-lg py-2 text-center text-sm font-semibold hover:brightness-110" style={{ background: brand, color: onBrand }}>Download reel</a>
+              </figure>
+            ))}
+          </div>
+        )}
+        {ideas.length > 0 && (
+          <ul className={cx("grid gap-4", reels.length === 0 ? "lg:grid-cols-3" : "xl:grid-cols-3")}>
+            {ideas.map((p) => (
+              <li key={p.title} className="flex flex-col rounded-xl bg-white p-4 shadow-sm">
+                <div>
+                  <p className="font-semibold">{p.title}</p>
+                  <span className="block text-xs text-muted">{p.pair === "reel" ? "Pair with the reel" : p.pair === "photos" ? "Pair with 4 to 10 photos" : "Pair with photo 1"}</span>
+                </div>
+                <p className="mt-2 flex-1 whitespace-pre-line text-[13.5px] leading-relaxed">{p.text}</p>
+                <div className="mt-3"><CopyPost text={p.text} color={brandText} /></div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+
+  const about = (
+    <div>
+      {remarks.length > 0 ? (
+        <>
+          <h2 className="text-[26px] font-bold tracking-tight" style={display}>About this home</h2>
+          <div className="mt-3 max-w-[68ch] space-y-4 text-[16px] leading-[1.7] text-foreground/90">
+            {remarks.map((p, i) => <p key={i}>{p}</p>)}
+          </div>
+        </>
+      ) : (
+        <h2 className="text-[26px] font-bold tracking-tight" style={display}>{h.plan_name ? `The ${h.plan_name} plan` : "About this home"} in {s.community.name}</h2>
+      )}
+      {website && (
+        <a href={website} target="_blank" rel="noreferrer noopener" className="mt-5 inline-flex items-center gap-1.5 font-semibold underline underline-offset-4" style={{ color: brandText }}>
+          More info on {builders} website
+          <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" /></svg>
+        </a>
+      )}
+      {incentives.length > 0 && (
+        <section className="mt-8 overflow-hidden rounded-2xl" style={{ background: tint }}>
+          <div className="h-1.5" style={{ background: second ?? brand }} />
+          <div className="p-5">
+            <h3 className="text-[19px] font-bold" style={display}>{incentives.length === 1 ? "Incentive on this home" : "Incentives on this home"}</h3>
+            <ul className="mt-3 space-y-3">
+              {incentives.map((i, n) => (
+                <li key={n}>
+                  <p className="text-[16px] font-semibold leading-snug" style={{ color: brandText }}>{i.title}</p>
+                  {i.details && <p className="mt-0.5 whitespace-pre-line text-sm">{i.details}</p>}
+                  <p className="mt-0.5 text-xs text-muted">{endsText(i.ends_on)}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-muted">Offered by {builderName}. Terms and end dates can change; check with {builderName} before writing an offer.</p>
+          </div>
+        </section>
+      )}
+      {openHouses.length > 0 && (
+        <section className="mt-6 rounded-2xl border border-line p-5">
+          <h3 className="text-[19px] font-bold" style={display}>Open houses</h3>
+          <ul className="mt-2 divide-y divide-line">
+            {openHouses.map((o) => {
+              const t = openHouseText(o);
+              return (
+                <li key={o.starts_at} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2.5">
+                  <span className="font-semibold">{t.day}</span>
+                  <span className="text-sm text-muted">{t.time}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-1 text-xs text-muted">Bring your buyers. Times are Central.</p>
+        </section>
+      )}
     </div>
   );
 
@@ -160,209 +295,112 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
       {font.href && <link rel="stylesheet" href={font.href} precedence="default" />}
       {icon && <link rel="icon" href={icon} />}
 
-      <header>
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-4 py-4 sm:px-8">
+      <header className="border-b border-line">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-4 py-3 sm:px-8">
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logo} alt={builderName} className="h-12 max-w-[200px] object-contain object-left" />
+            <img src={logo} alt={builderName} className="h-11 max-w-[220px] object-contain object-left" />
           ) : (
             <span className="text-xl font-bold tracking-tight" style={{ ...display, color: brandText }}>{builderName}</span>
           )}
-          <div className="flex min-w-0 items-center gap-4">
+          <div className="flex min-w-0 items-center gap-3">
             {tagline && <span className="hidden truncate text-[15px] text-muted md:block" style={display}>{tagline}</span>}
-            {website && (
-              <a href={website} target="_blank" rel="noreferrer noopener" className="hidden shrink-0 rounded-full border-2 px-4 py-1.5 text-sm font-semibold hover:bg-soft sm:inline-block" style={{ borderColor: brandText, color: brandText }}>
-                Visit {builderName}
-              </a>
-            )}
+            <SharePageButton color={brandText} />
           </div>
         </div>
       </header>
 
-      {/* The hero: the home's best photo with a sign panel in the builder's color, like the sign in its front yard. */}
-      <section className="mx-auto max-w-[1400px] sm:px-8">
+      {/* The hero: the home's best photo, the sign panel in the builder's color at the top right, and the facts on a bar across the bottom. */}
+      <section className="relative">
         {hero ? (
-          <div className="relative">
-            <div className="relative aspect-[4/3] overflow-hidden bg-soft sm:aspect-[16/9] sm:rounded-2xl lg:aspect-[2/1]">
-              <MediaPicture m={hero} size="web" fileBase={fileBase} priority className="h-full w-full" />
-              {h.disclaimer && hero.kind !== "floor_plan" && <DisclaimerOverlay />}
+          <>
+            <div className="relative aspect-[4/3] overflow-hidden bg-soft sm:aspect-[16/9] lg:aspect-auto lg:h-[min(640px,72vh)]">
+              <span data-media-id={hero.id} className="block h-full w-full">
+                <MediaPicture m={hero} size="web" fileBase={fileBase} priority className="h-full w-full" />
+              </span>
+              {h.disclaimer && hero.kind !== "floor_plan" && <span className="lg:hidden"><DisclaimerOverlay /></span>}
             </div>
-            <div className="md:absolute md:bottom-0 md:left-8 md:w-[min(520px,55%)] md:translate-y-1/4 md:overflow-hidden md:rounded-2xl md:shadow-xl">{panel}</div>
-          </div>
+            <div className="lg:absolute lg:right-8 lg:top-6 lg:w-[420px] lg:overflow-hidden lg:rounded-2xl lg:shadow-2xl">{panel}</div>
+            <div className="bg-[#1e2125] lg:absolute lg:inset-x-8 lg:bottom-6 lg:rounded-2xl lg:bg-black/55 lg:backdrop-blur-md">
+              {factBar}
+              {h.disclaimer && hero.kind !== "floor_plan" && <p className="hidden px-6 pb-3 text-xs text-white/80 lg:block">{DISCLAIMER_TEXT}</p>}
+            </div>
+          </>
         ) : (
-          <div className="overflow-hidden sm:rounded-2xl">{panel}</div>
+          <>
+            {panel}
+            <div className="bg-[#1e2125]">{factBar}</div>
+          </>
         )}
       </section>
 
       <main className="mx-auto max-w-[1400px] px-4 pb-16 sm:px-8">
-        {/* Facts and the two things a realtor came for. */}
-        <div className={hero ? "md:ml-[calc(min(520px,55%)+3rem)] md:min-h-[9rem]" : ""}>
-          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 pt-6 md:pt-8">
-            {facts.length > 0 && (
-              <dl className="flex flex-wrap gap-x-8 gap-y-3">
-                {facts.map((f) => (
-                  <div key={f.label}>
-                    <dt className="sr-only">{f.label}</dt>
-                    <dd className="text-[26px] font-bold leading-none tabular-nums" style={display}>{f.n}</dd>
-                    <dd className="mt-1 text-sm text-muted">{f.label}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
-            <div className="flex flex-wrap items-center gap-3">
-              {photos.length > 0 && (
-                <PhotoPackButton
-                  name={`photos-${slug}`}
-                  photos={photos.map((m, i) => ({ id: m.id, file: m.source !== "demo", label: `${String(i + 1).padStart(2, "0")}-${(m.room ?? m.kind).replace(/_/g, "-")}` }))}
-                  readme={`Photos of ${h.address}, ${h.city}, from ${builderName}.\nFor marketing this home only.\n`}
-                  label={`Download all ${photos.length} photos`}
-                  presets={SHARE_SIZES}
-                  builderDefault="full"
-                  disclaimer={h.disclaimer ? DISCLAIMER_TEXT : undefined}
-                  fileBase={fileBase}
-                  buttonClassName="rounded-full px-5 py-2.5 text-[15px] font-semibold hover:brightness-110 disabled:opacity-70"
-                  buttonStyle={{ background: brand, color: onBrand }}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
         {s.link.message && (
-          <blockquote className="mt-10 max-w-3xl border-l-4 py-1 pl-5 text-[17px] leading-relaxed" style={{ borderColor: brandText }}>
+          <blockquote className="mt-8 max-w-3xl border-l-4 py-1 pl-5 text-[17px] leading-relaxed" style={{ borderColor: brandText }}>
             {s.link.message}
             <span className="mt-1 block text-sm text-muted">From {builderName}{s.link.recipient_name ? `, for ${s.link.recipient_name}` : ""}</span>
           </blockquote>
         )}
 
-        {/* The story of the home, with what helps sell it right beside it. */}
-        <div className="mt-12 grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
-          <div className="min-w-0">
-            {remarks.length > 0 && (
-              <section>
-                <h2 className="text-[26px] font-bold tracking-tight" style={display}>About this home</h2>
-                <div className="mt-4 max-w-[68ch] space-y-4 text-[16px] leading-[1.7]">
-                  {remarks.map((p, i) => (
-                    <p key={i} className={i === 0 ? "text-[19px] leading-[1.6]" : "text-foreground/85"}>{p}</p>
-                  ))}
-                </div>
-              </section>
-            )}
-            {website && (
-              <a
-                href={website}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="mt-6 inline-block rounded-full px-5 py-2.5 text-[15px] font-semibold hover:brightness-110"
-                style={{ background: brand, color: onBrand }}
-              >
-                More info on {builders} website
-              </a>
-            )}
-          </div>
+        {/* A ready-to-post reel goes near the top, owners asked (28 Oct 2026). */}
+        {reels.length > 0 && <div className="mt-8">{postSection}</div>}
 
-          {(incentives.length > 0 || openHouses.length > 0) && (
-            <aside className="space-y-6">
-              {incentives.length > 0 && (
-                <section className="overflow-hidden rounded-2xl" style={{ background: tint }}>
-                  <div className="h-1.5" style={{ background: second ?? brand }} />
-                  <div className="p-5">
-                    <h2 className="text-[20px] font-bold" style={display}>{incentives.length === 1 ? "Incentive on this home" : "Incentives on this home"}</h2>
-                    <ul className="mt-3 space-y-4">
-                      {incentives.map((i, n) => (
-                        <li key={n}>
-                          <p className="text-[17px] font-semibold leading-snug" style={{ color: brandText }}>{i.title}</p>
-                          {i.details && <p className="mt-1 whitespace-pre-line text-sm">{i.details}</p>}
-                          <p className="mt-1 text-xs text-muted">{endsText(i.ends_on)}</p>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-4 text-xs text-muted">Offered by {builderName}. Terms and end dates can change; check with {builderName} before writing an offer.</p>
-                  </div>
-                </section>
-              )}
-              {openHouses.length > 0 && (
-                <section className="rounded-2xl border border-line p-5">
-                  <h2 className="text-[20px] font-bold" style={display}>Open houses</h2>
-                  <ul className="mt-3 divide-y divide-line">
-                    {openHouses.map((o) => {
-                      const t = openHouseText(o);
-                      return (
-                        <li key={o.starts_at} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2.5">
-                          <span className="font-semibold">{t.day}</span>
-                          <span className="text-sm text-muted">{t.time}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  <p className="mt-2 text-xs text-muted">Bring your buyers. Times are Central.</p>
-                </section>
-              )}
-            </aside>
-          )}
+        <div className="mt-10">
+          {h.disclaimer && photos.length > 0 && <p className="mb-4 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900">{DISCLAIMER_TEXT} The note is added to downloads too.</p>}
+          <ShareGallery photos={photos} fileBase={fileBase} disclaimer={h.disclaimer} slug={slug} accent={brandText}>
+            {about}
+          </ShareGallery>
         </div>
 
-        {photos.length > 0 && (
-          <section className="mt-16">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="text-[26px] font-bold tracking-tight" style={display}>Photos</h2>
-              <p className="text-sm text-muted">Tap a photo to see it large and download it at the size you need.</p>
-            </div>
-            {h.disclaimer && <p className="mt-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900">{DISCLAIMER_TEXT} The note is added to downloads too.</p>}
-            <div className="mt-5">
-              <ShareGallery photos={photos} fileBase={fileBase} disclaimer={h.disclaimer} slug={slug} accent={brandText} />
-            </div>
-          </section>
-        )}
-
-        {(walkthroughs.length > 0 || reels.length > 0) && (
-          <section className="mt-16">
-            <h2 className="text-[26px] font-bold tracking-tight" style={display}>Video</h2>
-            <p className="mt-1 text-sm text-muted">Download them and post them as your own. The reels are sized for Instagram, TikTok and Facebook.</p>
-            <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
-              {walkthroughs.length > 0 && (
-                <div className="min-w-0 space-y-6">
-                  {walkthroughs.map((v) => (
-                    <figure key={v.id}>
-                      <video src={`${fileBase}${v.id}`} controls playsInline preload="metadata" className="aspect-video w-full rounded-2xl bg-black" />
-                      <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-                        <span className="font-medium">{v.title} <span className="font-normal text-muted">(walkthrough)</span></span>
-                        <a href={`${fileBase}${v.id}?download=1`} className="rounded-full border-2 px-4 py-1.5 font-semibold hover:bg-soft" style={{ borderColor: brandText, color: brandText }}>Download video</a>
-                      </figcaption>
-                    </figure>
-                  ))}
-                </div>
-              )}
-              {reels.length > 0 && (
-                <div className="flex flex-wrap gap-6">
-                  {reels.map((v) => (
-                    <figure key={v.id} className="w-[240px] max-w-full">
-                      <video src={`${fileBase}${v.id}`} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-2xl bg-black object-cover" />
-                      <figcaption className="mt-2 space-y-2 text-sm">
-                        <span className="block font-medium">{v.title} <span className="font-normal text-muted">(social media reel)</span></span>
-                        <a href={`${fileBase}${v.id}?download=1`} className="inline-block rounded-full border-2 px-4 py-1.5 font-semibold hover:bg-soft" style={{ borderColor: brandText, color: brandText }}>Download reel</a>
-                      </figcaption>
-                    </figure>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {s.tours.length > 0 && (
-          <section className="mt-16">
-            <h2 className="text-[26px] font-bold tracking-tight" style={display}>Walk through it online</h2>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {s.tours.map((t) => (
-                <a key={t.url} href={t.url} target="_blank" rel="noreferrer noopener" className="rounded-2xl border-2 border-line px-5 py-4 hover:border-current" style={{ color: brandText }}>
-                  <span className="block text-[17px] font-semibold">{t.title ?? PROVIDERS[t.provider] ?? "Tour"}</span>
-                  <span className="mt-0.5 block text-sm text-muted">{t.branded ? "Branded" : "Unbranded, fine for the MLS"}</span>
+        {tour && (
+          <section className="mt-12 rounded-2xl p-3 sm:p-4" style={{ background: tint }}>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              {tourThumb && (
+                <a href={tour.url} target="_blank" rel="noreferrer noopener" className="relative block aspect-[16/9] w-full shrink-0 overflow-hidden rounded-xl bg-soft sm:w-[300px]" aria-label="Open the tour">
+                  <MediaPicture m={tourThumb} fileBase={fileBase} className="h-full w-full" />
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/15">
+                    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg" style={{ color: brandText }}>
+                      <svg aria-hidden viewBox="0 0 24 24" className="ml-1 h-7 w-7" fill="currentColor"><path d="M7 4.5v15l13-7.5z" /></svg>
+                    </span>
+                  </span>
                 </a>
+              )}
+              <div className="min-w-0 flex-1 px-2 sm:px-0">
+                <h2 className="text-[24px] font-bold tracking-tight" style={{ ...display, color: brandText }}>{tour.title ?? PROVIDERS[tour.provider] ?? "Tour"}</h2>
+                <p className="mt-1 text-muted">{tour.provider === "youtube" || tour.provider === "vimeo" ? "Watch the video tour of this home." : "Walk through this home online with an interactive 3D tour."}</p>
+                {moreTours.length > 0 && (
+                  <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    {moreTours.map((t) => (
+                      <a key={t.url} href={t.url} target="_blank" rel="noreferrer noopener" className="font-semibold underline underline-offset-4" style={{ color: brandText }}>{t.title ?? PROVIDERS[t.provider] ?? "Tour"}</a>
+                    ))}
+                  </p>
+                )}
+              </div>
+              <a href={tour.url} target="_blank" rel="noreferrer noopener" className="mx-2 mb-2 shrink-0 rounded-xl px-5 py-3 text-center text-[15px] font-semibold hover:brightness-110 sm:m-0 sm:mr-3" style={{ background: brand, color: onBrand }}>
+                {tour.provider === "youtube" || tour.provider === "vimeo" ? "Watch the tour" : "Open the 3D tour"}
+              </a>
+            </div>
+          </section>
+        )}
+
+        {walkthroughs.length > 0 && (
+          <section className="mt-12">
+            <h2 className="text-[26px] font-bold tracking-tight" style={display}>Video walkthrough</h2>
+            <div className="mt-4 grid gap-6 lg:grid-cols-2">
+              {walkthroughs.map((v) => (
+                <figure key={v.id} className="min-w-0">
+                  <video src={`${fileBase}${v.id}#t=0.5`} controls playsInline preload="metadata" className="aspect-video w-full rounded-2xl bg-black" />
+                  <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="font-medium">{v.title}</span>
+                    <a href={`${fileBase}${v.id}?download=1`} className="rounded-full border-2 px-4 py-1.5 font-semibold hover:bg-soft" style={{ borderColor: brandText, color: brandText }}>Download video</a>
+                  </figcaption>
+                </figure>
               ))}
             </div>
           </section>
         )}
+
+        {reels.length === 0 && postSection && <div className="mt-12">{postSection}</div>}
 
         {rows.length === 0 && s.tours.length === 0 && (
           <p className="mt-12 rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">Photos and video for this home are on the way. Check back soon.</p>
@@ -397,3 +435,13 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
     </div>
   );
 }
+
+const svg = (d: React.ReactNode) => (
+  <svg aria-hidden viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+const ICONS = {
+  bed: svg(<><path d="M3 18V7M3 14h18v4M21 14v-3a3 3 0 0 0-3-3h-7v6" /><circle cx="7" cy="11" r="2" /></>),
+  bath: svg(<><path d="M4 12h16v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4zM6 12V6a2 2 0 0 1 4 0M7 19l-1 2M17 19l1 2" /></>),
+  area: svg(<><path d="M4 9V4h5M20 15v5h-5M4 4l7 7M20 20l-7-7" /></>),
+  stories: svg(<><path d="M12 3l9 5-9 5-9-5zM3 13l9 5 9-5" /></>),
+};

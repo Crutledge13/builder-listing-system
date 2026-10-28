@@ -15,16 +15,22 @@ export const SHARE_SIZES: DownloadPreset[] = [
   { id: "social", builder_id: null, name: "Social media (1080 px JPG)", long_edge: 1080, format: "jpeg", quality: 85, is_default: false },
 ];
 
-// The photo grid, laid out like a brochure spread: the first photo large, the
-// next eight around it, the rest behind "See all". Hidden tiles stay on the
-// page so the zip download can still find demo pictures. Tapping a photo opens
-// it large with a download menu.
-const FIRST = 9;
+// The photos around the description, as the owners sketched it (28 Oct 2026):
+// four photos in a 2 x 2 grid on the left framing "About this home" on the
+// right, and "See more photos" dropping the rest down underneath, full width.
+// The hero photo (the first) is already at the top of the page, so the frame
+// starts at the second. Hidden tiles stay on the page so the zip download can
+// still find demo pictures. Tapping a photo opens it large with a download menu.
+const FRAME = 4;
 
-export function ShareGallery({ photos, fileBase, disclaimer, slug, accent }: { photos: MediaRow[]; fileBase: string; disclaimer: boolean; slug: string; accent?: string }) {
+export function ShareGallery({ photos, fileBase, disclaimer, slug, accent, children }: { photos: MediaRow[]; fileBase: string; disclaimer: boolean; slug: string; accent?: string; children?: React.ReactNode }) {
   const [open, setOpen] = useState<number | null>(null);
   const [all, setAll] = useState(false);
   const m = open === null ? null : photos[open];
+  // Photo 1 is the hero; frame from photo 2 when there are enough.
+  const start = photos.length > FRAME ? 1 : 0;
+  const frame = photos.slice(start, start + FRAME);
+  const rest = photos.slice(start + FRAME);
 
   useEffect(() => {
     if (open === null) return;
@@ -37,38 +43,40 @@ export function ShareGallery({ photos, fileBase, disclaimer, slug, accent }: { p
     return () => document.removeEventListener("keydown", key);
   }, [open, photos.length]);
 
+  const tile = (p: MediaRow, i: number, extra?: string) => (
+    <button key={p.id} type="button" onClick={() => setOpen(i)} className={cx("group relative aspect-[4/3] overflow-hidden rounded-lg bg-soft text-left", extra)} aria-label={`Open ${p.title}`}>
+      <span data-media-id={p.id} className="block h-full w-full">
+        <MediaPicture m={p} fileBase={fileBase} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+      </span>
+      {disclaimer && p.kind !== "floor_plan" && <DisclaimerOverlay small />}
+    </button>
+  );
+
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-        {photos.map((p, i) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setOpen(i)}
-            className={cx(
-              "group relative aspect-[3/2] overflow-hidden rounded-lg bg-soft text-left",
-              i === 0 && "col-span-2 sm:row-span-2 sm:aspect-auto",
-              !all && i >= FIRST && "hidden",
+      <div className={cx("grid gap-8 lg:gap-12", frame.length > 0 && children ? "lg:grid-cols-2" : "")}>
+        {frame.length > 0 && (
+          <div className="min-w-0">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">{frame.map((p, n) => tile(p, start + n))}</div>
+            {rest.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setAll((v) => !v)}
+                aria-expanded={all}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[15px] font-semibold"
+                style={accent ? { color: accent, background: `color-mix(in srgb, ${accent} 9%, white)` } : undefined}
+              >
+                <span aria-hidden className={cx("inline-block transition-transform", all && "rotate-180")}>⌄</span>
+                {all ? "Show fewer photos" : `See more photos (${rest.length})`}
+              </button>
             )}
-            aria-label={`Open ${p.title}`}
-          >
-            <span data-media-id={p.id} className="block h-full w-full">
-              <MediaPicture m={p} size={i === 0 ? "web" : "thumb"} fileBase={fileBase} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
-            </span>
-            {disclaimer && p.kind !== "floor_plan" && <DisclaimerOverlay small={i !== 0} />}
-          </button>
-        ))}
+          </div>
+        )}
+        {children && <div className="min-w-0">{children}</div>}
       </div>
-      {photos.length > FIRST && (
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            onClick={() => setAll((v) => !v)}
-            className="rounded-full border-2 px-5 py-2 text-sm font-semibold hover:bg-soft"
-            style={accent ? { borderColor: accent, color: accent } : undefined}
-          >
-            {all ? "Show fewer photos" : `See all ${photos.length} photos`}
-          </button>
+      {rest.length > 0 && (
+        <div className={cx("mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4", !all && "hidden")}>
+          {rest.map((p, n) => tile(p, start + FRAME + n))}
         </div>
       )}
 
