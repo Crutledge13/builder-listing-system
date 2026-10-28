@@ -44,8 +44,11 @@ export function cleanUrl(pathname: string, search: string) {
 }
 
 function pageName() {
+  // A page can name itself for Back buttons (data-back-name), e.g. a home's
+  // media folder is "Photos of 213 Pecan Ridge Dr", not the home itself.
+  const own = document.querySelector("[data-back-name]")?.getAttribute("data-back-name");
   const h = document.querySelector("main h1") ?? document.querySelector("h1");
-  const text = (h?.textContent ?? "").replace(/\s+/g, " ").trim();
+  const text = (own ?? h?.textContent ?? "").replace(/\s+/g, " ").trim();
   return text.length > 48 ? `${text.slice(0, 45).trim()}…` : text;
 }
 

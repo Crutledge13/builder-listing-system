@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { createClient } from "@/lib/supabase/server";
 import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
@@ -170,7 +171,11 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   const uploadHref = home ? `/media/upload?home=${home.id}` : community ? `/media/upload?community=${community.id}` : "/media/upload";
 
   return (
-    <div>
+    <div data-back-name={home ? `Photos of ${home.unparsed_address}` : community ? `${community.name} media` : "Media"}>
+      {/* Back to where they came from (a home, a task...), when they came from somewhere. */}
+      <div className="mb-3 empty:hidden">
+        <BackButton href={home ? `/homes/${home.id}` : "/media"} label={home ? "Back to the home" : "Back"} onlyWithTrail />
+      </div>
       {/* Breadcrumb: builder > community > home */}
       <nav className="flex flex-wrap items-center gap-1 text-sm text-muted" aria-label="Folders">
         <Link href="/media" className="hover:text-foreground hover:underline">Media</Link>
