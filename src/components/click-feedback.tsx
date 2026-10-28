@@ -21,8 +21,10 @@ export function ClickFeedback() {
   const path = usePathname();
   const search = useSearchParams().toString();
 
-  // New page arrived.
-  useEffect(() => stop(), [path, search]);
+  // New page arrived. Next.js shows the new address straight away with grey
+  // loading placeholders (Suspense fallbacks, "animate-pulse"), so keep the
+  // feedback up until those are replaced by the real content.
+  useEffect(() => whenLoaded(stop), [path, search]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -94,6 +96,24 @@ function isReactForm(form: HTMLFormElement) {
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;
+let loadWatch: MutationObserver | undefined;
+
+function stillLoading() {
+  return !!document.querySelector("main .animate-pulse, body > .animate-pulse, header + .animate-pulse");
+}
+
+function whenLoaded(done: () => void) {
+  loadWatch?.disconnect();
+  if (!document.documentElement.dataset.busy || !stillLoading()) return done();
+  loadWatch = new MutationObserver(() => {
+    if (!stillLoading()) {
+      loadWatch?.disconnect();
+      loadWatch = undefined;
+      done();
+    }
+  });
+  loadWatch.observe(document.body, { childList: true, subtree: true });
+}
 let noteTimer: ReturnType<typeof setTimeout> | undefined;
 let observer: MutationObserver | undefined;
 
@@ -113,13 +133,15 @@ function start({ el, watchContent }: { el: Element | null | undefined; watchCont
     // clicked button's own "Saving…" change in the first moment doesn't count.
     const startedAt = Date.now();
     observer = new MutationObserver(() => {
-      if (Date.now() - startedAt > 300) stop();
+      if (Date.now() - startedAt > 300 && !stillLoading()) stop();
     });
     observer.observe(document.querySelector("main") ?? document.body, { childList: true, subtree: true, characterData: true });
   }
 }
 
 function stop() {
+  loadWatch?.disconnect();
+  loadWatch = undefined;
   clearTimeout(timer);
   clearTimeout(noteTimer);
   observer?.disconnect();
