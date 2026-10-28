@@ -59,12 +59,14 @@ export function menuLinks(role: Role, off: ReadonlySet<Feature> = new Set()): Me
     links.push({ href: "/todo", label: "Builders’ tasks", hint: "What each builder’s team has open" });
   }
   if (["builder_owner", "manager", "marketing"].includes(role)) {
-    links.push({ href: "/branding", label: "Company branding", hint: "Logo, colors, website and title company" });
+    links.push({ href: "/company", label: "Company details", hint: "Main contact, billing, website and title company" });
+    links.push({ href: "/branding", label: "Company branding", hint: "Logo, colors and fonts" });
   } else if (role === "sales") {
     links.push({ href: "/branding", label: "Company branding", hint: "Logo and brand colors" });
   }
   if (role === "platform_admin" || role === "listing_coordinator") {
     links.push({ href: "/branding", label: "Builder branding", hint: "Each builder’s logo, colors and notes" });
+    links.push({ href: "/company", label: "Builder company details", hint: "Each builder’s contact, billing, website and title company" });
   }
   if (role === "builder_owner") {
     links.push({ href: "/billing", label: "Billing", hint: "Your plan, invoices and what’s coming on the next one" });

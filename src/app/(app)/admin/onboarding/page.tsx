@@ -10,8 +10,6 @@ import { loadOnboarding, STAGES, STAGE_LABELS, type Onboarding, type Stage } fro
 import { addBuilder, invitePerson, saveOnboarding } from "../actions";
 import { pendingInvites } from "@/lib/invite-links";
 import { InviteLink } from "@/components/invite-link";
-import { TitleCompanyFields } from "@/components/title-company-fields";
-import { TITLE_COMPANY_SELECT, type TitleCompany } from "@/lib/mls-fields";
 
 export default function OnboardingAdmin(props: PageProps<"/admin/onboarding">) {
   return (
@@ -30,8 +28,6 @@ type Details = {
   pricing: string | null;
   agreement_signed_on: string | null;
   listing_authorization_on: string | null;
-  website_platform: string | null;
-  sends_listing_feed: string;
   notes: string | null;
 };
 
@@ -49,13 +45,13 @@ async function OnboardingList() {
   const supabase = await createClient();
   const [{ data: builders }, { data: details }, { data: boards }, { data: branding }, { data: titles }] = await Promise.all([
     supabase.from("builders").select("id, name, legal_name").order("name"),
-    supabase.from("builder_onboarding").select("builder_id, billing_contact_name, billing_contact_email, billing_contact_phone, pricing, agreement_signed_on, listing_authorization_on, website_platform, sends_listing_feed, notes"),
+    supabase.from("builder_onboarding").select("builder_id, billing_contact_name, billing_contact_email, billing_contact_phone, pricing, agreement_signed_on, listing_authorization_on, notes"),
     supabase.from("mls_boards").select("code, short_name").eq("active", true).order("code"),
-    supabase.from("builder_branding").select("builder_id, logo_updated_at"),
-    supabase.from("builder_settings").select(`builder_id, ${TITLE_COMPANY_SELECT}`),
+    supabase.from("builder_branding").select("builder_id, logo_updated_at, website_url"),
+    supabase.from("builder_settings").select("builder_id, title_company_name, main_contact_name, main_contact_email, main_contact_phone"),
   ]);
   // Owners who haven't opened their invite yet get a copyable invite link on their card.
-  const { data: owners } = await supabase.from("profiles").select("id, full_name, builder_id").eq("role", "builder_owner").eq("is_active", true);
+  const { data: owners } = await supabase.from("profiles").select("id, full_name, email, builder_id").eq("role", "builder_owner").eq("is_active", true).order("created_at");
   const pending = await pendingInvites((owners ?? []).map((o) => o.id));
   const pendingOwners = (owners ?? []).filter((o) => pending.has(o.id));
   const list = await loadOnboarding(supabase, (builders ?? []).map((b) => b.id), { staff: true });
@@ -78,7 +74,11 @@ async function OnboardingList() {
             d={(details ?? []).find((x) => x.builder_id === ob.builderId) as Details | undefined}
             logoAt={(branding ?? []).find((x) => x.builder_id === ob.builderId)?.logo_updated_at ?? null}
             pendingOwners={pendingOwners.filter((o) => o.builder_id === ob.builderId)}
-            title={(titles ?? []).find((x) => (x as { builder_id: string }).builder_id === ob.builderId) as TitleCompany | undefined}
+            fromBuilder={{
+              settings: (titles ?? []).find((x) => x.builder_id === ob.builderId),
+              website: (branding ?? []).find((x) => x.builder_id === ob.builderId)?.website_url ?? null,
+              owner: (owners ?? []).find((o) => o.builder_id === ob.builderId),
+            }}
             canInvite={canInvite}
           />
         ))}
@@ -112,8 +112,14 @@ async function OnboardingList() {
   );
 }
 
-function BuilderCard({ ob, legalName, d, logoAt, canInvite, title, pendingOwners }: {
-  ob: Onboarding; legalName: string; d?: Details; logoAt: string | null; canInvite: boolean; title?: TitleCompany;
+type FromBuilder = {
+  settings?: { title_company_name: string | null; main_contact_name: string | null; main_contact_email: string | null; main_contact_phone: string | null };
+  website: string | null;
+  owner?: { full_name: string; email: string };
+};
+
+function BuilderCard({ ob, legalName, d, logoAt, canInvite, fromBuilder, pendingOwners }: {
+  ob: Onboarding; legalName: string; d?: Details; logoAt: string | null; canInvite: boolean; fromBuilder: FromBuilder;
   pendingOwners: { id: string; full_name: string }[];
 }) {
   const ourOpen = ob.ourSteps.filter((s) => !s.done);
@@ -147,6 +153,8 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, title, pendingOwners
         <Link href={`/admin/billing/builders/${ob.builderId}`} className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">Billing plan</Link>
       </div>
 
+      <FromBuilderSummary builderId={ob.builderId} f={fromBuilder} d={d} />
+
       {pendingOwners.map((o) => <div key={o.id} className="mt-4"><InviteLink profileId={o.id} name={o.full_name} /></div>)}
 
       {ownerMissing && (
@@ -166,7 +174,7 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, title, pendingOwners
         <form action={saveOnboarding} className="px-4 pb-4">
           <input type="hidden" name="builder_id" value={ob.builderId} />
           <Field label="Legal company name" name="legal_name" defaultValue={legalName} hint="Goes in the MLS Owner Name box. Must match their deeds." />
-          <DetailFields d={d} t={title} />
+          <DetailFields d={d} />
           <button className="mt-4 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-white hover:bg-black">Save details</button>
         </form>
       </details>
@@ -174,41 +182,53 @@ function BuilderCard({ ob, legalName, d, logoAt, canInvite, title, pendingOwners
   );
 }
 
-// The details we collect before the invite (shared by Add a builder and each card).
-function DetailFields({ d, t }: { d?: Details; t?: TitleCompany }) {
+// What our team records (shared by Add a builder and each card). Billing
+// contact, website, title company and main contact are the builder's to add on
+// Company details; listing feed questions wait for the website feed step.
+function DetailFields({ d }: { d?: Details }) {
   return (
     <>
-      <h3 className="mt-6 text-sm font-semibold">Default title company</h3>
-      <p className="mb-2 text-xs text-muted">Goes on every listing; a community can use a different one. The builder can change it on Company branding.</p>
-      <TitleCompanyFields t={t} />
       <h3 className="mt-6 text-sm font-semibold">Agreement</h3>
       <div className="grid gap-x-3 sm:grid-cols-2">
         <Field label="Service agreement signed" name="agreement_signed_on" type="date" defaultValue={d?.agreement_signed_on ?? ""} />
         <Field label="Listing authorization signed" name="listing_authorization_on" type="date" defaultValue={d?.listing_authorization_on ?? ""} hint="If our attorney requires one." />
       </div>
       <Field label="What we agreed (notes)" name="pricing" defaultValue={d?.pricing ?? ""} placeholder="e.g. Listing Service+, $350 per listing for year one" hint="The actual plan and prices that get invoiced are set on Admin > Billing." />
-      <h3 className="mt-6 text-sm font-semibold">Billing contact</h3>
-      <Field label="Name" name="billing_contact_name" defaultValue={d?.billing_contact_name ?? ""} />
-      <div className="grid gap-x-3 sm:grid-cols-2">
-        <Field label="Email" name="billing_contact_email" type="email" defaultValue={d?.billing_contact_email ?? ""} />
-        <Field label="Phone" name="billing_contact_phone" defaultValue={d?.billing_contact_phone ?? ""} />
-      </div>
-      <h3 className="mt-6 text-sm font-semibold">Their website</h3>
-      {!d && <Field label="Website address" name="website_url" placeholder="https://" />}
-      <Field label="What runs it" name="website_platform" defaultValue={d?.website_platform ?? ""} placeholder="e.g. WordPress, a custom site" />
-      <label className="mt-3 block">
-        <span className="mb-1 block text-sm font-medium">Already sends a listing feed to Zillow or new-home sites?</span>
-        <select name="sends_listing_feed" defaultValue={d?.sends_listing_feed ?? "unknown"} className="field-input">
-          <option value="unknown">Not sure yet</option>
-          <option value="yes">Yes: ask for a copy of that feed</option>
-          <option value="no">No</option>
-        </select>
-      </label>
       <label className="mt-3 block">
         <span className="mb-1 block text-sm font-medium">Notes</span>
         <textarea name="notes" rows={3} defaultValue={d?.notes ?? ""} className="field-input" />
       </label>
     </>
+  );
+}
+
+// What the builder has added themselves, read-only here.
+function FromBuilderSummary({ builderId, f, d }: { builderId: string; f: FromBuilder; d?: Details }) {
+  const contact = f.settings?.main_contact_name
+    ? [f.settings.main_contact_name, f.settings.main_contact_email, f.settings.main_contact_phone].filter(Boolean).join(" · ")
+    : f.owner ? `${f.owner.full_name} (owner) · ${f.owner.email}` : null;
+  const billing = d?.billing_contact_name ? [d.billing_contact_name, d.billing_contact_email, d.billing_contact_phone].filter(Boolean).join(" · ") : null;
+  const rows: [string, string | null][] = [
+    ["Main point of contact", contact],
+    ["Billing contact", billing],
+    ["Website", f.website?.replace(/^https?:\/\//, "") ?? null],
+    ["Default title company", f.settings?.title_company_name ?? null],
+  ];
+  return (
+    <div className="mt-4 rounded-xl bg-soft px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold">From the builder</p>
+        <Link href={`/company?builder=${builderId}`} className="text-xs font-semibold text-accent underline">Company details</Link>
+      </div>
+      <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[170px_1fr]">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-muted">{k}</dt>
+            <dd className={v ? "min-w-0 truncate" : "text-muted"}>{v ?? "Not added yet"}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 

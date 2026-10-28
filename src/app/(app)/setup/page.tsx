@@ -131,6 +131,7 @@ function StepGroup({ title, steps, ob, staff }: { title: string; steps: Step[]; 
 function staffHref(href: string, builderId: string) {
   if (href === "/team") return `/admin/people#${builderId}`;
   if (href.startsWith("/branding")) return href.replace("/branding", `/branding?builder=${builderId}`);
+  if (href.startsWith("/company")) return href.replace("/company", `/company?builder=${builderId}`);
   return href;
 }
 

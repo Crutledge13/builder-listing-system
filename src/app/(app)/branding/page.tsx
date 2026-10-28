@@ -11,9 +11,7 @@ import { brandScanAvailable, type BrandScan } from "@/lib/brand-scan";
 import { dateTime } from "@/lib/format";
 import { addPreset, deletePreset, savePreset, setDefaultPreset } from "./actions";
 import { FORMAT_LABELS, PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
-import { applyScan, dismissScan, removeGuide, removeLogo, rescanGuide, saveBranding, saveGuide, saveLogo, saveTitleCompany } from "./actions";
-import { TitleCompanyFields } from "@/components/title-company-fields";
-import { TITLE_COMPANY_SELECT, type TitleCompany } from "@/lib/mls-fields";
+import { applyScan, dismissScan, removeGuide, removeLogo, rescanGuide, saveBranding, saveGuide, saveLogo } from "./actions";
 
 // Reading a long brand guide with AI can take a little while.
 export const maxDuration = 120;
@@ -151,11 +149,9 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
         )}
       </section>
 
-      <TitleCompanySection builderId={b.builder_id} edit={edit} />
-
       <form action={saveBranding} className="mt-6 rounded-2xl border border-line p-5">
         <input type="hidden" name="builder_id" value={b.builder_id} />
-        <h2 className="font-semibold">Colors, fonts, website and notes</h2>
+        <h2 className="font-semibold">Colors, fonts and notes</h2>
         <fieldset disabled={!edit} className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <span className="mb-1 block text-sm font-medium">Brand colors</span>
@@ -165,10 +161,9 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
             <span className="mb-1 block text-sm font-medium">Fonts, main one first, separated by commas</span>
             <input name="fonts" defaultValue={(b.fonts ?? []).join(", ")} placeholder="e.g. Montserrat, Lora" className="field-input" />
           </label>
-          <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium">Company website</span>
-            <input name="website_url" defaultValue={b.website_url ?? ""} placeholder="https://www.yourbuilder.com" className="field-input" />
-          </label>
+          <p className="text-sm text-muted sm:col-span-2">
+            Your website address is on <Link href={staff ? `/company?builder=${b.builder_id}` : "/company#website"} className="font-medium text-accent underline">Company details</Link>.
+          </p>
           <label className="block sm:col-span-2">
             <span className="mb-1 block text-sm font-medium">Tagline (optional)</span>
             <input name="tagline" defaultValue={b.tagline ?? ""} maxLength={120} placeholder="e.g. Homes built for Texas living" className="field-input" />
@@ -336,26 +331,6 @@ function SizeFields({ action, builderId, p, submit }: { action: (fd: FormData) =
       </label>
       <label className="block"><span className="mb-1 block text-xs font-medium">Quality (40-100)</span><input name="quality" type="number" min={40} max={100} defaultValue={p?.quality ?? 85} className="field-input py-2" /></label>
       <div className="sm:col-span-4"><button className="rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-white hover:bg-black">{submit}</button></div>
-    </form>
-  );
-}
-
-// The builder's default title company, used on every home's MLS listing
-// unless a community sets its own in its community setup.
-async function TitleCompanySection({ builderId, edit }: { builderId: string; edit: boolean }) {
-  const supabase = await createClient();
-  const { data } = await supabase.from("builder_settings").select(TITLE_COMPANY_SELECT).eq("builder_id", builderId).maybeSingle();
-  return (
-    <form id="title-company" action={saveTitleCompany} className="mt-6 scroll-mt-28 rounded-2xl border border-line p-5">
-      <input type="hidden" name="builder_id" value={builderId} />
-      <h2 className="font-semibold">Default title company</h2>
-      <p className="mt-1 text-sm text-muted">
-        Goes on every home&rsquo;s MLS listing as the preferred title company. A community that uses a different one can set its own in its community setup.
-      </p>
-      <fieldset disabled={!edit} className="mt-4">
-        <TitleCompanyFields t={data as TitleCompany | null} />
-      </fieldset>
-      {edit && <button className="mt-4 rounded-xl bg-foreground px-4 py-2 text-sm font-semibold text-white hover:bg-black">Save title company</button>}
     </form>
   );
 }

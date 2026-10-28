@@ -10,12 +10,12 @@ import { communityCompleteness, communitySections, mergeCommunityDetails, MLS_BO
 
 export type StepKey =
   | "agreement" | "legal_name" | "markets" | "owner"
-  | "team" | "logo" | "brand_guide" | "website" | "photo_contact" | "title_company"
+  | "team" | "logo" | "brand_guide" | "website" | "billing" | "photo_contact" | "title_company"
   | "communities" | "community_setup" | "sales"
   | "plans" | "first_home" | "first_approval";
 
-export type SkippableStep = "team" | "brand_guide" | "website" | "title_company";
-export const SKIPPABLE: readonly SkippableStep[] = ["team", "brand_guide", "website", "title_company"];
+export type SkippableStep = "team" | "brand_guide" | "title_company";
+export const SKIPPABLE: readonly SkippableStep[] = ["team", "brand_guide", "title_company"];
 
 export type Step = {
   key: StepKey;
@@ -38,6 +38,15 @@ export type CommunitySetup = {
   required: number;
   filled: number;
   missing: string[];
+};
+
+export type SetupState = {
+  skipped: string[];
+  finished_at: string | null;
+  agreement_signed: boolean;
+  billing_set: boolean;
+  billing?: { name: string | null; email: string | null; phone: string | null } | null;
+  can_edit_billing?: boolean;
 };
 
 export type Onboarding = {
@@ -92,19 +101,22 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
     supabase.from("floor_plans").select("builder_id").in("builder_id", ids),
     supabase.from("homes").select("builder_id, workflow_status").in("builder_id", ids).is("deleted_at", null),
     opts.staff
-      ? supabase.from("builder_onboarding").select("builder_id, agreement_signed_on, skipped, finished_at").in("builder_id", ids)
+      ? supabase.from("builder_onboarding").select("builder_id, agreement_signed_on, skipped, finished_at, billing_contact_name, billing_contact_email").in("builder_id", ids)
       : Promise.resolve({ data: null }),
   ]);
 
   // Builders read their own skipped steps and finish date through a function
   // (the onboarding table holds billing details they don't see).
-  const states = new Map<string, { skipped: string[]; finished_at: string | null; agreement_signed: boolean }>();
+  const states = new Map<string, SetupState>();
   if (opts.staff) {
-    for (const r of onboarding.data ?? []) states.set(r.builder_id, { skipped: r.skipped ?? [], finished_at: r.finished_at, agreement_signed: !!r.agreement_signed_on });
+    for (const r of onboarding.data ?? []) states.set(r.builder_id, {
+      skipped: r.skipped ?? [], finished_at: r.finished_at, agreement_signed: !!r.agreement_signed_on,
+      billing_set: !!r.billing_contact_name && !!r.billing_contact_email,
+    });
   } else {
     await Promise.all(ids.map(async (id) => {
       const { data } = await supabase.rpc("builder_setup_state", { p_builder: id });
-      if (data) states.set(id, data as { skipped: string[]; finished_at: string | null; agreement_signed: boolean });
+      if (data) states.set(id, data as SetupState);
     }));
   }
 
@@ -117,7 +129,7 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
 
   return ids.map((id) => {
     const b = (builders.data ?? []).find((x) => x.id === id);
-    const st = states.get(id) ?? { skipped: [], finished_at: null, agreement_signed: false };
+    const st = states.get(id) ?? { skipped: [], finished_at: null, agreement_signed: false, billing_set: false };
     const skipped = new Set(st.skipped);
     const brand = by(branding.data as Row[], id)[0] as { logo_path?: string; brand_guide_path?: string; website_url?: string } | undefined;
     const contact = by(photo.data as Row[], id)[0] as { contact_name?: string; contact_phone?: string } | undefined;
@@ -147,7 +159,7 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
         done: !!b?.legal_name, detail: b?.legal_name ?? undefined, href: `/admin/onboarding#b-${id}`, cta: "Add it" },
       { key: "markets", group: "ours", ourTeam: true, title: "MLS markets", why: "Which MLS each of their communities goes to.",
         done: markets.length > 0, detail: markets.join(", ") || undefined, href: "/admin/builders", cta: "Set markets" },
-      { key: "owner", group: "ours", ourTeam: true, title: "Owner invited", why: "The owner gets an email, signs in and sees this checklist.",
+      { key: "owner", group: "ours", ourTeam: true, title: "Owner added and invited", why: "The owner is our main point of contact until they name someone else. Send them their invite link from their card.",
         done: owners > 0, href: `/admin/onboarding#b-${id}`, cta: "Invite the owner" },
     ];
 
@@ -163,10 +175,12 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
         why: "We read it for your colors, fonts and voice, so listing descriptions sound like you.",
         done: !!brand?.brand_guide_path || skipped.has("brand_guide"), skipped: skipped.has("brand_guide") && !brand?.brand_guide_path,
         href: "/branding#guide", cta: "Upload guide" },
-      { key: "website", group: "company", title: "Add your website address", optional: true, skipLabel: "Skip for now",
+      { key: "website", group: "company", title: "Add your website address",
         why: "Realtor share links send agents to your site for more info.",
-        done: !!brand?.website_url || skipped.has("website"), skipped: skipped.has("website") && !brand?.website_url,
-        detail: brand?.website_url ?? undefined, href: "/branding", cta: "Add website" },
+        done: !!brand?.website_url, detail: brand?.website_url ?? undefined, href: "/company#website", cta: "Add website" },
+      { key: "billing", group: "company", title: "Billing contact",
+        why: "Who we send invoices to. Your company’s owner adds this.",
+        done: st.billing_set, href: "/company#billing", cta: "Add billing contact" },
       { key: "photo_contact", group: "company", title: "Who photographers call",
         why: "A name and phone number photographers see on every shoot, plus any access notes.",
         done: !!contact?.contact_name && !!contact?.contact_phone,
@@ -175,7 +189,7 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
       { key: "title_company", group: "company", title: "Your default title company", optional: true, skipLabel: "We don’t use one",
         why: "Goes on every listing as the preferred title company. A community that uses a different one can set its own.",
         done: !!titleCompany || skipped.has("title_company"), skipped: skipped.has("title_company") && !titleCompany,
-        detail: titleCompany ?? undefined, href: "/branding#title-company", cta: "Add title company" },
+        detail: titleCompany ?? undefined, href: "/company#title-company", cta: "Add title company" },
       { key: "communities", group: "communities", title: "Add your communities",
         why: "Each community holds its homes, its own photos and its sales team.",
         done: comms.length > 0, detail: comms.length ? `${comms.length} ${comms.length === 1 ? "community" : "communities"}` : undefined,

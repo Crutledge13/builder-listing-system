@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { FEATURES } from "@/lib/features";
-import { readTitleCompany } from "@/lib/title-company";
 import { createInvitedLogin, deleteLogin, invitesOn } from "@/lib/invite-links";
 
 // Every action here is for our platform admins. The database rules enforce
@@ -41,8 +40,6 @@ export async function addBuilder(formData: FormData) {
   const text = (k: string) => String(formData.get(k) ?? "").trim();
   const name = text("name");
   if (!name) go(back, { error: "Enter the builder’s name." });
-  const website = text("website_url");
-  if (website && !/^https?:\/\//i.test(website)) go(back, { error: "The website must start with http:// or https://." });
   const ownerEmail = text("owner_email").toLowerCase();
   const ownerName = text("owner_name");
   if (ownerEmail && !ownerName) go(back, { error: "Enter the owner’s name to send the invite." });
@@ -55,9 +52,8 @@ export async function addBuilder(formData: FormData) {
     .single();
   if (error || !created) go(back, { error: friendly(error?.message ?? "unknown") });
   const markets = formData.getAll("mls").map(String);
-  await supabase.from("builder_settings").upsert({ builder_id: created.id, mls_boards: markets, mls_locked: true, ...readTitleCompany(formData) });
+  await supabase.from("builder_settings").upsert({ builder_id: created.id, mls_boards: markets, mls_locked: true });
   // The branding and onboarding rows are made by the database when a builder is added.
-  if (website) await supabase.from("builder_branding").update({ website_url: website }).eq("builder_id", created.id);
   const { error: oErr } = await supabase.from("builder_onboarding").update(onboardingFields(formData)).eq("builder_id", created.id);
 
   let invited = "";
@@ -75,16 +71,13 @@ export async function addBuilder(formData: FormData) {
 function onboardingFields(formData: FormData) {
   const text = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max) || null;
   const date = (k: string) => (/^\d{4}-\d{2}-\d{2}$/.test(String(formData.get(k) ?? "")) ? String(formData.get(k)) : null);
-  const feed = String(formData.get("sends_listing_feed") ?? "unknown");
+  // Only what our team records. The builder adds their own billing contact,
+  // website, title company and main contact (Company details); listing feed
+  // questions come later, when the website feed is set up.
   return {
-    billing_contact_name: text("billing_contact_name", 80),
-    billing_contact_email: text("billing_contact_email", 200)?.toLowerCase() ?? null,
-    billing_contact_phone: text("billing_contact_phone", 30),
     pricing: text("pricing", 300),
     agreement_signed_on: date("agreement_signed_on"),
     listing_authorization_on: date("listing_authorization_on"),
-    website_platform: text("website_platform", 100),
-    sends_listing_feed: ["yes", "no", "unknown"].includes(feed) ? feed : "unknown",
     notes: text("notes", 2000),
   };
 }
@@ -95,13 +88,11 @@ export async function saveOnboarding(formData: FormData) {
   const back = `/admin/onboarding`;
   const supabase = await createClient();
   const legal = String(formData.get("legal_name") ?? "").trim().slice(0, 200) || null;
-  const [{ error: bErr }, { error: oErr }, { error: tErr }] = await Promise.all([
+  const [{ error: bErr }, { error: oErr }] = await Promise.all([
     supabase.from("builders").update({ legal_name: legal }).eq("id", builderId),
     supabase.from("builder_onboarding").upsert({ builder_id: builderId, ...onboardingFields(formData) }),
-    // Their default title company (the builder can change it later on Company branding).
-    supabase.from("builder_settings").upsert({ builder_id: builderId, ...readTitleCompany(formData), updated_at: new Date().toISOString() }),
   ]);
-  const err = bErr ?? oErr ?? tErr;
+  const err = bErr ?? oErr;
   if (err) go(back, { error: friendly(err.message) });
   revalidatePath("/", "layout");
   go(back, { saved: "Onboarding details saved." });
