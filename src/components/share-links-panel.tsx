@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { HomeSection } from "@/components/home-section";
 import { cx, dateTime } from "@/lib/format";
 import { PendingButton } from "@/components/pending-button";
 import { deleteShareLink, extendShareLink, linkWebsiteListing, replaceShareLink, restoreShareLink, saveWebsitePage } from "@/app/(app)/homes/[id]/share-actions";
@@ -28,8 +29,8 @@ function hasPassed(iso: string) {
 }
 
 export async function ShareLinksPanel({
-  homeId, token, canManage, notice, highlight, undo,
-}: { homeId: string; token: string | null; canManage: boolean; notice: React.ReactNode; highlight?: string | null; undo?: string | null }) {
+  homeId, token, canManage, notice, highlight, undo, fold,
+}: { homeId: string; token: string | null; canManage: boolean; notice: React.ReactNode; highlight?: string | null; undo?: string | null; fold?: { badge?: string | null; hint?: string | null; open?: boolean } }) {
   // Everyone copies the link from the "Share link" button at the top of the
   // home; this section is only the managing part.
   if (!token || !canManage) return null;
@@ -56,8 +57,7 @@ export async function ShareLinksPanel({
   const url = `${origin}/s/${token}`;
 
   return (
-    <section id="share" className="scroll-mt-28 border-b border-line py-8">
-      <h3 className="text-lg font-semibold">Share with a realtor</h3>
+    <HomeSection id="share" title="Share with a realtor" badge={fold?.badge} hint={fold?.hint} open={fold?.open}>
       <p className="mt-1 max-w-2xl text-sm text-muted">
         Copy this home&rsquo;s link with the <b className="font-semibold text-foreground">Share link</b> button at the top and send it to anyone. It opens a
         page with the listing photos, walkthrough video, vertical reel and tour links to download, plus a button to the builder&rsquo;s
@@ -199,6 +199,6 @@ export async function ShareLinksPanel({
           </ul>
         </details>
       )}
-    </section>
+    </HomeSection>
   );
 }

@@ -67,6 +67,8 @@ import { ShareLinkTile } from "@/components/share-link-tile";
 import { PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
 import { headers } from "next/headers";
 import { RoomsEditor } from "@/components/rooms-editor";
+import { HomeSection } from "@/components/home-section";
+import { OpenSectionOnHash } from "@/components/open-section-on-hash";
 import { IncentiveList } from "@/components/incentive-list";
 import type { Incentive } from "@/lib/incentives";
 import { cleanRooms, levelLabel, roomSize } from "@/lib/rooms";
@@ -385,6 +387,7 @@ async function HomeDetail({
             ))}
           </dl>
 
+          <OpenSectionOnHash />
           <QuickLinks homeId={home.id} openRequests={openRequests.length} upcomingOH={upcomingOH.length} openShoots={openMediaRequests.length} openReverse={openReverse.length} canRequestPhotos={canRequestMedia(me.role)} shareUrl={shareUrl} canComps={canRequestComps(me.role) && !off.has("comps")} showReverse={!off.has("reverse_prospecting")} />
 
           {homeTasks && homeTasks.length > 0 && (
@@ -405,19 +408,19 @@ async function HomeDetail({
             </section>
           )}
 
-          <section id="incentives" className="scroll-mt-28 border-b border-line py-8">
+          <HomeSection id="incentives" title="Incentives" badge={incentives.length ? `${incentives.length} current` : null} hint={incentives.length ? incentives.map((i) => i.title).join(" · ") : "None right now"}>
             <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="text-[22px] font-semibold">Incentives</h2>
+              <p className="text-sm text-muted">What a buyer gets on this home right now: its own incentives, its community&rsquo;s, and any that cover every community.</p>
               {canManageIncentives(me.role) && <Link href={`/incentives?home=${home.id}`} className="text-sm font-semibold underline">+ Add one for this home</Link>}
             </div>
-            <p className="mt-1 text-sm text-muted">What a buyer gets on this home right now: its own incentives, its community&rsquo;s, and any that cover every community.</p>
             <div className="mt-4">
               {incentives.length ? <IncentiveList items={incentives} manageHref={canManageIncentives(me.role) ? "/incentives" : undefined} /> : <p className="text-sm text-muted">No current incentives.</p>}
             </div>
-          </section>
+          </HomeSection>
 
-          <section id="open-houses" className="scroll-mt-28 border-b border-line py-8">
-            <h3 className="text-lg font-semibold">Open houses</h3>
+          <HomeSection id="open-houses" title="Open houses" open={at === "open-houses"}
+            badge={upcomingOH.length ? `${upcomingOH.length} scheduled` : activeSeries.length ? "Repeating" : null}
+            hint={upcomingOH.length ? `Next: ${openHouseWhen(upcomingOH[0].starts_at, upcomingOH[0].ends_at)}` : canScheduleOH ? "None scheduled. Open to schedule one." : "None scheduled"}>
             {sectionNotice("open-houses")}
             <ul className="mt-4 space-y-3">
               {upcomingOH.map((o) => (
@@ -514,14 +517,13 @@ async function HomeDetail({
                 </div>
               </form>
             )}
-          </section>
+          </HomeSection>
 
           {!off.has("reverse_prospecting") && (
-          <section id="reverse-prospecting" className="scroll-mt-28 border-b border-line py-8">
-            <h3 className="text-lg font-semibold">
-              Reverse prospecting {openReverse.length > 0 && <span className="font-normal text-muted">{openReverse.length} in progress</span>}
-            </h3>
-            <p className="mt-1 text-sm text-muted">
+          <HomeSection id="reverse-prospecting" title="Reverse prospecting" open={at === "reverse-prospecting"}
+            badge={openReverse.length ? `${openReverse.length} in progress` : null}
+            hint={openReverse.length ? "Our team is pulling the list" : (reverse ?? []).some((r) => r.status === "delivered") ? "List delivered. Open to see it." : "Ask for a list of buyers' agents"}>
+            <p className="text-sm text-muted">
               A list of buyers’ agents whose clients are searching for a home like this one. Our team pulls it from the MLS by hand and sends it back to whoever asked, here and in their inbox.
             </p>
             {sectionNotice("reverse-prospecting")}
@@ -568,7 +570,7 @@ async function HomeDetail({
                 <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Request a reverse prospecting list</button>
               </form>
             )}
-          </section>
+          </HomeSection>
           )}
 
           <ListingMediaPanel
@@ -578,18 +580,18 @@ async function HomeDetail({
             canEdit={canManageMedia(me.role)}
             canRequest={canRequestMedia(me.role)}
             notice={sectionNotice("listing-media")}
+            fold={{ open: at === "listing-media", badge: `${listing.photos.filter((m) => m.kind === "photo").length} photos`, hint: "What goes on the MLS, in order, plus downloads" }}
           />
 
           {(canShareLinks(me.role) || isStaff(me.role) || me.role === "sales") && (
-            <ShareLinksPanel homeId={home.id} token={typeof shareToken === "string" ? shareToken : null} canManage={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} undo={at === "share" && typeof sp.undo === "string" ? sp.undo : null} />
+            <ShareLinksPanel homeId={home.id} token={typeof shareToken === "string" ? shareToken : null} canManage={canShareLinks(me.role)} notice={sectionNotice("share")} highlight={at === "share" && typeof sp.link === "string" ? sp.link : null} undo={at === "share" && typeof sp.undo === "string" ? sp.undo : null} fold={{ open: at === "share", hint: "The realtor page, its views and downloads" }} />
           )}
 
           {canRequestMedia(me.role) && (
-          <section id="photo-requests" className="scroll-mt-28 border-b border-line py-8">
-            <h3 className="text-lg font-semibold">
-              Photo requests {openMediaRequests.length > 0 && <span className="font-normal text-muted">{openMediaRequests.length} open</span>}
-            </h3>
-            <p className="mt-1 text-sm text-muted">Need new photos, video, drone or a floor plan? Ask here and we’ll send a photographer. Files land in this home’s media.</p>
+          <HomeSection id="photo-requests" title="Photo requests" open={at === "photo-requests"}
+            badge={openMediaRequests.length ? `${openMediaRequests.length} open` : null}
+            hint={openMediaRequests.length ? "A shoot is in the works" : "Send a photographer for photos, video, drone or a floor plan"}>
+            <p className="text-sm text-muted">Need new photos, video, drone or a floor plan? Ask here and we’ll send a photographer. Files land in this home’s media.</p>
             {sectionNotice("photo-requests")}
             <div className="mt-4 space-y-4">
               {mediaRequests.slice(0, 4).map((r) => (
@@ -604,15 +606,14 @@ async function HomeDetail({
                 </div>
               </details>
             )}
-          </section>
+          </HomeSection>
           )}
 
-          <section id="requests" className="scroll-mt-28 border-b border-line py-8">
-            <h3 className="text-lg font-semibold">
-              Change requests {openRequests.length > 0 && <span className="font-normal text-muted">{openRequests.length} open</span>}
-            </h3>
+          <HomeSection id="requests" title="Change requests" open={at === "requests"} tone="attention"
+            badge={openRequests.length ? `${openRequests.length} open` : null}
+            hint={openRequests.length ? openRequests[0].message : "Spot something wrong or missing? Ask for it here."}>
             {sectionNotice("requests")}
-            <p className="mt-1 text-sm text-muted">
+            <p className="text-sm text-muted">
               Spot something wrong or missing? Ask for it here. Managers, owners and marketing see and resolve requests.
             </p>
             <form action={requestChange} className="mt-4 space-y-3">
@@ -644,11 +645,12 @@ async function HomeDetail({
                 </li>
               ))}
             </ul>
-          </section>
+          </HomeSection>
 
-          <section id="rooms" className="scroll-mt-28 border-b border-line py-8">
-            <h2 className="text-[22px] font-semibold">Room sizes</h2>
-            <p className="mt-1 text-sm text-muted">
+          <HomeSection id="rooms" title="Room sizes" open={at === "rooms"} tone={rooms.length ? undefined : "attention"}
+            badge={rooms.length ? `${rooms.length} rooms` : home.mls_board === "NTREIS" ? "Needed for NTREIS" : null}
+            hint={rooms.length ? rooms.slice(0, 4).map((r) => r.RoomType).join(", ") + (rooms.length > 4 ? "…" : "") : planRooms.length ? `Fill them from the ${planRow?.name} plan` : "No room sizes yet"}>
+            <p className="text-sm text-muted">
               The MLS lists each room with its level and size (feet).{" "}
               {planRow ? <>Pull them from the <Link href={`/plans/${planRow.id}`} className="underline">{planRow.name} plan</Link>, then adjust anything this home does differently.</> : home.plan_name ? <>Our team hasn&rsquo;t set up the {home.plan_name} plan yet, so add the rooms here.</> : "Pick this home's floor plan to pull rooms from it."}
             </p>
@@ -678,40 +680,28 @@ async function HomeDetail({
             ) : (
               <p className="mt-4 text-sm text-muted">No room sizes yet.</p>
             )}
-          </section>
+          </HomeSection>
 
           <form id="edit" action={saveHome} className="scroll-mt-28 divide-y divide-line">
             <input type="hidden" name="id" value={home.id} />
             {SECTIONS.map((section) => (
-              <section key={section.title} className="py-8">
-                <h3 className="text-lg font-semibold">{section.title}</h3>
-                <div className="mt-4 grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+              <HomeSection key={section.title} title={section.title} open={at === "edit"}
+                hint={section.fields.map((f) => { const v = home[f.name]; return v === null || v === undefined || v === "" ? null : String(v); }).filter(Boolean).slice(0, 3).join(" · ") || "Open to fill in"}>
+                <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
                   {section.fields.map((f) => (
                     <Field key={f.name} def={f} value={home[f.name]} source={sources[f.name]} canEdit={editable.has(f.name)} />
                   ))}
                 </div>
-              </section>
+              </HomeSection>
             ))}
             {home.mls_board === "NTREIS" && (
               // Folded away until someone opens it to make a change; it opens on
               // its own after saving or when a save has a problem with it. The
               // answers inside still go with "Save changes" while it's closed.
-              <details id="ntreis" open={at === "ntreis"} className="group scroll-mt-28 py-8">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-line px-4 py-3 hover:bg-soft">
-                  <span>
-                    <span className="block text-lg font-semibold">NTREIS details</span>
-                    <span className="block text-sm text-muted">
-                      {canEditMlsAnswers(me.role) ? "Open to add or change this home’s NTREIS answers." : "Open to see this home’s NTREIS answers."}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-sm font-semibold">
-                    <span className="group-open:hidden">{canEditMlsAnswers(me.role) ? "Edit" : "View"}</span>
-                    <span className="hidden group-open:inline">Close</span>
-                    <span className="ml-1 inline-block text-muted transition-transform group-open:rotate-180" aria-hidden>▾</span>
-                  </span>
-                </summary>
+              <HomeSection id="ntreis" title="NTREIS details" open={at === "ntreis"}
+                hint={canEditMlsAnswers(me.role) ? "Open to add or change this home’s NTREIS answers" : "Open to see this home’s NTREIS answers"}>
                 {sectionNotice("ntreis")}
-                <p className="mt-4 text-sm text-muted">
+                <p className="text-sm text-muted">
                   The rest of what NTREIS asks for this home, with NTREIS&rsquo;s own labels and choices. <b className="text-accent">MLS required</b> marks
                   what NTREIS requires before the listing can go live. Our team fills in the listing paperwork, schools, HOA and showing setup.
                 </p>
@@ -721,7 +711,7 @@ async function HomeDetail({
                   sources={sources}
                   canEdit={canEditMlsAnswers(me.role)}
                 />
-              </details>
+              </HomeSection>
             )}
             <div className="flex flex-wrap items-center gap-4 py-8">
               {editable.size > 0 || (home.mls_board === "NTREIS" && canEditMlsAnswers(me.role)) ? (
@@ -735,9 +725,8 @@ async function HomeDetail({
             </div>
           </form>
 
-          <section className="border-t border-line py-8">
-            <h3 className="text-lg font-semibold">Activity</h3>
-            <ul className="mt-4 space-y-4">
+          <HomeSection id="activity" title="Activity" hint={activity?.length ? `Latest: ${dateTime(activity[0].created_at)}` : "No activity yet"}>
+            <ul className="space-y-4">
               {activity?.map((a) => {
                 const who = a.actor_id ? (actorName.get(a.actor_id) ?? "Someone") : "Initial import";
                 return (
@@ -755,7 +744,7 @@ async function HomeDetail({
               })}
               {!activity?.length && <li className="text-muted">No activity yet.</li>}
             </ul>
-          </section>
+          </HomeSection>
         </div>
 
         {/* Sticky side card, like a booking box. */}

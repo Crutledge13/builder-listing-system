@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { HomeSection } from "@/components/home-section";
 import { cx } from "@/lib/format";
 import { DISCLAIMER_TEXT, MediaPicture } from "@/components/media-tile";
 import { PhotoPackButton } from "@/components/photo-pack-button";
@@ -18,6 +19,7 @@ export function ListingMediaPanel({
   canRequest,
   notice,
   download,
+  fold,
 }: {
   home: { id: string; community_name: string; plan_name: string | null; address?: string; disclaimer?: boolean };
   listing: ListingMedia;
@@ -26,6 +28,7 @@ export function ListingMediaPanel({
   notice?: ReactNode;
   // Download all of this home's listing photos at a picked size (the "Download media" button at the top jumps here).
   download?: { presets: DownloadPreset[]; builderDefault: string | null };
+  fold?: { badge?: string | null; hint?: string | null; open?: boolean };
 }) {
   const media = listing.items.filter((i) => i.type === "media");
   // The cover is always one of this home's own photos (what its cards show):
@@ -40,8 +43,7 @@ export function ListingMediaPanel({
   }, []);
 
   return (
-    <section id="listing-media" className="scroll-mt-28 border-b border-line py-8">
-      <h3 className="text-lg font-semibold">Listing photos, video and tours</h3>
+    <HomeSection id="listing-media" title="Listing photos, video and tours" badge={fold?.badge} hint={fold?.hint} open={fold?.open}>
       <p className="mt-1 text-sm text-muted">
         Exactly what goes on the MLS, in order. Anything our photographer delivers for this home, or anyone uploads to it, lands here on its own.
         Community and floor plan photos, video and tours are optional: add the ones you want.
@@ -228,7 +230,7 @@ export function ListingMediaPanel({
           </details>
         </>
       )}
-    </section>
+    </HomeSection>
   );
 }
 
