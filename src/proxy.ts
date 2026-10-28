@@ -28,9 +28,11 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verifies the login token (and refreshes it when it's about to run out)
+  // without a round trip to Supabase's login service on every click.
+  const { data: auth } = await supabase.auth.getClaims();
+  const claims = auth?.claims;
+  const user = claims?.sub ? { id: claims.sub, user_metadata: (claims.user_metadata ?? {}) as Record<string, unknown> } : null;
 
   const isLogin = request.nextUrl.pathname.startsWith("/login");
   // Email confirmation links land here and sign the person in themselves.

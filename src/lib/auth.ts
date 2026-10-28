@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Role } from "@/lib/permissions";
@@ -16,11 +17,18 @@ export type Profile = {
 };
 
 // The signed-in user's profile, or a redirect to /login.
-export async function requireProfile(): Promise<Profile> {
+//
+// Speed: a page asks for this many times (the header, the page, parts of the
+// page), so it runs once per page load and every caller shares the answer
+// (React's cache). It checks the sign-in with getClaims, which verifies the
+// login token itself instead of asking Supabase's login service each time
+// (it falls back to asking when the project's tokens can't be checked locally).
+// The profile row is still read fresh every page, so turning someone off
+// takes effect on their next click.
+export const requireProfile = cache(async (): Promise<Profile> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: auth } = await supabase.auth.getClaims();
+  const user = auth?.claims?.sub ? { id: auth.claims.sub } : null;
   if (!user) redirect("/login");
 
   const { data } = await supabase
@@ -46,7 +54,7 @@ export async function requireProfile(): Promise<Profile> {
     avatar_updated_at: data.avatar_updated_at,
     builder_logo_at: builder?.builder_branding?.logo_updated_at ?? null,
   };
-}
+});
 
 // For Admin pages: each page checks for itself, not only the Admin layout (a
 // page can be fetched without its layout). Non-admins get nothing from the

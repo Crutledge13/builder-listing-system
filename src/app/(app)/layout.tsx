@@ -37,21 +37,24 @@ async function Header() {
   const company = me.role === "photographer" ? "Contractor" : isStaff(me.role) ? "Our team" : me.builder_name?.replace(" (demo)", "");
 
   // Open task count on the Tasks tab for our team, and the builder picker.
+  // Everything the header needs is asked for at the same time, not one after another.
   let badges: Record<string, number> | undefined;
-  const ownMls = await enterOwnMls(me.role, me.builder_id);
-  const off = await featuresOff(me.role, me.builder_id);
-  const openSetup = await setupOpen(await createClient(), me.role, me.builder_id);
+  const supabase = await createClient();
+  const [ownMls, off, openSetup, focus, { count: unread }] = await Promise.all([
+    enterOwnMls(me.role, me.builder_id),
+    featuresOff(me.role, me.builder_id),
+    setupOpen(supabase, me.role, me.builder_id),
+    builderFocus(me.role),
+    supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+  ]);
   let focusBuilders: { id: string; name: string }[] = [];
-  const focus = await builderFocus(me.role);
   if (isStaff(me.role)) {
-    const supabase = await createClient();
     let tq = supabase.from("tasks").select("id", { count: "exact", head: true }).in("status", ["todo", "in_progress"]);
     if (focus) tq = tq.eq("builder_id", focus);
     const [{ count }, { data: bs }] = await Promise.all([tq, supabase.from("builders").select("id, name").order("name")]);
     badges = { "/tasks": count ?? 0 };
     focusBuilders = bs ?? [];
   } else if (["builder_owner", "manager", "marketing"].includes(me.role)) {
-    const supabase = await createClient();
     const [{ count }, { count: mls }] = await Promise.all([
       off.has("builder_tasks")
         ? Promise.resolve({ count: 0 })
@@ -61,8 +64,6 @@ async function Header() {
     badges = { "/todo": count ?? 0, "/tasks": mls ?? 0 };
   }
 
-  // Unread notices for the bell.
-  const { count: unread } = await (await createClient()).from("notifications").select("id", { count: "exact", head: true }).is("read_at", null);
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur print:hidden">
