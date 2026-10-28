@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { QuickDownload } from "@/components/quick-download";
 import { DemoArt, ROOM_LABELS, type MediaRow } from "@/lib/demo-media";
 import { cx } from "@/lib/format";
 
@@ -52,7 +53,8 @@ export function MediaTile({ m, showPlace, disclaimer, direct }: { m: MediaRow; s
   const plan = m.plan_name ?? m.homes?.plan_name;
   const href = m.kind === "floor_plan" && plan && !direct ? planFolderHref(m.builder_id, plan) : `/media/${m.id}`;
   return (
-    <Link href={href} className="group block">
+    <div className="group relative">
+    <Link href={href} className="block">
       <div data-media-id={m.id} className={cx("relative aspect-[3/2] overflow-hidden rounded-xl bg-soft", m.kind === "floor_plan" && "ring-1 ring-line")}>
         <MediaPicture m={m} className="h-full w-full transition-transform duration-500 group-hover:scale-[1.03]" />
         {m.kind === "video" && (
@@ -80,6 +82,18 @@ export function MediaTile({ m, showPlace, disclaimer, direct }: { m: MediaRow; s
         {showPlace && place ? `, ${place}` : ""}
       </div>
     </Link>
+    {/* Quick download, over the picture's corner (outside the link, so it never opens the photo). */}
+    <div className="pointer-events-none absolute inset-x-0 top-0 aspect-[3/2]">
+      <QuickDownload
+        mediaId={m.id}
+        title={m.title}
+        kind={m.kind}
+        demo={m.source === "demo"}
+        disclaimer={disclaimer && m.kind !== "floor_plan" ? DISCLAIMER_TEXT : undefined}
+        className={cx("pointer-events-auto absolute right-2", disclaimer && m.kind !== "floor_plan" ? "bottom-12" : "bottom-2")}
+      />
+    </div>
+    </div>
   );
 }
 
