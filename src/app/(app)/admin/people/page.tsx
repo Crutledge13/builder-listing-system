@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { CommunitiesFold } from "@/components/communities-fold";
 import { CommunityPicker } from "@/components/community-picker";
 import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -111,14 +112,16 @@ async function People() {
                     })()}
 
                     {p.role === "sales" && (
-                      <form action={setAssignments} className="mt-3 rounded-xl bg-soft p-3">
+                      <CommunitiesFold names={theirCommunities.filter((c) => mine.has(c.id)).map((c) => c.name)} total={theirCommunities.length}>
+                      <form action={setAssignments}>
                         <input type="hidden" name="profile_id" value={p.id} />
                         <input type="hidden" name="back" value="/admin/people" />
-                        <CommunityPicker label="Communities this salesperson can see" communities={theirCommunities} defaultSelected={[...mine]} scope />
+                        <CommunityPicker communities={theirCommunities} defaultSelected={[...mine]} scope />
                         {theirCommunities.length > 0 && (
                           <button className="mt-3 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save communities</button>
                         )}
                       </form>
+                      </CommunitiesFold>
                     )}
                   </div>
                 );

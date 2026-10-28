@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { CommunitiesFold } from "@/components/communities-fold";
 import { CommunityPicker } from "@/components/community-picker";
 import { SetupNav } from "@/components/setup-nav";
 import { Avatar } from "@/components/avatar";
@@ -95,12 +96,14 @@ async function Team() {
                   </div>
 
                   {role === "sales" && (
-                    <form action={setAssignments} className="mt-3 rounded-xl bg-soft p-3">
-                      <input type="hidden" name="profile_id" value={p.id} />
-                      <input type="hidden" name="back" value="/team" />
-                      <CommunityPicker label="Communities they can see" communities={communities ?? []} defaultSelected={[...mine]} scope />
-                      <button className="mt-3 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save communities</button>
-                    </form>
+                    <CommunitiesFold names={(communities ?? []).filter((c) => mine.has(c.id)).map((c) => c.name)} total={(communities ?? []).length}>
+                      <form action={setAssignments}>
+                        <input type="hidden" name="profile_id" value={p.id} />
+                        <input type="hidden" name="back" value="/team" />
+                        <CommunityPicker communities={communities ?? []} defaultSelected={[...mine]} scope />
+                        <button className="mt-3 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save communities</button>
+                      </form>
+                    </CommunitiesFold>
                   )}
                 </div>
               );
