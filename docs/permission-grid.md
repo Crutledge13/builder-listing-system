@@ -106,7 +106,8 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Request comps | ✅ | ➖ | own | own | assigned | own | ➖ |
 | See comp requests and delivered comps | all | all | own | own | own requests + assigned | own | ➖ |
 | Add comps, deliver files | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
-| Builder to-do board (add, assign, finish) | 👁 all | 👁 all | own | own | ➖ | own | ➖ |
+| Builder Tasks board (start, assign; tasks come only from the system) | 👁 all | 👁 all | own | own | ➖ | own | ➖ |
+| Extend a listing that's about to expire | ✅ | ✅ | own | own | ➖ | ➖ | ➖ |
 | Inbox (own notices) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | See floor plans and room sizes | all | all | own | own | own | own | ➖ |
 | Set up floor plans, upload plan files | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |

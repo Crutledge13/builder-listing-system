@@ -9,9 +9,9 @@ import { canUseBuilderBoard, isStaff } from "@/lib/permissions";
 import { cx, dateTime } from "@/lib/format";
 import { TZ, whenCentral } from "@/lib/time";
 import { Notice } from "@/components/notice";
-import { addTodo, updateTodo } from "./actions";
+import { extendListing, updateTodo } from "./actions";
 
-// The builder team's own task board. Laid out like our team's task board
+// The builder team's task board: only work that comes from the system. Laid out like our team's task board
 // (/tasks): open / mine / done, kinds, grouped by when they're due.
 
 export default function TodoPage(props: PageProps<"/todo">) {
@@ -23,18 +23,27 @@ export default function TodoPage(props: PageProps<"/todo">) {
   );
 }
 
+// Every task comes from something that happened in the system and closes
+// itself when that's handled. "Waiting" kinds are tracked until our team delivers.
 const KINDS: Record<string, string> = {
+  listing_expiring: "Listing expiring",
+  incentive: "Incentive ending",
   photo_review: "Photos to review",
   change_request: "Change request",
-  incentive: "Incentive ending",
-  other: "Task",
+  media_order: "Media ordered",
+  reverse_prospecting: "Reverse prospecting",
+  comps: "Comps",
 };
 const KIND_STYLE: Record<string, string> = {
+  listing_expiring: "bg-red-50 text-red-800",
+  incentive: "bg-violet-50 text-violet-800",
   photo_review: "bg-emerald-50 text-emerald-800",
   change_request: "bg-amber-50 text-amber-900",
-  incentive: "bg-violet-50 text-violet-800",
-  other: "bg-soft text-muted",
+  media_order: "bg-sky-50 text-sky-800",
+  reverse_prospecting: "bg-rose-50 text-rose-800",
+  comps: "bg-teal-50 text-teal-800",
 };
+const WAITING = ["media_order", "reverse_prospecting", "comps"];
 const STATUS_LABELS: Record<string, string> = { todo: "To do", in_progress: "In progress", done: "Done", cancelled: "Cancelled" };
 
 type Todo = {
@@ -49,6 +58,10 @@ function centralDay(d: Date) {
 
 // Where an automatic task came from, one click away.
 function sourceLink(t: Todo) {
+  if (t.source_table === "listing_expiry" && t.home_id) return { href: `/homes/${t.home_id}`, label: "Open home" };
+  if (t.source_table === "media_requests_order") return { href: t.home_id ? `/homes/${t.home_id}#photo-requests` : "/media/requests", label: "See the photo request" };
+  if (t.source_table === "reverse_prospect_requests" && t.home_id) return { href: `/homes/${t.home_id}#reverse-prospecting`, label: "See the request" };
+  if (t.source_table === "comp_requests" && t.source_id) return { href: `/comps/${t.source_id}`, label: "See the comp request" };
   if (t.source_table === "media_requests") return { href: t.home_id ? `/homes/${t.home_id}#photo-requests` : "/media/requests", label: "Review the photos" };
   if (t.source_table === "change_requests" && t.home_id) return { href: `/homes/${t.home_id}#requests`, label: "Open the change request" };
   if (t.source_table === "incentives") return { href: `/incentives#i-${t.source_id}`, label: "Extend or end it" };
@@ -74,10 +87,9 @@ async function Board({ searchParams }: { searchParams: PageProps<"/todo">["searc
   if (focus) q = q.eq("builder_id", focus);
   let cq = supabase.from("builder_tasks").select("kind, assignee_id").in("status", ["todo", "in_progress"]);
   if (focus) cq = cq.eq("builder_id", focus);
-  const [{ data: rows }, { data: people }, { data: homes }, { data: openRows }] = await Promise.all([
+  const [{ data: rows }, { data: people }, { data: openRows }] = await Promise.all([
     q,
     supabase.from("profiles").select("id, full_name, builder_id, role").in("role", ["builder_owner", "manager", "marketing"]).eq("is_active", true).order("full_name"),
-    staff ? Promise.resolve({ data: [] as { id: string; unparsed_address: string; builder_id: string }[] }) : supabase.from("homes").select("id, unparsed_address, builder_id").is("deleted_at", null).order("unparsed_address"),
     cq,
   ]);
   const todos = (rows ?? []) as unknown as Todo[];
@@ -123,6 +135,8 @@ async function Board({ searchParams }: { searchParams: PageProps<"/todo">["searc
     return str ? `/todo?${str}` : "/todo";
   };
   const backTo = link({});
+  const canExtend = ["builder_owner", "manager"].includes(me.role);
+  const tomorrow = centralDay(new Date(now.getTime() + 86_400_000));
 
   return (
     <div>
@@ -132,40 +146,9 @@ async function Board({ searchParams }: { searchParams: PageProps<"/todo">["searc
           <p className="mt-1 text-muted">
             {staff
               ? "Each builder’s own task board (their owners, managers and marketing work it)."
-              : "Everything your team needs to do. Photos to review, change requests and incentives ending add tasks here on their own."}
+              : "What needs your team, straight from Builder Listings: listings and incentives about to end, photos to review, change requests, and the photos, lists and comps your team is waiting on from us. Each one closes itself when it's handled."}
           </p>
         </div>
-        {!staff && (
-          <details data-popover className="relative">
-            <summary className="cursor-pointer list-none rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:brightness-110">+ New task</summary>
-            <form action={addTodo} className="card-lift absolute right-0 z-20 mt-2 w-[min(92vw,380px)] space-y-3 rounded-2xl border border-line bg-white p-4">
-              <input type="hidden" name="back" value={backTo} />
-              <input name="title" required maxLength={200} placeholder="What needs doing?" className="field-input" />
-              <textarea name="details" rows={3} maxLength={4000} placeholder="Details (optional)" className="field-input" />
-              <select name="home_id" defaultValue="" className="field-input" aria-label="Home">
-                <option value="">No home</option>
-                {(homes ?? []).filter((h) => h.builder_id === me.builder_id).map((h) => <option key={h.id} value={h.id}>{h.unparsed_address}</option>)}
-              </select>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium">Due</span>
-                  <input name="due" type="date" className="field-input" />
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium">Who</span>
-                  <select name="assignee_id" defaultValue={me.id} className="field-input">
-                    <option value="">Anyone</option>
-                    {team.map((p) => <option key={p.id} value={p.id}>{p.full_name}{p.id === me.id ? " (me)" : ""}</option>)}
-                  </select>
-                </label>
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="priority" value="high" className="h-4 w-4 accent-[#3452c7]" /> High priority
-              </label>
-              <button className="w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white">Add task</button>
-            </form>
-          </details>
-        )}
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -201,7 +184,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/todo">["searc
                 return (
                   <article key={t.id} className={cx("rounded-2xl border p-4", t.priority === "high" && !closed ? "border-red-200 bg-red-50/30" : "border-line", closed && "opacity-75")}>
                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className={cx("rounded-full px-2.5 py-1 font-semibold", KIND_STYLE[t.kind] ?? KIND_STYLE.other)}>{KINDS[t.kind] ?? "Task"}</span>
+                      <span className={cx("rounded-full px-2.5 py-1 font-semibold", KIND_STYLE[t.kind] ?? "bg-soft text-muted")}>{KINDS[t.kind] ?? "Task"}</span>
                       {t.priority === "high" && <span className="rounded-full bg-red-100 px-2.5 py-1 font-semibold text-red-800">High</span>}
                       {t.status === "in_progress" && <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-900">In progress</span>}
                       {closed && <span className="rounded-full bg-soft px-2.5 py-1 font-semibold">{STATUS_LABELS[t.status]}</span>}
@@ -222,18 +205,38 @@ async function Board({ searchParams }: { searchParams: PageProps<"/todo">["searc
                       t.assignee_id && <p className="mt-3 text-sm text-muted">On it: {nameOf.get(t.assignee_id) ?? "someone"}</p>
                     ) : (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {!closed && t.status === "todo" && <StatusButton id={t.id} back={backTo} status="in_progress" label="Start" />}
-                        {!closed && <StatusButton id={t.id} back={backTo} status="done" label="Mark done" primary />}
-                        {closed && <StatusButton id={t.id} back={backTo} status="todo" label="Reopen" />}
-                        <form action={updateTodo} className="ml-auto flex items-center gap-1">
-                          <input type="hidden" name="back" value={backTo} />
-                          <input type="hidden" name="id" value={t.id} />
-                          <select name="assignee_id" defaultValue={t.assignee_id ?? ""} className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm" aria-label="Assigned to">
-                            <option value="">Unassigned</option>
-                            {team.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                          </select>
-                          <button className="rounded-lg px-2 py-1.5 text-sm font-semibold text-accent hover:bg-accent-soft">Set</button>
-                        </form>
+                        {WAITING.includes(t.kind) ? (
+                          !closed && <span className="rounded-full bg-soft px-3 py-1.5 text-xs font-semibold text-muted">Waiting on our team</span>
+                        ) : (
+                          <>
+                            {!closed && t.status === "todo" && <StatusButton id={t.id} back={backTo} status="in_progress" label="Start" />}
+                            {!closed && t.status === "in_progress" && <StatusButton id={t.id} back={backTo} status="todo" label="Not started" />}
+                          </>
+                        )}
+                        {t.kind === "listing_expiring" && !closed && t.home_id && (
+                          <>
+                            {canExtend && (
+                              <form action={extendListing} className="flex items-center gap-1">
+                                <input type="hidden" name="back" value={backTo} />
+                                <input type="hidden" name="home_id" value={t.home_id} />
+                                <input name="until" type="date" required min={tomorrow} className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm" aria-label="New end date" />
+                                <button className="rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Extend listing</button>
+                              </form>
+                            )}
+                            <StatusButton id={t.id} back={backTo} status="done" label="Let it expire" />
+                          </>
+                        )}
+                        {!WAITING.includes(t.kind) && !closed && (
+                          <form action={updateTodo} className="ml-auto flex items-center gap-1">
+                            <input type="hidden" name="back" value={backTo} />
+                            <input type="hidden" name="id" value={t.id} />
+                            <select name="assignee_id" defaultValue={t.assignee_id ?? ""} className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm" aria-label="Assigned to">
+                              <option value="">Unassigned</option>
+                              {team.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                            </select>
+                            <button className="rounded-lg px-2 py-1.5 text-sm font-semibold text-accent hover:bg-accent-soft">Set</button>
+                          </form>
+                        )}
                       </div>
                     )}
                   </article>
@@ -243,7 +246,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/todo">["searc
           </section>
         ))}
         {todos.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-line px-6 py-12 text-center text-muted">{view === "done" ? "Nothing finished yet." : "All clear."}</p>
+          <p className="rounded-2xl border border-dashed border-line px-6 py-12 text-center text-muted">{view === "done" ? "Nothing finished yet." : "All clear. Tasks show up here when something in Builder Listings needs your team."}</p>
         )}
       </div>
     </div>

@@ -22,6 +22,7 @@ const KIND_LABELS: Record<string, string> = {
   comps: "Comps",
   incentive: "Incentive",
   mls: "MLS work",
+  listing: "Listing",
   task: "To-do",
 };
 

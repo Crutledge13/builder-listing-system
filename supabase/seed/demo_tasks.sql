@@ -1,44 +1,50 @@
--- Demo builder Tasks boards (TEST project only): one example of each kind for
--- each demo builder, spread across the due-date groups so every part of the
--- board shows. Change requests and incentives are made for real, so their
--- tasks add themselves the same way they would in use.
+-- Demo builder Tasks boards (TEST project only): one example of each kind of
+-- task for each demo builder. Everything is made the real way (requests,
+-- incentives, an MLS Expire Date), so each task adds itself like it would in use.
 do $$
 declare
-  b record; h1 uuid; h2 uuid; h3 uuid; sales uuid; mkt uuid; boss uuid; cid uuid;
-  noon timestamptz := (private.today_central()::timestamp + interval '12 hours') at time zone 'America/Chicago';
+  b record; h1 uuid; h2 uuid; h3 uuid; live uuid; sales uuid; mkt uuid; boss uuid; cid uuid; addr text;
 begin
   for b in select id, name from public.builders where name like '%(demo)%' order by name loop
     select id into h1 from public.homes where builder_id = b.id and deleted_at is null order by unparsed_address limit 1;
-    select id into h2 from public.homes where builder_id = b.id and deleted_at is null order by unparsed_address offset 1 limit 1;
+    select id, community_id, unparsed_address into h2, cid, addr from public.homes where builder_id = b.id and deleted_at is null order by unparsed_address offset 1 limit 1;
     select id into h3 from public.homes where builder_id = b.id and deleted_at is null order by unparsed_address offset 2 limit 1;
-    select community_id into cid from public.homes where id = h2;
+    select id into live from public.homes where builder_id = b.id and deleted_at is null and workflow_status = 'live_on_mls' and coalesce(market_status, 'active') = 'active' order by unparsed_address limit 1;
     select id into sales from public.profiles where builder_id = b.id and role = 'sales' and is_active order by full_name limit 1;
     select id into mkt from public.profiles where builder_id = b.id and role = 'marketing' and is_active order by full_name limit 1;
     select id into boss from public.profiles where builder_id = b.id and role in ('builder_owner', 'manager') and is_active order by role desc, full_name limit 1;
 
-    -- Change request (a salesperson asks; the task adds itself, due in 3 days).
-    insert into public.change_requests (home_id, builder_id, requested_by, message)
-    values (h1, b.id, coalesce(sales, boss), 'Buyer asked about the backyard: the listing says covered patio, but this lot has the extended patio. Please update the description.');
+    -- Change request from a salesperson.
+    if not exists (select 1 from public.change_requests where home_id = h1 and status = 'open') then
+      insert into public.change_requests (home_id, builder_id, requested_by, message)
+      values (h1, b.id, coalesce(sales, boss), 'Buyer asked about the backyard: the listing says covered patio, but this lot has the extended patio. Please update the description.');
+    end if;
 
-    -- Photos to review (as if the photographer just delivered), due today.
-    insert into public.builder_tasks (builder_id, kind, title, details, home_id, due_at, assignee_id, created_by)
-    select b.id, 'photo_review', 'Review the photos for ' || unparsed_address,
-      E'The photographer delivered. Check the photos, then mark the request complete or send it back.\n\nFrom the photographer: Twilight shots are at the end; the front sprinkler was running, so one exterior has a wet driveway.',
-      id, noon + interval '5 hours', mkt, null
-    from public.homes where id = h2;
+    -- Photos to review (the photographer just delivered).
+    perform private.add_builder_task(b.id, 'photo_review', 'Review the photos for ' || addr,
+      E'The photographer delivered. Check the photos, then mark the request complete or send it back.\n\nFrom the photographer: Twilight shots are at the end.',
+      h2, cid, 'demo_photo_review', h2, now() + interval '5 hours');
 
-    -- Incentive ending in 4 days (made for real; the daily check adds the task).
-    insert into public.incentives (builder_id, community_id, title, details, ends_on)
-    values (b.id, cid, 'Free upgraded appliance package', 'On contracts written by the end date.', private.today_central() + 4);
+    -- Incentive ending in 4 days.
+    if not exists (select 1 from public.incentives where builder_id = b.id and title = 'Free upgraded appliance package') then
+      insert into public.incentives (builder_id, community_id, title, details, ends_on)
+      values (b.id, cid, 'Free upgraded appliance package', 'On contracts written by the end date.', private.today_central() + 4);
+    end if;
 
-    -- Everyday tasks the team adds themselves: overdue, this week, later, no date, and one finished.
-    insert into public.builder_tasks (builder_id, kind, title, details, home_id, due_at, priority, assignee_id, created_by) values
-      (b.id, 'other', 'Send the spring brochure to the printer', 'Final proof is in the shared drive. 500 copies.', null, noon - interval '2 days', 'high', mkt, null),
-      (b.id, 'other', 'Order a new yard sign for the model', null, h3, noon + interval '3 days', 'normal', boss, null),
-      (b.id, 'other', 'Plan the grand opening for the next phase', 'Food truck, balloons, realtor lunch. Pick a Saturday.', null, noon + interval '20 days', 'normal', null, null),
-      (b.id, 'other', 'Update the sales office hours on the website', null, null, null, 'normal', mkt, null);
-    insert into public.builder_tasks (builder_id, kind, title, details, due_at, assignee_id, status, created_by)
-    values (b.id, 'other', 'Refresh the community welcome video', 'Done: new drone footage added.', noon - interval '3 days', mkt, 'done', null);
+    -- A live listing whose MLS Expire Date is 10 days out.
+    if live is not null then
+      insert into public.mls_details (home_id, builder_id, data) values (live, b.id, jsonb_build_object('ExpirationDate', (private.today_central() + 10)::text))
+      on conflict (home_id) do update set data = public.mls_details.data || excluded.data;
+    end if;
+
+    -- Things the team is waiting on: media ordered, a reverse prospecting list, comps.
+    insert into public.media_requests (builder_id, home_id, needs, notes, requested_by, due_date)
+    values (b.id, h3, array['photos', 'twilight'], 'Model is staged; lockbox code is in the shoot notes.', coalesce(mkt, boss), private.today_central() + 6);
+    insert into public.reverse_prospect_requests (home_id, builder_id, requested_by, notes)
+    values (h2, b.id, coalesce(sales, boss), 'Buyers in the $400s looking for 4 bedrooms.');
+    insert into public.comp_requests (builder_id, community_id, home_id, requested_by, location, price_point, notes)
+    values (b.id, cid, h1, coalesce(sales, boss), 'Comps near the community entrance', 425000, 'Sold in the last 6 months, 2,200 to 2,600 sq ft.');
   end loop;
   perform private.run_incentive_checks();
+  perform private.run_listing_expiry_checks();
 end $$;

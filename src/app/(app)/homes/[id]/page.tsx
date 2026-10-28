@@ -1067,6 +1067,10 @@ function describe(action: string, changes: Record<string, { from: unknown; to: u
     const did = { created: "made a share link for", turned_off: "turned off the share link for", deleted: "deleted the share link for", restored: "put back the share link for" }[action.replace("share_link_", "")];
     if (did) return `${did} ${who}`;
   }
+  if (action === "listing_extended") {
+    const to = (changes as unknown as { ExpirationDate?: { to?: string } }).ExpirationDate?.to;
+    return `extended the MLS listing${to ? ` to ${new Date(`${to}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}`;
+  }
   if (action === "moved_to_trash") return "moved it to the trash";
   if (action === "restored") return "restored it from the trash";
   const keys = Object.keys(changes ?? {});
