@@ -92,6 +92,19 @@ export function ListingMediaPanel({
           Nothing on the listing yet. Photos appear here when our photographer delivers or you upload them, or add community and floor plan photos below.
         </p>
       ) : (
+        <>
+        {(() => {
+          const toCheck = media.filter((i) => {
+            const m = (i as Extract<typeof i, { type: "media" }>).media;
+            return m.kind !== "video" && !m.mls_ready;
+          }).length;
+          return toCheck > 0 ? (
+            <p className="mt-2 text-sm text-muted">
+              <span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-500 align-middle" aria-hidden />
+              {toCheck} {toCheck === 1 ? "photo has" : "photos have"} something to check before the MLS (people, signs, text, too dark or blurry). Open it to look, then mark it OK.
+            </p>
+          ) : null;
+        })()}
         <ol className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {media.map((item, idx) => {
             const m = (item as Extract<typeof item, { type: "media" }>).media;
@@ -107,8 +120,13 @@ export function ListingMediaPanel({
                   {isCover && (
                     <span className="absolute bottom-1.5 left-1.5 rounded-full bg-accent px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm">★ Cover</span>
                   )}
-                  {!isVideo && !m.mls_ready && !isCover && (
-                    <span className="absolute inset-x-1.5 bottom-1.5 rounded bg-amber-100/95 px-1.5 py-0.5 text-center text-[10px] font-semibold text-amber-900">Not MLS-ready: check it</span>
+                  {!isVideo && !m.mls_ready && (
+                    <span
+                      className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-amber-800 shadow-sm"
+                      title={m.ai_suggestion?.flags?.length ? `Check before the MLS: ${m.ai_suggestion.flags.join(", ")}` : "Marked as not OK for the MLS"}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden /> Check
+                    </span>
                   )}
                 </Link>
                 <span className="mt-1 block truncate text-xs text-muted">{m.caption ?? m.title}</span>
@@ -135,6 +153,7 @@ export function ListingMediaPanel({
             );
           })}
         </ol>
+        </>
       )}
 
       {/* Tours on the listing */}

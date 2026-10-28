@@ -109,6 +109,8 @@ Choosing communities for a person (Team, Admin > People, join links) uses `Commu
 Lists of builders (Admin > Builders, Admin > Onboarding) fold to one line per builder (`<details data-builder-fold data-name>`), with a name filter, Open all / Close all, and `#<id>` links opening that builder (`BuilderListTools`, `src/components/builder-list-tools.tsx`). Keep any new per-builder admin list the same way, since there may be 50+ builders.
 
 
+**Home page sections fold** (owners, 28 Oct 2026): every section on a home's page below the top tiles (incentives, open houses, reverse prospecting, listing photos, share, photo requests, change requests, room sizes, each block of listing details, NTREIS details, activity) is a `HomeSection` (`src/components/home-section.tsx`): one line with the title, a short count and a hint, closed by default, opening after a save in it (`open={at === id}`). `OpenSectionOnHash` opens a section when a tile or link points at its `#id`. New sections on that page use `HomeSection` too.
+
 White canvas, Figtree type, "bluebonnet" blue (#3452c7) as the single accent. Image-first cards like the big listing sites. Keep new screens consistent with `src/components/home-card.tsx` and the home detail page.
 
 ## Media
@@ -127,7 +129,7 @@ Extra tags come only from `media_tags` (label, group: shot / inside / outside / 
 
 ## AI photo labeling
 
-After an upload, `src/lib/ai-tagging.ts` sends each JPG/PNG/WebP photo (by a 10-minute private link) to Claude Haiku 5.5 (`claude-haiku-5-5`), which suggests the room, up to 6 tags, a short caption and MLS warnings (blurry, dark, people, signs/logos, text). It runs after the response via `after()`, with the uploader's own database access. AI fills only what a person hasn't set; `room_source` / `caption_source` say `ai` or `staff`, and a person's edit flips them to `staff` (trigger `media_track_sources`). Flagged photos are not marked MLS-ready. HEIC photos skip AI. Each photo uses 1 AI credit (see "AI credits"); when the builder is out, the photo is saved with `ai_status = 'no_credits'` and AI skips the rest of that batch. Needs `ANTHROPIC_API_KEY` in Vercel.
+After an upload, `src/lib/ai-tagging.ts` sends each JPG/PNG/WebP photo (by a 10-minute private link) to Claude Haiku 5.5 (`claude-haiku-5-5`), which suggests the room, up to 6 tags, a short caption and MLS warnings (blurry, dark, people, signs/logos, text). It runs after the response via `after()`, with the uploader's own database access. AI fills only what a person hasn't set; `room_source` / `caption_source` say `ai` or `staff`, and a person's edit flips them to `staff` (trigger `media_track_sources`). Photos start as MLS-ready (`media.mls_ready`, set on upload); only an AI warning or a person unticking it makes one "not ready" (migration `20261028000058_photos_ready_unless_flagged`), so a missing AI key or no credits never holds a listing up. Those show a small "● Check" on the photo with the reason on hover, and one line above the listing photos saying how many need a look. HEIC photos skip AI. Each photo uses 1 AI credit (see "AI credits"); when the builder is out, the photo is saved with `ai_status = 'no_credits'` and AI skips the rest of that batch. Needs `ANTHROPIC_API_KEY` in Vercel.
 
 ## AI credits
 

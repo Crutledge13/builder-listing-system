@@ -68,7 +68,8 @@ export async function recordUploads(input: {
       web_path: f.webPath && f.webPath.startsWith(prefix) ? f.webPath : null,
       mime_type: f.type || null,
       size_bytes: f.size,
-      mls_ready: false,
+      // OK for the MLS unless the AI (or a person) finds something wrong with it.
+      mls_ready: true,
       sort_order: 100 + i,
       ai_status: aiTaggingAvailable() && f.type.startsWith("image/") ? "pending" : null,
     }));
