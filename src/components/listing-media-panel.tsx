@@ -45,8 +45,7 @@ export function ListingMediaPanel({
   return (
     <HomeSection id="listing-media" title="Listing photos, video and tours" badge={fold?.badge} hint={fold?.hint} open={fold?.open}>
       <p className="mt-1 text-sm text-muted">
-        Exactly what goes on the MLS, in order. Anything our photographer delivers for this home, or anyone uploads to it, lands here on its own.
-        Community and floor plan photos, video and tours are optional: add the ones you want.
+        Exactly what goes on the MLS. Anything our photographer delivers for this home, or anyone uploads to it, lands here on its own.
       </p>
       {notice}
 
@@ -77,10 +76,10 @@ export function ListingMediaPanel({
         </div>
       )}
 
-      {/* On the listing, in MLS order */}
-      <h4 className="mt-6 text-sm font-semibold">
-        On the listing <span className="font-normal text-muted">{plural(listing.photos.length, "photo")} · {plural(listing.videos.length, "video")} · {plural(listing.tours.length, "tour")}</span>
-      </h4>
+      {/* 1. Photos and video on the listing, in MLS order */}
+      <SubHead n={1} title="Photos and video on the listing" count={`${plural(listing.photos.length, "photo")}${listing.videos.length ? ` · ${plural(listing.videos.length, "video")}` : ""}`}>
+        In the order the MLS shows them. Use Earlier / Later to change the order.
+      </SubHead>
       {canEdit && listing.photos.length > 1 && (
         <p className="mt-1 text-xs text-muted">
           <b className="font-semibold text-foreground">★ Cover:</b> the photo on this home&rsquo;s cards and at the top of its page. Pick one with
@@ -156,64 +155,54 @@ export function ListingMediaPanel({
         </>
       )}
 
-      {/* Tours on the listing */}
-      {listing.tours.length > 0 && (
-        <ul className="mt-4 divide-y divide-line rounded-2xl border border-line">
-          {listing.items.filter((i) => i.type === "tour").map((item) => {
-            const t = (item as Extract<typeof item, { type: "tour" }>).tour;
-            return (
-              <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
-                <TourLabel t={t} />
-                <span className="flex-1" />
-                {canEdit && (
-                  <form action={removeFromListing}>
-                    <input type="hidden" name="home_id" value={home.id} />
-                    <input type="hidden" name="item_id" value={item.id} />
-                    <button className="text-xs font-semibold text-red-700 underline">Remove from listing</button>
-                  </form>
-                )}
-                {canEdit && t.home_id && (
-                  <form action={trashTour}>
-                    <input type="hidden" name="home_id" value={home.id} />
-                    <input type="hidden" name="tour_id" value={t.id} />
-                    <button className="text-xs font-semibold text-muted underline">Delete link</button>
-                  </form>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {/* Optional: community, floor plan, community tours */}
-      {canEdit && (
-        <>
-          <Optional homeId={home.id} title={`From ${home.community_name} (community)`} items={listing.community} empty="No community photos or video yet." />
-          {home.plan_name && (
-            <Optional homeId={home.id} title={`From the ${home.plan_name} floor plan`} items={listing.plan} empty="No photos for this floor plan yet." hint="Model or plan photos: turn on the representative disclaimer if the listing uses them." />
-          )}
-          {listing.communityTours.length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-sm font-semibold">Community tours</h4>
-              <ul className="mt-2 divide-y divide-line rounded-2xl border border-line">
-                {listing.communityTours.map((t) => (
-                  <li key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
-                    <TourLabel t={t} />
-                    <span className="flex-1" />
-                    <form action={addToListing}>
-                      <input type="hidden" name="home_id" value={home.id} />
-                      <input type="hidden" name="tour_id" value={t.id} />
-                      <button className="rounded-lg border border-foreground px-3 py-1 text-xs font-semibold hover:bg-soft">Add to listing</button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Add a tour link */}
-          <details id="add-tour" className="mt-6 scroll-mt-28 rounded-2xl border border-line p-4">
-            <summary className="cursor-pointer font-semibold">Add a 3D or video tour link</summary>
+      {/* 2. 3D and video tour links */}
+      <SubHead n={2} title="3D and video tours" count={listing.tours.length ? plural(listing.tours.length, "link") : "none yet"}>
+        Links to a 3D walkthrough or video that lives on another site (Matterport, Zillow 3D Home, iGUIDE, YouTube, Vimeo). They aren&rsquo;t files and
+        don&rsquo;t come from the floor plan. Add as many as you have; the MLS takes one unbranded link (and a branded one if you have it).
+      </SubHead>
+      <ul className="mt-3 divide-y divide-line rounded-2xl border border-line">
+        {listing.items.filter((i) => i.type === "tour").map((item) => {
+          const t = (item as Extract<typeof item, { type: "tour" }>).tour;
+          return (
+            <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+              <TourLabel t={t} />
+              <span className="flex-1" />
+              {canEdit && (
+                <form action={removeFromListing}>
+                  <input type="hidden" name="home_id" value={home.id} />
+                  <input type="hidden" name="item_id" value={item.id} />
+                  <button className="text-xs font-semibold text-muted underline hover:text-foreground">Take off listing</button>
+                </form>
+              )}
+              {canEdit && t.home_id && (
+                <form action={trashTour}>
+                  <input type="hidden" name="home_id" value={home.id} />
+                  <input type="hidden" name="tour_id" value={t.id} />
+                  <button className="text-xs font-semibold text-red-700 underline">Delete</button>
+                </form>
+              )}
+            </li>
+          );
+        })}
+        {canEdit && listing.communityTours.map((t) => (
+          <li key={t.id} className="flex flex-wrap items-center gap-3 bg-soft/50 px-4 py-3 text-sm">
+            <TourLabel t={t} />
+            <span className="text-xs text-muted">Community tour, not on this listing</span>
+            <span className="flex-1" />
+            <form action={addToListing}>
+              <input type="hidden" name="home_id" value={home.id} />
+              <input type="hidden" name="tour_id" value={t.id} />
+              <button className="rounded-lg border border-foreground px-3 py-1 text-xs font-semibold hover:bg-white">Add to listing</button>
+            </form>
+          </li>
+        ))}
+        {listing.tours.length === 0 && !(canEdit && listing.communityTours.length) && (
+          <li className="px-4 py-3 text-sm text-muted">No tour links on this listing yet.</li>
+        )}
+        {canEdit && (
+          <li className="px-4 py-3">
+          <details id="add-tour" className="scroll-mt-28">
+            <summary className="cursor-pointer list-none text-sm font-semibold text-accent [&::-webkit-details-marker]:hidden">+ Add {listing.tours.length ? "another" : "a"} tour link</summary>
             <form action={addTour} className="mt-4 grid gap-4 sm:grid-cols-2">
               <input type="hidden" name="home_id" value={home.id} />
               <label className="block sm:col-span-2">
@@ -247,9 +236,37 @@ export function ListingMediaPanel({
               <div><button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save tour</button></div>
             </form>
           </details>
+          </li>
+        )}
+      </ul>
+
+      {/* 3. Optional: community and floor plan photos */}
+      {canEdit && (
+        <>
+          <SubHead n={3} title="Add more photos (optional)">
+            Photos from the community or the floor plan aren&rsquo;t on the listing unless you add them. Click + Add to put one at the end.
+          </SubHead>
+          <Optional homeId={home.id} title={`From ${home.community_name} (the community)`} items={listing.community} empty="No community photos or video yet." />
+          {home.plan_name && (
+            <Optional homeId={home.id} title={`From the ${home.plan_name} floor plan`} items={listing.plan} empty="No photos for this floor plan yet." hint="Model or plan photos: turn on the representative disclaimer if the listing uses them." />
+          )}
+
         </>
       )}
     </HomeSection>
+  );
+}
+
+function SubHead({ n, title, count, children }: { n: number; title: string; count?: string; children?: ReactNode }) {
+  return (
+    <div className={cx("border-t border-line pt-6", n === 1 ? "mt-6" : "mt-8")}>
+      <h4 className="flex flex-wrap items-baseline gap-x-2 font-semibold">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-xs text-accent">{n}</span>
+        {title}
+        {count && <span className="text-sm font-normal text-muted">{count}</span>}
+      </h4>
+      {children && <p className="mt-1 text-sm text-muted">{children}</p>}
+    </div>
   );
 }
 
@@ -291,9 +308,9 @@ function TourLabel({ t }: { t: Tour }) {
 function Optional({ homeId, title, items, empty, hint }: { homeId: string; title: string; items: MediaRow[]; empty: string; hint?: string }) {
   const photos = items.filter((m) => m.kind !== "video");
   return (
-    <div className="mt-6">
+    <div className="mt-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h4 className="text-sm font-semibold">{title} <span className="font-normal text-muted">optional</span></h4>
+        <h5 className="text-sm font-semibold">{title}</h5>
         {photos.length > 1 && (
           <form action={addToListing}>
             <input type="hidden" name="home_id" value={homeId} />
