@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { Suspense, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { backStep, onTrailChange } from "@/lib/nav-trail";
@@ -9,15 +9,29 @@ import { backStep, onTrailChange } from "@/lib/nav-trail";
 // came from in this tab (and the section they were in), named by its heading;
 // `href` and `label` are only used when there's no earlier page (opened from a
 // bookmark, an email or a new tab).
-export function BackButton({ href, label, variant = "button" }: { href: string; label: string; variant?: "button" | "text" }) {
+type Props = { href: string; label: string; variant?: "button" | "text" };
+
+export function BackButton(props: Props) {
+  // Which page we're on is only known at request time, so the trail-aware part
+  // streams in; until then it's the plain fallback link.
+  return (
+    <Suspense fallback={<BackLink to={props.href} text={props.label} variant={props.variant} />}>
+      <TrailBack {...props} />
+    </Suspense>
+  );
+}
+
+function TrailBack({ href, label, variant = "button" }: Props) {
   // The earlier page lives in this tab's storage, which only the browser has:
   // the server (and the first paint) use href and label, then this takes over.
   const current = usePathname();
   const saved = useSyncExternalStore(onTrailChange, () => trailTarget(current), () => "");
   const target = saved ? (JSON.parse(saved) as { href: string; label: string }) : null;
 
-  const to = target?.href ?? href;
-  const text = target?.label ?? label;
+  return <BackLink to={target?.href ?? href} text={target?.label ?? label} variant={variant} />;
+}
+
+function BackLink({ to, text, variant = "button" }: { to: string; text: string; variant?: Props["variant"] }) {
   return variant === "text" ? (
     <Link href={to} className="text-sm font-medium text-muted hover:text-foreground">
       <span aria-hidden>←</span> {text}
