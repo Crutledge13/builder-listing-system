@@ -121,6 +121,7 @@ async function runScan(builderId: string): Promise<{ error?: string }> {
 export async function saveGuide(builderId: string, path: string, fileName: string) {
   const saved = await setFile(builderId, "brand_guide_path", path, { brand_guide_name: fileName.slice(0, 200) });
   if (saved.error) return saved;
+  if (!brandScanAvailable()) return {};
   const scanned = await runScan(builderId);
   // The file is saved either way; a failed read just means filling it in by hand.
   return scanned.error ? { error: `Saved the guide. ${scanned.error}` } : {};

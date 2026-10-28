@@ -55,7 +55,7 @@ async function Plan({ params }: { params: PageProps<"/plans/[id]">["params"] }) 
         {p.plan_file_path ? (
           <p className="mt-1 text-sm"><a href={`/api/plan-file/${p.id}`} target="_blank" rel="noreferrer" className="font-semibold text-accent underline">{p.plan_file_name ?? "Open the plan"}</a></p>
         ) : (
-          <p className="mt-1 text-sm text-muted">{canEdit ? "Upload the plan (PDF or image) with room dimensions on it. AI reads the room sizes off it for you to check." : "No plan file uploaded yet."}</p>
+          <p className="mt-1 text-sm text-muted">{canEdit ? (planScanAvailable() ? "Upload the plan (PDF or image) with room dimensions on it. AI reads the room sizes off it for you to check." : "Upload the plan (PDF or image) so everyone can open it, then enter the room sizes below.") : "No plan file uploaded yet."}</p>
         )}
         {canEdit && planScanAvailable() && <div className="mt-3"><AiCreditMeter builderId={p.builder_id} staff={staff} compact /></div>}
         {canEdit && (

@@ -115,7 +115,7 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
             </Link>
           )}
           {m.caption && <p className="mt-3 text-[15px]">{m.caption}{m.caption_source_is_ai ? <span className="ml-2 text-xs text-violet-700">written by AI</span> : null}</p>}
-          <AiPanel m={m} canRerun={manage && m.source === "upload" && m.kind === "photo"} canClear={manage} />
+          <AiPanel m={m} canRerun={manage && m.source === "upload" && m.kind === "photo" && aiTaggingAvailable()} canClear={manage} />
           <div className="mt-4 flex flex-wrap gap-2">
             {m.tags.map((t) => (
               photographer ? <span key={t} className="rounded-full bg-soft px-3 py-1 text-sm">{t}</span> : <Link key={t} href={`/media?tag=${encodeURIComponent(t)}`} className="rounded-full bg-soft px-3 py-1 text-sm hover:bg-line">

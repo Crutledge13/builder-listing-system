@@ -84,10 +84,7 @@ export async function tagMedia(supabase: SupabaseClient, ids: string[]) {
     .in("id", ids);
   const photos = (rows ?? []).filter((r) => r.source === "upload" && r.kind === "photo" && r.storage_path);
 
-  if (!aiTaggingAvailable()) {
-    await supabase.from("media").update({ ai_status: "skipped" }).in("id", photos.map((p) => p.id));
-    return;
-  }
+  if (!aiTaggingAvailable()) return;
   const client = new Anthropic();
   const list = await loadTagList(supabase);
   const SYSTEM = system(list.map((t) => t.label));

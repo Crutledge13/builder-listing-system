@@ -119,7 +119,7 @@ async function Branding({ searchParams }: { searchParams: PageProps<"/branding">
             )}
           </div>
         )}
-        {edit && !brandScanAvailable() && <p className="mt-2 text-xs text-muted">Automatic reading turns on once the AI key is set up. You can still upload the guide and fill in the branding below.</p>}
+        {edit && !brandScanAvailable() && <p className="mt-2 text-xs text-muted">Upload the guide so our team has it, and fill in the branding below.</p>}
 
         {edit && b.brand_guide_scan && <ScanReview b={b} />}
       </section>

@@ -48,7 +48,7 @@ export async function createPlan(formData: FormData) {
   const { data, error } = await supabase.from("floor_plans").insert({ builder_id: builderId, ...s }).select("id").single();
   if (error || !data) go("/plans", { error: error?.message.includes("duplicate") ? "That builder already has a plan with that name." : `Couldn’t add it: ${error?.message}` }, "#new");
   revalidatePath("/plans");
-  go(`/plans/${data.id}`, { saved: "Plan added. Upload the plan file to read the rooms off it, or add them by hand." });
+  go(`/plans/${data.id}`, { saved: planScanAvailable() ? "Plan added. Upload the plan file to read the rooms off it, or add them by hand." : "Plan added. Upload the plan file and enter the room sizes below." });
 }
 
 export async function savePlan(formData: FormData) {
@@ -106,6 +106,9 @@ export async function savePlanFile(id: string, path: string, fileName: string): 
   const { error } = await supabase.from("floor_plans").update({ plan_file_path: path, plan_file_name: fileName.slice(0, 200) }).eq("id", id);
   if (error) return { error: "Couldn’t attach the plan file." };
   if (before?.plan_file_path && before.plan_file_path !== path) await supabase.storage.from("plan-files").remove([before.plan_file_path]);
+  revalidatePath(`/plans/${id}`);
+  // AI off (no key): the file is saved; room sizes are added by hand below.
+  if (!planScanAvailable()) return {};
   const scanned = await runScan(id);
   revalidatePath(`/plans/${id}`);
   return scanned.error ? { error: `Saved the plan file. ${scanned.error}` } : {};

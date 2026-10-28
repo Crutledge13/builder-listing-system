@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { builderFocus } from "@/lib/builder-focus";
 import { canEditPlans, isStaff } from "@/lib/permissions";
+import { planScanAvailable } from "@/lib/plan-scan";
 import { AiCreditMeter } from "@/components/ai-credit-meter";
 import { num } from "@/lib/format";
 import { Notice } from "@/components/notice";
@@ -39,8 +40,8 @@ async function Plans() {
 
   return (
     <>
-      {canEdit && <div className="mb-6"><AiCreditMeter builderId={me.builder_id} staff={staff} /></div>}
-      {plans.length === 0 && <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">No floor plans yet.{canEdit ? " Add the first one below, then upload its plan file and AI reads the room sizes off it." : " Your team’s owners, managers or marketing can add them."}</p>}
+      {canEdit && planScanAvailable() && <div className="mb-6"><AiCreditMeter builderId={me.builder_id} staff={staff} /></div>}
+      {plans.length === 0 && <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">No floor plans yet.{canEdit ? (planScanAvailable() ? " Add the first one below, then upload its plan file and AI reads the room sizes off it." : " Add the first one below, then enter its room sizes.") : " Your team’s owners, managers or marketing can add them."}</p>}
       {[...byBuilder.entries()].map(([builder, list]) => (
         <section key={builder} className="mb-8">
           {(staff || byBuilder.size > 1) && <h2 className="mb-3 text-lg font-semibold">{builder.replace(" (demo)", "")}</h2>}
@@ -75,7 +76,7 @@ async function Plans() {
             <label className={staff ? "block sm:col-span-2" : "block sm:col-span-3"}><span className="mb-1 block text-sm font-medium">Plan name</span><input name="name" required maxLength={80} placeholder="e.g. Brazos" className="field-input" /></label>
             <input type="hidden" name="rooms_json" value="[]" />
             <div className="sm:col-span-3"><button className="rounded-xl bg-accent px-5 py-2.5 font-semibold text-white hover:brightness-110">Add plan</button>
-              <span className="ml-3 text-sm text-muted">Then upload the plan file to read the room sizes off it.</span></div>
+              <span className="ml-3 text-sm text-muted">{planScanAvailable() ? "Then upload the plan file to read the room sizes off it." : "Then add its specs and room sizes."}</span></div>
           </form>
         </details>
       )}
