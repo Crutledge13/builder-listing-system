@@ -48,7 +48,7 @@ async function Builders() {
                 <div className="truncate font-semibold">{b.name}</div>
                 <div className="text-sm text-muted">
                   {planLabel(planFor(b.id)?.plan, planFor(b.id)?.includes_photos)}
-                  {` · ${tally(communities, b.id)} communities · ${tally(homes, b.id)} homes · ${tally(people, b.id)} people`}
+                  {` · ${plural(tally(communities, b.id), "community", "communities")} · ${plural(tally(homes, b.id), "home", "homes")} · ${plural(tally(people, b.id), "person", "people")}`}
                   {(settingsFor(b.id)?.mls_boards ?? []).length > 0 && ` · ${(settingsFor(b.id)?.mls_boards ?? []).join(", ")}`}
                 </div>
               </div>
@@ -122,4 +122,8 @@ async function Builders() {
       </div>
     </div>
   );
+}
+
+function plural(n: number, one: string, many: string) {
+  return `${n} ${n === 1 ? one : many}`;
 }

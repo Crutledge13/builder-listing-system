@@ -115,8 +115,10 @@ async function Billing() {
                 {plan.listing_fee_cents != null && <Line k="Pausing a listing" v="Free" />}
                 <Line k="Payment due" v={`${plan.net_days} days after the invoice`} />
               </dl>
-              <h3 className="mt-5 text-sm font-semibold">Our photographer</h3>
-              <p className="text-xs text-muted">Charged when you mark a photo request complete.</p>
+              <h3 className="mt-5 text-sm font-semibold">{plan.includes_photos ? "Our photographer" : "If you book our photographer"}</h3>
+              <p className="text-xs text-muted">
+                {plan.includes_photos ? "Charged when you mark a photo request complete." : "Only if you ask us for a shoot; charged when you mark the request complete."}
+              </p>
               <dl className="mt-2 space-y-2 text-sm">
                 {(plan.photo_prices ?? []).filter((p) => p.amount_cents > 0).map((p) => <Line key={p.need} k={p.label} v={usd(p.amount_cents)} />)}
               </dl>
