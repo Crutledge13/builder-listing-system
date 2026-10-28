@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { CommunityPicker } from "@/components/community-picker";
 import { SetupNav } from "@/components/setup-nav";
 import { Avatar } from "@/components/avatar";
 import Link from "next/link";
@@ -37,7 +38,7 @@ async function Team() {
   const supabase = await createClient();
   const [{ data: people }, { data: communities }, { data: assignments }] = await Promise.all([
     supabase.from("profiles").select("id, email, full_name, role, is_active, phone, job_title, avatar_updated_at").eq("builder_id", me.builder_id!).order("full_name"),
-    supabase.from("communities").select("id, name").eq("builder_id", me.builder_id!).order("name"),
+    supabase.from("communities").select("id, name, city").eq("builder_id", me.builder_id!).order("name"),
     supabase.from("community_assignments").select("profile_id, community_id"),
   ]);
   const canGive = rolesICanGive(me.role);
@@ -97,16 +98,7 @@ async function Team() {
                     <form action={setAssignments} className="mt-3 rounded-xl bg-soft p-3">
                       <input type="hidden" name="profile_id" value={p.id} />
                       <input type="hidden" name="back" value="/team" />
-                      <p className="text-sm font-medium">Communities they can see</p>
-                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
-                        {(communities ?? []).map((c) => (
-                          <label key={c.id} className="flex items-center gap-2 text-sm">
-                            <input type="hidden" name="scope" value={c.id} />
-                            <input type="checkbox" name="community_id" value={c.id} defaultChecked={mine.has(c.id)} className="h-4 w-4 accent-[#3452c7]" />
-                            {c.name}
-                          </label>
-                        ))}
-                      </div>
+                      <CommunityPicker label="Communities they can see" communities={communities ?? []} defaultSelected={[...mine]} scope />
                       <button className="mt-3 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save communities</button>
                     </form>
                   )}
@@ -173,15 +165,8 @@ async function Team() {
             </fieldset>
             {(communities ?? []).length > 0 && (
               <fieldset className="mt-4">
-                <legend className="mb-2 text-sm font-medium">Communities (for sales)</legend>
-                <div className="flex flex-wrap gap-x-4 gap-y-2">
-                  {(communities ?? []).map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" name="community_id" value={c.id} className="h-4 w-4 accent-[#3452c7]" />
-                      {c.name}
-                    </label>
-                  ))}
-                </div>
+                <legend className="text-sm font-medium">Communities (for sales)</legend>
+                <CommunityPicker communities={communities ?? []} />
               </fieldset>
             )}
             <button className="mt-5 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Add and get invite link</button>

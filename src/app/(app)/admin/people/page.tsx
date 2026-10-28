@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { CommunityPicker } from "@/components/community-picker";
 import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ROLE_LABELS, type Role } from "@/lib/permissions";
@@ -31,7 +32,7 @@ async function People() {
   const [{ data: builders }, { data: people }, { data: communities }, { data: assignments }, { data: staffBuilders }] = await Promise.all([
     supabase.from("builders").select("id, name").order("name"),
     supabase.from("profiles").select("id, email, full_name, role, builder_id").order("full_name"),
-    supabase.from("communities").select("id, name, builder_id").order("name"),
+    supabase.from("communities").select("id, name, city, builder_id").order("name"),
     supabase.from("community_assignments").select("profile_id, community_id"),
     supabase.from("staff_builders").select("profile_id, builder_id"),
   ]);
@@ -113,17 +114,7 @@ async function People() {
                       <form action={setAssignments} className="mt-3 rounded-xl bg-soft p-3">
                         <input type="hidden" name="profile_id" value={p.id} />
                         <input type="hidden" name="back" value="/admin/people" />
-                        <p className="text-sm font-medium">Communities this salesperson can see</p>
-                        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
-                          {theirCommunities.map((c) => (
-                            <label key={c.id} className="flex items-center gap-2 text-sm">
-                              <input type="hidden" name="scope" value={c.id} />
-                              <input type="checkbox" name="community_id" value={c.id} defaultChecked={mine.has(c.id)} className="h-4 w-4 accent-[#3452c7]" />
-                              {c.name}
-                            </label>
-                          ))}
-                          {theirCommunities.length === 0 && <span className="text-sm text-muted">This builder has no communities yet.</span>}
-                        </div>
+                        <CommunityPicker label="Communities this salesperson can see" communities={theirCommunities} defaultSelected={[...mine]} scope />
                         {theirCommunities.length > 0 && (
                           <button className="mt-3 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save communities</button>
                         )}

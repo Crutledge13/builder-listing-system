@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CommunityPicker } from "@/components/community-picker";
 import { PendingButton } from "@/components/pending-button";
 
 type Option = { id: string; name: string };
@@ -52,13 +53,7 @@ export function JoinLinkForm({
           <fieldset>
             <legend className="mb-1 text-sm font-medium">Communities they see</legend>
             {theirCommunities.length ? (
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {theirCommunities.map((c) => (
-                  <label key={c.id} className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" name="community_id" value={c.id} className="h-4 w-4 accent-[#3452c7]" /> {c.name}
-                  </label>
-                ))}
-              </div>
+              <CommunityPicker key={builder} communities={theirCommunities} />
             ) : (
               <p className="text-xs text-muted">This builder has no communities yet. Assign them after they join.</p>
             )}
