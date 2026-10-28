@@ -5,7 +5,7 @@ export type MenuLink = { href: string; label: string; hint?: string };
 
 // The few tabs that always show along the top, by role.
 // `off` is the builder's turned-off features (src/lib/features.ts).
-// `setupOpen`: the builder's setup checklist isn't marked done yet (owners and managers).
+// `setupOpen`: the builder's setup checklist isn't marked done yet (owners, managers, marketing).
 export function primaryTabs(role: Role, enterOwnMls = false, off: ReadonlySet<Feature> = new Set(), setupOpen = false): MenuLink[] {
   if (role === "photographer") return [{ href: "/jobs", label: "Your jobs" }];
   if (role === "platform_admin" || role === "listing_coordinator") {
@@ -25,7 +25,7 @@ export function primaryTabs(role: Role, enterOwnMls = false, off: ReadonlySet<Fe
   if (enterOwnMls) tabs.unshift({ href: "/tasks", label: "MLS work" });
   if (setupOpen) tabs.unshift({ href: "/setup", label: "Setup" });
   if (!off.has("builder_tasks") && (role === "builder_owner" || role === "manager" || role === "marketing")) tabs.push({ href: "/todo", label: "Tasks" });
-  if (!off.has("reports") && (role === "builder_owner" || role === "manager" || role === "sales")) tabs.push({ href: "/reports", label: "Reports" });
+  if (!off.has("reports") && (role === "builder_owner" || role === "manager" || role === "marketing" || role === "sales")) tabs.push({ href: "/reports", label: "Reports" });
   return tabs;
 }
 
@@ -48,7 +48,7 @@ export function menuLinks(role: Role, off: ReadonlySet<Feature> = new Set()): Me
   if (!off.has("website_check") && ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role)) {
     links.push({ href: "/website-check", label: "Website check", hint: "Website, Builder Listings and MLS side by side" });
   }
-  if (role === "builder_owner" || role === "manager") {
+  if (role === "builder_owner" || role === "manager" || role === "marketing") {
     links.push({ href: "/team", label: "Your team", hint: "Add people and set their access" });
     links.push({ href: "/setup", label: "Setup checklist", hint: "Everything we need to get your company set up" });
   }

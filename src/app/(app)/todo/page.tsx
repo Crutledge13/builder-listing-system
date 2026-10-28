@@ -135,7 +135,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/todo">["searc
     return str ? `/todo?${str}` : "/todo";
   };
   const backTo = link({});
-  const canExtend = ["builder_owner", "manager"].includes(me.role);
+  const canExtend = ["builder_owner", "manager", "marketing"].includes(me.role);
   const tomorrow = centralDay(new Date(now.getTime() + 86_400_000));
 
   return (

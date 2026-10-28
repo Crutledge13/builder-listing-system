@@ -21,9 +21,9 @@ export default function TeamPage(props: PageProps<"/team">) {
 
 const ROLE_HINTS: Partial<Record<Role, string>> = {
   builder_owner: "Everything for your company, including adding people.",
-  manager: "Edits and approves listings; adds sales and marketing.",
+  manager: "Can do everything marketing can; usually follows along and reads the reports.",
   sales: "Only their communities: price, status, open houses, requests.",
-  marketing: "Descriptions, photos and media. No price changes.",
+  marketing: "Runs listings day to day: homes, prices, photos, approvals, communities and the team.",
 };
 
 async function Team() {
@@ -46,7 +46,7 @@ async function Team() {
       <h1 className="text-[28px] font-bold leading-tight tracking-tight">Your team</h1>
       <p className="mt-1 text-muted">
         Everyone at {me.builder_name?.replace(" (demo)", "")} who can sign in.{" "}
-        {me.role === "manager" ? "Managers can add and change sales and marketing users." : "As the owner you can add anyone at your company."}
+        {me.role === "builder_owner" ? "As the owner you can add anyone at your company." : "You can add and change sales and marketing users."}
       </p>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_340px]">

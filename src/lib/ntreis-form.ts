@@ -4,7 +4,7 @@ import type { MlsField } from "@/lib/mls-fields";
 // Who may change the builder's NTREIS answers after a home is added
 // (same people who can edit its specs; mirrors enforce_home_edit_rules).
 export function canEditMlsAnswers(role: string) {
-  return ["platform_admin", "builder_owner", "manager"].includes(role);
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }
 
 const BY_KEY = new Map(NTREIS_BUILDER_FIELDS.map((f) => [f.key, f]));

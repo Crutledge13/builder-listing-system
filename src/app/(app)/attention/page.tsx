@@ -28,7 +28,7 @@ async function Attention({ searchParams }: { searchParams: PageProps<"/attention
   const counts = new Map<string, number>();
   all.forEach((a) => counts.set(a.kind, (counts.get(a.kind) ?? 0) + 1));
   const back = kind ? `/attention?kind=${kind}` : "/attention";
-  const canAnswer = ["builder_owner", "manager", "sales"].includes(me.role);
+  const canAnswer = ["builder_owner", "manager", "marketing", "sales"].includes(me.role);
 
   return (
     <div className="mx-auto max-w-5xl">

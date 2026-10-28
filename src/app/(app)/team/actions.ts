@@ -18,7 +18,7 @@ function friendly(msg: string) {
   return msg;
 }
 
-// Builder owners add anyone at their company; managers add sales and marketing.
+// Builder owners add anyone at their company; managers and marketing add sales and marketing.
 // The database checks the same thing (private.can_manage_person).
 export async function inviteTeammate(formData: FormData) {
   const me = await requireProfile();

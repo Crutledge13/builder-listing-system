@@ -141,7 +141,7 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
       </form>
 
       <div className="print:hidden">
-        <AttentionPanel alerts={alerts} back={`/reports?${query}`} canAnswer={me.role !== "marketing"} staff={staff} fullHref={staff ? "/compliance" : "/attention"} />
+        <AttentionPanel alerts={alerts} back={`/reports?${query}`} canAnswer staff={staff} fullHref={staff ? "/compliance" : "/attention"} />
       </div>
 
       <dl className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">

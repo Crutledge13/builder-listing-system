@@ -106,7 +106,7 @@ export async function createHome(formData: FormData) {
 
   // Which MLS: blank means the database picks the community's MLS (by county).
   const board = String(formData.get("mls_board") ?? "");
-  if (board && ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(me.role)) {
+  if (board && ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(me.role)) {
     const { data: ok } = await supabase.from("mls_boards").select("code").eq("code", board).eq("active", true).maybeSingle();
     if (ok) row.mls_board = board;
   }

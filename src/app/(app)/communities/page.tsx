@@ -75,9 +75,9 @@ async function CommunityList() {
         </div>
       </div>
 
-      {(me.role === "builder_owner" || me.role === "manager") && me.builder_id && <SetupBanner builderId={me.builder_id} />}
+      {["builder_owner", "manager", "marketing"].includes(me.role) && me.builder_id && <SetupBanner builderId={me.builder_id} />}
 
-      <AttentionPanel alerts={alerts} back="/communities" canAnswer={me.role !== "marketing"} staff={false} fullHref="/attention" />
+      <AttentionPanel alerts={alerts} back="/communities" canAnswer staff={false} fullHref="/attention" />
 
       <div className="mt-8 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
         {communities?.map((c) => {

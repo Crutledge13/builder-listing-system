@@ -198,7 +198,7 @@ async function HomeDetail({
   const shareUrl = typeof shareToken === "string" && shareToken
     ? `${reqHeaders.get("x-forwarded-proto") ?? "https"}://${reqHeaders.get("host")}/s/${shareToken}`
     : null;
-  const canAnswerAlerts = ["platform_admin", "listing_coordinator", "builder_owner", "manager", "sales"].includes(me.role);
+  const canAnswerAlerts = ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing", "sales"].includes(me.role);
 
   // Which MLS, and is the listing ready for it?
   const [{ data: boards }, { data: bset }, { data: readinessRaw }] = await Promise.all([
@@ -212,7 +212,7 @@ async function HomeDetail({
   const blockers = readiness.filter((r) => r.level === "block");
   const myBoards: string[] = bset?.mls_boards ?? [];
   const board = (boards ?? []).find((b) => b.code === home.mls_board);
-  const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(me.role) && home.workflow_status !== "live_on_mls";
+  const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(me.role) && home.workflow_status !== "live_on_mls";
   const live = home.workflow_status === "live_on_mls";
   const canEditStage = (editableFields(me.role) as readonly string[]).includes("build_stage");
   const currentSale = (home.market_status ?? "active") as MarketStatus;

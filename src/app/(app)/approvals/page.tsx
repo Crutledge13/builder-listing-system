@@ -42,8 +42,9 @@ function queuesFor(role: Role): Queue[] {
     case "platform_admin": return [review, mls, drafts];
     case "listing_coordinator": return [mls, review];
     case "builder_owner":
-    case "manager": return [review, drafts, { ...mls, title: "Approved, waiting on the MLS", hint: "Our listing coordinator is entering these into the MLS." }];
-    default: return [drafts, { ...review, hint: "Waiting for a manager or owner to approve." }];
+    case "manager":
+    case "marketing": return [review, drafts, { ...mls, title: "Approved, waiting on the MLS", hint: "Our listing coordinator is entering these into the MLS." }];
+    default: return [drafts, { ...review, hint: "Waiting for marketing, a manager or the owner to approve." }];
   }
 }
 

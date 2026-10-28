@@ -75,7 +75,7 @@ async function CommunityDetail({
       : Promise.resolve({ data: [] as { id: string }[] }),
     supabase.from("community_assignments").select("profiles(full_name)").eq("community_id", id),
   ]);
-  const canManageTeam = ["platform_admin", "builder_owner", "manager"].includes(me.role);
+  const canManageTeam = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const { data: builderSales } = canManageTeam
     ? await supabase.from("profiles").select("id, full_name").eq("builder_id", community.builder_id).eq("role", "sales").order("full_name")
     : { data: null };

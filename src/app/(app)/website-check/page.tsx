@@ -78,8 +78,8 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
   const matchedListing = new Map(matches.map((m) => [m.website_listing_id, m]));
   const canLink = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const myFields = new Set(editableFields(me.role) as readonly HomeField[]);
-  const canApprove = ["platform_admin", "builder_owner", "manager"].includes(me.role);
-  const canManageFeed = ["platform_admin", "builder_owner", "manager"].includes(me.role);
+  const canApprove = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
+  const canManageFeed = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
 
   // Line up each home: website | Builder Listings | MLS.
   const checked = (homes ?? []).map((h) => {

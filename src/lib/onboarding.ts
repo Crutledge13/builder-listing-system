@@ -152,7 +152,7 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
 
     const steps: Step[] = [
       { key: "team", group: "company", title: "Add your team", optional: true, skipLabel: "It’s just me for now",
-        why: "Add each person who needs access and pick their role. Managers approve listings for the MLS; salespeople see only their communities.",
+        why: "Add each person who needs access and pick their role. Marketing runs listings day to day; salespeople see only their communities.",
         done: team.length > 1 || skipped.has("team"), skipped: skipped.has("team") && team.length <= 1,
         detail: `${team.length} ${team.length === 1 ? "person" : "people"} can sign in`, href: "/team", cta: "Add people" },
       { key: "logo", group: "company", title: "Upload your logo",
@@ -186,23 +186,23 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
         done: unassigned === 0 && (sales.length === 0 || comms.length > 0),
         detail: sales.length === 0 ? "No salespeople yet" : unassigned ? `${unassigned} of ${sales.length} not on a community yet` : `All ${sales.length} assigned`,
         href: "/team", cta: "Assign" },
-      { key: "plans", group: "homes", title: "Floor plans", ourTeam: true,
-        why: "Send us your plan PDFs. Our team sets up each plan with its room sizes, so every new home can start from it.",
+      { key: "plans", group: "homes", title: "Add your floor plans",
+        why: "Upload each plan's PDF and we read the room sizes for you to check, so every new home can start from its plan.",
         done: planCount > 0, detail: planCount ? `${planCount} ${planCount === 1 ? "plan" : "plans"} set up` : undefined,
-        href: "/plans", cta: "See plans" },
+        href: "/plans", cta: "Add plans" },
       { key: "first_home", group: "homes", title: "Add your first home",
         why: "Start from a floor plan and only fill in what’s different: lot, price, build stage.",
         done: homeRows.length > 0, detail: homeRows.length ? `${homeRows.length} ${homeRows.length === 1 ? "home" : "homes"}` : undefined,
         href: "/homes/new", cta: "Add a home" },
       { key: "first_approval", group: "homes", title: "Approve your first listing for the MLS",
-        why: "An owner or manager approves it, then our team enters it into the MLS.",
+        why: "Marketing, a manager or the owner approves it, then our team enters it into the MLS.",
         done: approved > 0, detail: approved ? `${approved} approved` : undefined,
         href: "/approvals", cta: "Open approvals" },
     ];
 
     const done = steps.filter((s) => s.done).length;
     const ourDone = ourSteps.every((s) => s.done);
-    const builderStarted = steps.some((s) => s.done && !["plans"].includes(s.key));
+    const builderStarted = steps.some((s) => s.done);
     const stage: Stage = live > 0 ? "live"
       : approved > 0 ? "first_approved"
       : commsReady > 0 ? "community_ready"
@@ -225,18 +225,18 @@ export async function loadOnboarding(supabase: SupabaseClient, builderIds: strin
 }
 
 // For the menu and the start page: is this builder's checklist still open?
-// Only owners and managers run it.
+// Owners, managers and marketing run it.
 export async function setupOpen(supabase: SupabaseClient, role: string, builderId: string | null): Promise<boolean> {
-  if (!builderId || (role !== "builder_owner" && role !== "manager")) return false;
+  if (!builderId || !["builder_owner", "manager", "marketing"].includes(role)) return false;
   const { data } = await supabase.rpc("builder_setup_state", { p_builder: builderId });
   return !!data && !(data as { finished_at: string | null }).finished_at;
 }
 
 export function canRunSetup(role: string) {
-  return ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(role);
+  return ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role);
 }
 
 // Who changes a community's setup answers (mirrors the community edit rule).
 export function canEditCommunitySetup(role: string) {
-  return ["platform_admin", "builder_owner", "manager"].includes(role);
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }

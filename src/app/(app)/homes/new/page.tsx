@@ -47,7 +47,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
     supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked, website_feed_enabled"),
   ]);
   const staff = isStaff(me.role);
-  const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(me.role);
+  const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(me.role);
   const boardName = new Map((boards ?? []).map((b) => [b.code, b.short_name]));
   const mine = (settings ?? []).find((x) => x.builder_id === me.builder_id);
   const lockedBoard = !staff && mine?.mls_locked && mine.mls_boards?.length === 1 ? mine.mls_boards[0] : null;

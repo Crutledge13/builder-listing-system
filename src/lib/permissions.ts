@@ -69,11 +69,10 @@ export function editableFields(role: Role): readonly HomeField[] {
     case "platform_admin":
     case "builder_owner":
     case "manager":
+    case "marketing":
       return OWNER_MANAGER_FIELDS;
     case "sales":
       return ["list_price", "build_stage", "estimated_completion"];
-    case "marketing":
-      return ["public_remarks"];
     default:
       return [];
   }
@@ -99,7 +98,7 @@ export function allowedTransitions(
   }
   const out: WorkflowStatus[] = [];
   const builderEditor = ["builder_owner", "manager", "sales", "marketing"].includes(role);
-  const approver = role === "builder_owner" || role === "manager";
+  const approver = role === "builder_owner" || role === "manager" || role === "marketing";
 
   if (builderEditor && from === "draft") out.push("in_review");
   if (builderEditor && from === "in_review") out.push("draft");
@@ -123,9 +122,9 @@ export function canAddHomes(role: Role) {
 }
 
 // Who may upload media and edit tags (matches the database's media rules).
-// Reports: our team, owners and managers for their builder, sales for their communities.
+// Reports: our team, owners, managers and marketing for their builder, sales for their communities.
 export function canSeeReports(role: Role) {
-  return ["platform_admin", "listing_coordinator", "builder_owner", "manager", "sales"].includes(role);
+  return ["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing", "sales"].includes(role);
 }
 
 // The builder's own to-do board. Mirrors private.on_builder_board.
@@ -193,12 +192,12 @@ export const REQUEST_STATUS_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 export function rolesICanGive(role: Role): Role[] {
   if (role === "builder_owner") return ["builder_owner", "manager", "sales", "marketing"];
-  if (role === "manager") return ["sales", "marketing"];
+  if (role === "manager" || role === "marketing") return ["sales", "marketing"];
   return [];
 }
 
 export function canManageTeam(role: Role) {
-  return role === "builder_owner" || role === "manager";
+  return role === "builder_owner" || role === "manager" || role === "marketing";
 }
 
 export function canAddCommunities(role: Role) {
@@ -219,7 +218,7 @@ export const MARKET_LABELS: Record<MarketStatus, string> = {
 };
 
 export function marketChoices(role: Role): MarketStatus[] {
-  if (["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(role))
+  if (["platform_admin", "listing_coordinator", "builder_owner", "manager", "marketing"].includes(role))
     return ["active", "paused", "under_contract", "sold", "withdrawn"];
   if (role === "sales") return ["active", "under_contract", "sold"];
   return [];
@@ -230,7 +229,7 @@ export function canToggleDisclaimer(role: Role) {
 }
 
 export function canScheduleOpenHouses(role: Role) {
-  return ["platform_admin", "builder_owner", "manager", "sales"].includes(role);
+  return ["platform_admin", "builder_owner", "manager", "marketing", "sales"].includes(role);
 }
 
 export function canRequestReverseProspecting(role: Role) {
