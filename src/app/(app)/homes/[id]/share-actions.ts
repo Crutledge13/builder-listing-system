@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { cleanWebsitePage } from "@/lib/website-page";
 
 // linkId: the link that was made or changed; the page marks it and shows the
 // message next to it, and scrolls to it.
@@ -72,4 +73,33 @@ export async function extendShareLink(formData: FormData) {
     .select("id");
   if (error || !data?.length) back(homeId, { error: "Your role can’t change share links." }, String(formData.get("id")));
   back(homeId, { saved: "Link is on for 30 more days." }, String(formData.get("id")));
+}
+
+// The home's page on the builder's website (builders without a connected website).
+export async function saveWebsitePage(formData: FormData) {
+  await requireProfile();
+  const homeId = String(formData.get("home_id"));
+  const page = cleanWebsitePage(formData.get("website_page_url"));
+  if (page === "bad") back(homeId, { error: "That link doesn’t look right. Paste the full address, like https://www.yourbuilder.com/homes/123-main-st." });
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("homes").update({ website_page_url: page }).eq("id", homeId).select("id");
+  if (error || !data?.length) back(homeId, { error: "Owners, managers and marketing can change the website link." });
+  back(homeId, { saved: page ? "Website link saved. The share page’s “More info” button now goes to this home’s page." : "Website link removed. The share page’s “More info” button goes to your main website." });
+}
+
+// Confirm a suggested match: this home is that listing on the builder's website.
+// Only a pair the database itself suggests (same builder, same address) can be linked.
+export async function linkWebsiteListing(formData: FormData) {
+  await requireProfile();
+  const homeId = String(formData.get("home_id"));
+  const listingId = String(formData.get("website_listing_id"));
+  const supabase = await createClient();
+  const { data: pairs } = await supabase.rpc("website_link_suggestions", { p_home: homeId });
+  if (!(pairs ?? []).some((p: { website_listing_id: string }) => p.website_listing_id === listingId)) {
+    back(homeId, { error: "That website listing can’t be linked to this home anymore." });
+  }
+  const { data } = await supabase.from("website_listings").update({ home_id: homeId }).eq("id", listingId).is("home_id", null).select("id");
+  if (!data?.length) back(homeId, { error: "Owners, managers and marketing can link website listings." });
+  revalidatePath("/website-check");
+  back(homeId, { saved: "Linked to the home’s page on your website." });
 }

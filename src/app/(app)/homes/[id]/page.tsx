@@ -64,6 +64,7 @@ import { loadListingMedia } from "@/lib/listing-media";
 import { ListingMediaPanel } from "@/components/listing-media-panel";
 import { ShareLinksPanel } from "@/components/share-links-panel";
 import { ShareLinkTile } from "@/components/share-link-tile";
+import { PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
 import { headers } from "next/headers";
 import { RoomsEditor } from "@/components/rooms-editor";
 import { IncentiveList } from "@/components/incentive-list";
@@ -186,6 +187,11 @@ async function HomeDetail({
   const off = await featuresOff(me.role, me.builder_id);
   const mlsScore = staff || ownMls ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
   const alerts = await loadAlerts({ homeId: id });
+  // Download sizes for "Download all photos" in the listing photos section.
+  const [{ data: presetRows }, { data: brandRow }] = await Promise.all([
+    supabase.from("download_presets").select(PRESET_SELECT).order("sort").order("name"),
+    supabase.from("builder_branding").select("default_download_preset").eq("builder_id", home.builder_id).maybeSingle(),
+  ]);
   // The home's standing realtor link (made on first open), for the Share link button at the top.
   const { data: shareToken } = await supabase.rpc("home_share_link", { p_home: id });
   const reqHeaders = await headers();
@@ -565,8 +571,9 @@ async function HomeDetail({
           )}
 
           <ListingMediaPanel
-            home={{ id: home.id, community_name: (home.communities as { name: string } | null)?.name ?? "the community", plan_name: home.plan_name }}
+            home={{ id: home.id, community_name: (home.communities as { name: string } | null)?.name ?? "the community", plan_name: home.plan_name, address: home.unparsed_address, disclaimer: !!home.show_representative_disclaimer }}
             listing={listing}
+            download={{ presets: (presetRows ?? []) as DownloadPreset[], builderDefault: brandRow?.default_download_preset ?? null }}
             canEdit={canManageMedia(me.role)}
             canRequest={canRequestMedia(me.role)}
             notice={sectionNotice("listing-media")}
@@ -1161,6 +1168,7 @@ function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse,
     ...(showReverse ? [{ href: "#reverse-prospecting", title: "Reverse prospecting", sub: openReverse ? "In progress" : "Request a list" }] : []),
     ...(canComps ? [{ href: `/comps/new?home=${homeId}`, title: "Request comps", sub: "Check the price" }] : []),
     ...(canRequestPhotos ? [{ href: "#photo-requests", title: "Request photos", sub: openShoots ? `${openShoots} in progress` : "Send a photographer" }] : []),
+    { href: "#listing-media", title: "Download media", sub: "Photos and video" },
     { href: `/media?home=${homeId}`, title: canRequestPhotos ? "Media" : "Photos and video", sub: canRequestPhotos ? "Home, community, plan" : "View and download" },
   ];
   const tiles = items.length + (shareUrl ? 1 : 0);

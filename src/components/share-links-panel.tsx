@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { cx, dateTime } from "@/lib/format";
 import { PendingButton } from "@/components/pending-button";
-import { deleteShareLink, extendShareLink, replaceShareLink, restoreShareLink } from "@/app/(app)/homes/[id]/share-actions";
+import { deleteShareLink, extendShareLink, linkWebsiteListing, replaceShareLink, restoreShareLink, saveWebsitePage } from "@/app/(app)/homes/[id]/share-actions";
 
 type Link = {
   id: string; token: string; recipient_name: string | null; recipient_email: string | null;
@@ -28,12 +28,20 @@ export async function ShareLinksPanel({
   // home; this section is only the managing part.
   if (!token || !canManage) return null;
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("share_links")
-    .select("id, token, recipient_name, recipient_email, expires_at, revoked_at, view_count, download_count, last_viewed_at, created_at, profiles!share_links_created_by_fkey(full_name)")
-    .eq("home_id", homeId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+  const [{ data }, { data: home }, { data: linked }, { data: suggestions }] = await Promise.all([
+    supabase
+      .from("share_links")
+      .select("id, token, recipient_name, recipient_email, expires_at, revoked_at, view_count, download_count, last_viewed_at, created_at, profiles!share_links_created_by_fkey(full_name)")
+      .eq("home_id", homeId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+    supabase.from("homes").select("website_page_url, builder_id").eq("id", homeId).maybeSingle(),
+    supabase.from("website_listings").select("url").eq("home_id", homeId).order("last_seen_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.rpc("website_link_suggestions", { p_home: homeId }),
+  ]);
+  const { data: brand } = home ? await supabase.from("builder_branding").select("website_url").eq("builder_id", home.builder_id).maybeSingle() : { data: null };
+  const feedPage = linked?.url && /^https?:\/\//i.test(linked.url) ? linked.url : null;
+  const suggestion = ((suggestions ?? []) as { website_listing_id: string; website_url: string | null }[])[0] ?? null;
   const all = (data ?? []) as unknown as Link[];
   const standing = all.find((l) => l.token === token);
   const older = all.filter((l) => l.expires_at !== null);
@@ -83,6 +91,56 @@ export async function ShareLinksPanel({
             </form>
           )}
         </div>
+      </div>
+
+      {/* Where the share page's "More info on the builder's website" button goes. */}
+      <div id="website-page" className="mt-4 scroll-mt-28 rounded-2xl border border-line p-4">
+        <h4 className="text-sm font-semibold">&ldquo;More info&rdquo; button on the share page</h4>
+        {feedPage ? (
+          <p className="mt-1 text-sm text-muted">
+            Goes to this home&rsquo;s page on your website (from your connected website):{" "}
+            <a href={feedPage} target="_blank" rel="noreferrer noopener" className="break-all font-medium text-foreground underline">{feedPage.replace(/^https?:\/\//, "")}</a>
+          </p>
+        ) : (
+          <>
+            {suggestion && (
+              <div className="mt-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
+                <p>
+                  We found this address on your website
+                  {suggestion.website_url && <>: <a href={suggestion.website_url} target="_blank" rel="noreferrer noopener" className="break-all underline">{suggestion.website_url.replace(/^https?:\/\//, "")}</a></>}.
+                  {" "}Is it the same home?
+                </p>
+                <form action={linkWebsiteListing} className="mt-2">
+                  <input type="hidden" name="home_id" value={homeId} />
+                  <input type="hidden" name="website_listing_id" value={suggestion.website_listing_id} />
+                  <PendingButton pending="Linking…" className="rounded-lg bg-foreground px-3 py-1.5 font-semibold text-white hover:bg-black">Yes, link them</PendingButton>
+                </form>
+              </div>
+            )}
+            <p className="mt-1 text-sm text-muted">
+              {home?.website_page_url
+                ? "Goes to this home’s page on your website:"
+                : brand?.website_url
+                  ? `Goes to your main website (${brand.website_url.replace(/^https?:\/\//, "").replace(/\/$/, "")}). Paste this home’s own page to send realtors straight to it.`
+                  : "There’s no website yet, so the button is hidden. Paste this home’s page on your website to show it."}
+            </p>
+            <form action={saveWebsitePage} className="mt-2 flex flex-wrap items-center gap-2">
+              <input type="hidden" name="home_id" value={homeId} />
+              <input
+                name="website_page_url"
+                type="url"
+                inputMode="url"
+                maxLength={500}
+                defaultValue={home?.website_page_url ?? ""}
+                placeholder="https://www.yourbuilder.com/homes/123-main-st"
+                aria-label="This home's page on your website"
+                className="field-input min-w-0 flex-1 py-2 text-sm"
+              />
+              <PendingButton pending="Saving…" className="rounded-lg border border-foreground px-3 py-2 text-sm font-semibold hover:bg-soft">Save link</PendingButton>
+            </form>
+            {home?.website_page_url && <p className="mt-1 text-xs text-muted">Clear the box and save to go back to your main website.</p>}
+          </>
+        )}
       </div>
 
       {older.length > 0 && (

@@ -10,7 +10,8 @@ import { cx, dateTime, money, num } from "@/lib/format";
 import { Notice } from "@/components/notice";
 import { MarketBadge, StatusBadge } from "@/components/badges";
 import { COMPARE_FIELDS, normalize, type CompareKey } from "./fields";
-import { addFromWebsite, askToFixMls, dismissWebsiteListing, saveFeedSettings, syncFeedNow, useWebsiteValue } from "./actions";
+import { addFromWebsite, askToFixMls, dismissWebsiteListing, linkWebsiteMatch, saveFeedSettings, syncFeedNow, useWebsiteValue } from "./actions";
+import { PendingButton } from "@/components/pending-button";
 
 export default function WebsiteCheckPage(props: PageProps<"/website-check">) {
   return (
@@ -69,6 +70,13 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
   const webByHome = new Map((web ?? []).filter((w) => w.home_id).map((w) => [w.home_id as string, w as Row]));
   const mlsByHome = new Map((mls ?? []).filter((m) => m.home_id).map((m) => [m.home_id as string, m as Row]));
   const newOnWebsite = (web ?? []).filter((w) => !w.home_id);
+  // Website homes that look like homes already added by hand (same address): confirm to link them.
+  const { data: suggestionRows } = await supabase.rpc("website_link_suggestions");
+  const homeIds = new Set((homes ?? []).map((h) => h.id));
+  const matches = ((suggestionRows ?? []) as { website_listing_id: string; home_id: string; address: string; website_url: string | null; community_name: string | null }[])
+    .filter((m) => homeIds.has(m.home_id));
+  const matchedListing = new Map(matches.map((m) => [m.website_listing_id, m]));
+  const canLink = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const myFields = new Set(editableFields(me.role) as readonly HomeField[]);
   const canApprove = ["platform_admin", "builder_owner", "manager"].includes(me.role);
   const canManageFeed = ["platform_admin", "builder_owner", "manager"].includes(me.role);
@@ -251,6 +259,36 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
             Homes on the website that aren’t in Builder Listings yet. One click brings over the address, plan, price, beds, baths, square feet and description.
             You’ll add the MLS-only details (lot, school district, photos) after.
           </p>
+          {matches.length > 0 && (
+            <section className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+              <h3 className="font-semibold">Already added? These look like the same home</h3>
+              <p className="mt-1 text-sm text-muted">
+                Same address on your website and in Builder Listings, but not linked. Linking ties the home to its website page, so the
+                website check compares them and the realtor share page&rsquo;s &ldquo;More info&rdquo; button goes to that page.
+              </p>
+              <ul className="mt-3 divide-y divide-amber-200">
+                {matches.map((m) => (
+                  <li key={m.website_listing_id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <span className="min-w-0">
+                      <Link href={`/homes/${m.home_id}`} className="font-semibold underline">{m.address}</Link>
+                      {m.community_name && <span className="text-sm text-muted"> · {m.community_name}</span>}
+                      {m.website_url && (
+                        <a href={m.website_url} target="_blank" rel="noreferrer noopener" className="block truncate text-xs text-muted underline">{m.website_url.replace(/^https?:\/\//, "")}</a>
+                      )}
+                    </span>
+                    {canLink && (
+                      <form action={linkWebsiteMatch}>
+                        <input type="hidden" name="back" value={backTo} />
+                        <input type="hidden" name="home_id" value={m.home_id} />
+                        <input type="hidden" name="website_listing_id" value={m.website_listing_id} />
+                        <PendingButton pending="Linking…" className="rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Link them</PendingButton>
+                      </form>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             {newOnWebsite.map((w) => {
               const match = (communities ?? []).find((c) => c.name.toLowerCase() === String(w.community_name ?? "").toLowerCase());
@@ -259,6 +297,9 @@ async function Check({ searchParams }: { searchParams: PageProps<"/website-check
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-semibold">{w.unparsed_address}</h3>
+                      {matchedListing.has(w.id) && (
+                        <p className="text-xs font-semibold text-amber-800">Looks like a home you already added. Link it above instead of adding it again.</p>
+                      )}
                       <p className="text-sm text-muted">{w.community_name}, {w.city}. {w.plan_name} plan. {w.status_text}</p>
                     </div>
                     <span className="text-lg font-bold tabular-nums">{money(w.list_price)}</span>

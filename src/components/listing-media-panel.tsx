@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { cx } from "@/lib/format";
-import { MediaPicture } from "@/components/media-tile";
+import { DISCLAIMER_TEXT, MediaPicture } from "@/components/media-tile";
+import { PhotoPackButton } from "@/components/photo-pack-button";
+import type { DownloadPreset } from "@/lib/image-resize";
 import type { MediaRow } from "@/lib/demo-media";
 import { TOUR_PROVIDERS, type ListingMedia, type Tour } from "@/lib/listing-media";
 import { addToListing, addTour, moveListingItem, removeFromListing, trashTour } from "@/app/(app)/homes/[id]/listing-actions";
@@ -15,12 +17,15 @@ export function ListingMediaPanel({
   canEdit,
   canRequest,
   notice,
+  download,
 }: {
-  home: { id: string; community_name: string; plan_name: string | null };
+  home: { id: string; community_name: string; plan_name: string | null; address?: string; disclaimer?: boolean };
   listing: ListingMedia;
   canEdit: boolean;
   canRequest: boolean;
   notice?: ReactNode;
+  // Download all of this home's listing photos at a picked size (the "Download media" button at the top jumps here).
+  download?: { presets: DownloadPreset[]; builderDefault: string | null };
 }) {
   const media = listing.items.filter((i) => i.type === "media");
   // MLS photo numbers (videos aren't numbered).
@@ -38,6 +43,25 @@ export function ListingMediaPanel({
         Community and floor plan photos, video and tours are optional: add the ones you want.
       </p>
       {notice}
+
+      {(download && listing.photos.length > 0) || listing.videos.length > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl bg-soft p-4">
+          {download && listing.photos.length > 0 && (
+            <PhotoPackButton
+              name={`photos-${(home.address ?? "home").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+              photos={listing.photos.map((m, i) => ({ id: m.id, file: m.source !== "demo", label: `${String(i + 1).padStart(2, "0")}-${(m.room ?? m.kind).replace(/_/g, "-")}` }))}
+              readme={`Listing photos of ${home.address ?? "this home"}, in MLS order, downloaded from Builder Listings.\n`}
+              label={`Download all ${listing.photos.length} photos (.zip)`}
+              presets={download.presets}
+              builderDefault={download.builderDefault}
+              disclaimer={home.disclaimer ? DISCLAIMER_TEXT : undefined}
+            />
+          )}
+          <Link href={`/media?home=${home.id}`} className="text-sm font-semibold underline">
+            {listing.videos.length > 0 ? "Videos and every file for this home" : "Every file for this home"}
+          </Link>
+        </div>
+      ) : null}
 
       {canEdit && (
         <div className="mt-4 flex flex-wrap gap-2 text-sm">

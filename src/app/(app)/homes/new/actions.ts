@@ -1,5 +1,6 @@
 "use server";
 
+import { cleanWebsitePage } from "@/lib/website-page";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -88,6 +89,14 @@ export async function createHome(formData: FormData) {
       row.city = web.city;
       sources.city = "website";
     }
+  }
+
+  // This home's page on the builder's website (optional; builders without a connected website).
+  const page = cleanWebsitePage(formData.get("website_page_url"));
+  if (page === "bad") fail("The website page link doesn’t look right. Paste the full address, like https://www.yourbuilder.com/homes/123-main-st, or leave it blank.");
+  if (page) {
+    row.website_page_url = page;
+    sources.website_page_url = "staff";
   }
 
   if (!row.unparsed_address) fail("Enter the street address.");

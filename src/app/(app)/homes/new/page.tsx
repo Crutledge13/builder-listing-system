@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { WEBSITE_PAGE_HELP } from "@/lib/website-page";
 import { requireProfile } from "@/lib/auth";
 import { canAddHomes, canRequestMedia, isStaff, NEED_LABELS, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
 import { createHome } from "./actions";
@@ -43,7 +44,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
   const [{ data: communities }, { data: boards }, { data: settings }] = await Promise.all([
     supabase.from("communities").select("id, name, city, builder_id, mls_board, builders(name)").order("name"),
     supabase.from("mls_boards").select("code, short_name, region").eq("active", true).order("code"),
-    supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked"),
+    supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked, website_feed_enabled"),
   ]);
   const staff = isStaff(me.role);
   const canPickMls = ["platform_admin", "listing_coordinator", "builder_owner", "manager"].includes(me.role);
@@ -168,7 +169,8 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
               }
             />
           ))}
-          <PhotosStep canRequest={canRequestMedia(me.role)} />
+          {/* Builders who haven't connected their website can paste this home's page on it (our staff work for every builder, so they always see it). */}
+          <PhotosStep canRequest={canRequestMedia(me.role)} askWebsitePage={staff || !mine?.website_feed_enabled} />
         </FormSteps>
       </form>
     </div>
@@ -190,9 +192,16 @@ function Text({ name, label, type = "text", step, placeholder, required, wide, h
 
 // Last step: where the listing's photos, video and tours come from. Photos
 // themselves are added after saving (a file needs a home to belong to).
-function PhotosStep({ canRequest }: { canRequest: boolean }) {
+function PhotosStep({ canRequest, askWebsitePage }: { canRequest: boolean; askWebsitePage: boolean }) {
   return (
     <div className="mt-4 space-y-8">
+      {askWebsitePage && (
+        <label className="block">
+          <span className="block text-sm font-medium">This home&rsquo;s page on your website</span>
+          <span className="mt-0.5 block text-xs leading-snug text-muted">{WEBSITE_PAGE_HELP}</span>
+          <input name="website_page_url" type="url" inputMode="url" maxLength={500} placeholder="https://www.yourbuilder.com/homes/123-main-st" className="field-input mt-1.5" />
+        </label>
+      )}
       <fieldset>
         <legend className="text-sm font-medium">Who&rsquo;s providing the photos?</legend>
         <span className="mt-0.5 block text-xs leading-snug text-muted">

@@ -187,3 +187,21 @@ export async function askToFixMls(formData: FormData) {
   after(() => sendQueuedEmails("issue_reports", data.id));
   back(formData, { saved: "Sent to our team. They’ll update the MLS." });
 }
+
+// Confirm a suggested match: a home added by hand is this listing on the
+// builder's website. Only pairs the database suggests (same builder, same
+// address) can be linked; it never happens on its own.
+export async function linkWebsiteMatch(formData: FormData) {
+  const homeId = String(formData.get("home_id"));
+  const listingId = String(formData.get("website_listing_id"));
+  const supabase = await createClient();
+  const { data: pairs } = await supabase.rpc("website_link_suggestions", { p_home: homeId });
+  if (!(pairs ?? []).some((p: { website_listing_id: string }) => p.website_listing_id === listingId)) {
+    back(formData, { error: "Those two can’t be linked anymore." });
+  }
+  const { data } = await supabase.from("website_listings").update({ home_id: homeId }).eq("id", listingId).is("home_id", null).select("id");
+  if (!data?.length) back(formData, { error: "Owners, managers and marketing can link website listings." });
+  revalidatePath("/website-check");
+  revalidatePath(`/homes/${homeId}`);
+  back(formData, { saved: "Linked. That home now follows its page on your website, and its share page links to it." });
+}
