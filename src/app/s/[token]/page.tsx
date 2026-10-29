@@ -39,11 +39,16 @@ type Shared = {
     id: string; name: string; logo_updated_at: string | null; icon_updated_at?: string | null; primary_color: string | null; secondary_color?: string | null;
     fonts?: string[]; tagline?: string | null; website_url: string | null;
   };
-  media: (Omit<MediaRow, "homes" | "communities" | "builders"> & { vertical: boolean })[];
-  tours: { url: string; provider: string; title: string | null; branded: boolean }[];
+  media: (Omit<MediaRow, "homes" | "communities" | "builders"> & { vertical: boolean; for_community?: boolean })[];
+  tours: Tour[];
+  community_tours?: Tour[];
+  // What the builder's marketing team chose to show (Realtor page settings). Missing = all on.
+  settings?: Partial<Record<"community" | "photos" | "walkthrough" | "reels" | "tours" | "incentives" | "open_houses" | "post_ideas" | "website", boolean>>;
   incentives?: { title: string; details: string | null; ends_on: string; scope: string }[];
   open_houses?: { starts_at: string; ends_at: string }[];
 };
+
+type Tour = { url: string; provider: string; title: string | null; branded: boolean };
 
 const PROVIDERS: Record<string, string> = { matterport: "Matterport 3D tour", zillow_3d: "Zillow 3D Home", iguide: "iGUIDE tour", cupix: "Cupix tour", youtube: "Video on YouTube", vimeo: "Video on Vimeo", other: "Tour" };
 const TZ = "America/Chicago";
@@ -86,7 +91,8 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
   ]);
   const s = data as Shared | null;
   // The home's own page on the builder's website when we know it, otherwise their main site.
-  const website = typeof websiteData === "string" && /^https?:\/\//i.test(websiteData) ? websiteData : null;
+  const showWebsite = (data as Shared | null)?.settings?.website !== false;
+  const website = showWebsite && typeof websiteData === "string" && /^https?:\/\//i.test(websiteData) ? websiteData : null;
 
   if (!s) {
     return (
@@ -104,16 +110,26 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
   const fileBase = `/s/${token}/file/`;
   const slug = h.address.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   // Shape each item like the rest of the app, so drawn demo pictures look the same.
-  const rows: (MediaRow & { vertical: boolean })[] = s.media.map((m) => ({
+  const all: (MediaRow & { vertical: boolean; for_community?: boolean })[] = s.media.map((m) => ({
     ...m,
     homes: { unparsed_address: h.address, stories: h.stories, plan_name: h.plan_name, bedrooms_total: h.bedrooms_total, bathrooms_full: h.bathrooms_full, bathrooms_half: h.bathrooms_half, living_area: h.living_area },
     communities: { name: s.community.name },
     builders: { name: builderName },
-  })) as (MediaRow & { vertical: boolean })[];
+  })) as (MediaRow & { vertical: boolean; for_community?: boolean })[];
+  // This home's items, and the community section's (the community's own photos and video).
+  const rows = all.filter((m) => !m.for_community);
+  const communityRows = all.filter((m) => m.for_community);
+  const communityPhotos = communityRows.filter((m) => m.kind !== "video");
+  const communityVideos = communityRows.filter((m) => m.kind === "video" && !m.vertical);
+  const communityReels = communityRows.filter((m) => m.kind === "video" && m.vertical);
+  const communityTours = s.community_tours ?? [];
+  const hasCommunity = communityRows.length > 0 || communityTours.length > 0;
+  const communitySlug = `${s.community.name}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const photos = rows.filter((m) => m.kind !== "video");
   const reels = rows.filter((m) => m.kind === "video" && m.vertical);
   const walkthroughs = rows.filter((m) => m.kind === "video" && !m.vertical);
-  const hero = photos[0];
+  // The home's best photo; if the builder hides the home's photos, the community's.
+  const hero = photos[0] ?? communityPhotos[0];
   const incentives = s.incentives ?? [];
   const openHouses = s.open_houses ?? [];
 
@@ -143,7 +159,7 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
     h.living_area != null && { n: num(h.living_area), label: "Square feet", icon: ICONS.area },
     h.stories != null && { n: String(h.stories), label: h.stories === 1 ? "Story" : "Stories", icon: ICONS.stories },
   ].filter(Boolean) as { n: string; label: string; icon: React.ReactNode }[];
-  const ideas = socialPostIdeas(h, s.community.name, builderName, { incentives, openHouses, hasReel: reels.length > 0, photoCount: photos.length });
+  const ideas = s.settings?.post_ideas === false ? [] : socialPostIdeas(h, s.community.name, builderName, { incentives, openHouses, hasReel: reels.length > 0, photoCount: photos.length });
   const [tour, ...moreTours] = s.tours;
   const tourThumb = photos[1] ?? hero;
 
@@ -291,7 +307,7 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
   );
 
   return (
-    <div className="min-h-screen bg-white">
+    <div id="top" className="min-h-screen bg-white">
       {font.href && <link rel="stylesheet" href={font.href} precedence="default" />}
       {icon && <link rel="icon" href={icon} />}
 
@@ -318,12 +334,12 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
               <span data-media-id={hero.id} className="block h-full w-full">
                 <MediaPicture m={hero} size="web" fileBase={fileBase} priority className="h-full w-full" />
               </span>
-              {h.disclaimer && hero.kind !== "floor_plan" && <span className="lg:hidden"><DisclaimerOverlay /></span>}
+              {h.disclaimer && hero.kind !== "floor_plan" && !hero.for_community && <span className="lg:hidden"><DisclaimerOverlay /></span>}
             </div>
             <div className="lg:absolute lg:right-8 lg:top-6 lg:w-[420px] lg:overflow-hidden lg:rounded-2xl lg:shadow-2xl">{panel}</div>
             <div className="bg-[#1e2125] lg:absolute lg:inset-x-8 lg:bottom-6 lg:rounded-2xl lg:bg-black/55 lg:backdrop-blur-md">
               {factBar}
-              {h.disclaimer && hero.kind !== "floor_plan" && <p className="hidden px-6 pb-3 text-xs text-white/80 lg:block">{DISCLAIMER_TEXT}</p>}
+              {h.disclaimer && hero.kind !== "floor_plan" && !hero.for_community && <p className="hidden px-6 pb-3 text-xs text-white/80 lg:block">{DISCLAIMER_TEXT}</p>}
             </div>
           </>
         ) : (
@@ -402,7 +418,86 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
 
         {reels.length === 0 && postSection && <div className="mt-12">{postSection}</div>}
 
-        {rows.length === 0 && s.tours.length === 0 && (
+        {/* The community as a whole (owners, 29 Oct 2026): its own photos, video and
+            tours, so a realtor can market the community and point buyers to this home. */}
+        {hasCommunity && (
+          <section id="community" className="mt-16 scroll-mt-6 border-t border-line pt-12">
+            <p className="text-sm font-semibold uppercase tracking-[0.12em]" style={{ color: brandText }}>The community</p>
+            <h2 className="mt-1 text-[30px] font-bold leading-tight tracking-tight" style={display}>{s.community.name}</h2>
+            <p className="mt-2 max-w-[68ch] text-[16px] leading-relaxed text-muted">
+              {s.community.city}, Texas. Photos and video of the whole community, to market {s.community.name} and point
+              interested buyers to {h.address}.
+            </p>
+
+            {(communityVideos.length > 0 || communityReels.length > 0) && (
+              <div className={cx("mt-8 grid gap-6", communityVideos.length > 0 && communityReels.length > 0 && "lg:grid-cols-[minmax(0,1fr)_auto]")}>
+                {communityVideos.length > 0 && (
+                  <div className="grid min-w-0 gap-6">
+                    {communityVideos.map((v) => (
+                      <figure key={v.id} className="min-w-0">
+                        <video src={`${fileBase}${v.id}#t=0.5`} controls playsInline preload="metadata" className="aspect-video w-full rounded-2xl bg-black" />
+                        <figcaption className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+                          <span className="font-medium">{v.title}</span>
+                          <a href={`${fileBase}${v.id}?download=1`} className="rounded-full border-2 px-4 py-1.5 font-semibold hover:bg-soft" style={{ borderColor: brandText, color: brandText }}>Download video</a>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
+                {communityReels.length > 0 && (
+                  <div className="flex flex-wrap gap-4">
+                    {communityReels.map((v) => (
+                      <figure key={v.id} className="w-[200px] max-w-full">
+                        <video src={`${fileBase}${v.id}#t=0.5`} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black object-cover" />
+                        <a href={`${fileBase}${v.id}?download=1`} className="mt-2 block rounded-lg py-2 text-center text-sm font-semibold hover:brightness-110" style={{ background: brand, color: onBrand }}>Download reel</a>
+                      </figure>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {communityPhotos.length > 0 && (
+              <div className="mt-8">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-[20px] font-bold" style={display}>Community photos</h3>
+                  <PhotoPackButton
+                    name={`photos-${communitySlug}`}
+                    photos={communityPhotos.map((m, i) => ({ id: m.id, file: m.source !== "demo", label: `${String(i + 1).padStart(2, "0")}-${(m.room ?? m.kind).replace(/_/g, "-")}` }))}
+                    readme={`Photos of ${s.community.name}, ${s.community.city}, from ${builderName}.\nFor marketing the community and its homes.\n`}
+                    label={`Download all ${communityPhotos.length} community photos`}
+                    presets={SHARE_SIZES}
+                    builderDefault="full"
+                    fileBase={fileBase}
+                    buttonClassName="rounded-lg border-2 px-4 py-2 text-sm font-semibold hover:bg-soft disabled:opacity-70"
+                    buttonStyle={{ borderColor: brandText, color: brandText }}
+                  />
+                </div>
+                <ShareGallery photos={communityPhotos} fileBase={fileBase} disclaimer={false} slug={communitySlug} accent={brandText} heroShown={false} />
+              </div>
+            )}
+
+            {communityTours.length > 0 && (
+              <p className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[15px]">
+                <span className="font-semibold">Tour the community:</span>
+                {communityTours.map((t) => (
+                  <a key={t.url} href={t.url} target="_blank" rel="noreferrer noopener" className="font-semibold underline underline-offset-4" style={{ color: brandText }}>{t.title ?? PROVIDERS[t.provider] ?? "Tour"}</a>
+                ))}
+              </p>
+            )}
+
+            {/* The funnel: from the community back to this home. */}
+            <a href="#top" className="mt-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-5 hover:brightness-[0.98]" style={{ background: tint }}>
+              <span>
+                <span className="block text-sm text-muted">Available in {s.community.name}</span>
+                <span className="block text-[19px] font-bold" style={display}>{h.address}{h.list_price != null ? ` · ${money(h.list_price)}` : ""}</span>
+              </span>
+              <span className="rounded-xl px-5 py-2.5 text-[15px] font-semibold" style={{ background: brand, color: onBrand }}>See this home ↑</span>
+            </a>
+          </section>
+        )}
+
+        {rows.length === 0 && s.tours.length === 0 && !hasCommunity && (
           <p className="mt-12 rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">Photos and video for this home are on the way. Check back soon.</p>
         )}
       </main>

@@ -23,12 +23,14 @@ export const SHARE_SIZES: DownloadPreset[] = [
 // still find demo pictures. Tapping a photo opens it large with a download menu.
 const FRAME = 4;
 
-export function ShareGallery({ photos, fileBase, disclaimer, slug, accent, children }: { photos: MediaRow[]; fileBase: string; disclaimer: boolean; slug: string; accent?: string; children?: React.ReactNode }) {
+// `heroShown`: the first photo is already the page's hero, so start from the
+// second (the home's photos). The community section shows all of its own.
+export function ShareGallery({ photos, fileBase, disclaimer, slug, accent, children, heroShown = true }: { photos: MediaRow[]; fileBase: string; disclaimer: boolean; slug: string; accent?: string; children?: React.ReactNode; heroShown?: boolean }) {
   const [open, setOpen] = useState<number | null>(null);
   const [all, setAll] = useState(false);
   const m = open === null ? null : photos[open];
   // Photo 1 is the hero; frame from photo 2 when there are enough.
-  const start = photos.length > FRAME ? 1 : 0;
+  const start = heroShown && photos.length > FRAME ? 1 : 0;
   const frame = photos.slice(start, start + FRAME);
   const rest = photos.slice(start + FRAME);
 

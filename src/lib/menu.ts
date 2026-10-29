@@ -63,11 +63,13 @@ export function menuLinks(role: Role, off: ReadonlySet<Feature> = new Set()): Me
   if (["builder_owner", "manager", "marketing"].includes(role)) {
     links.push({ href: "/company", label: "Company details", hint: "Main contact, billing, website and title company" });
     links.push({ href: "/branding", label: "Company branding", hint: "Logo, colors and fonts" });
+    links.push({ href: "/realtor-page", label: "Realtor page settings", hint: "What your realtor share links show" });
   } else if (role === "sales") {
     links.push({ href: "/branding", label: "Company branding", hint: "Logo and brand colors" });
   }
   if (role === "platform_admin" || role === "listing_coordinator") {
     links.push({ href: "/branding", label: "Builder branding", hint: "Each builder’s logo, colors and notes" });
+    links.push({ href: "/realtor-page", label: "Realtor page settings", hint: "What each builder’s realtor share links show" });
     links.push({ href: "/company", label: "Builder company details", hint: "Each builder’s contact, billing, website and title company" });
   }
   if (role === "builder_owner") {

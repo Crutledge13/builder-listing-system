@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { HomeSection } from "@/components/home-section";
@@ -60,8 +61,9 @@ export async function ShareLinksPanel({
     <HomeSection id="share" title="Share with a realtor" badge={fold?.badge} hint={fold?.hint} open={fold?.open}>
       <p className="mt-1 max-w-2xl text-sm text-muted">
         Copy this home&rsquo;s link with the <b className="font-semibold text-foreground">Share link</b> button at the top and send it to anyone. It opens a
-        page with the listing photos, walkthrough video, vertical reel and tour links to download, plus a button to the builder&rsquo;s
-        website. No login needed.
+        page with the listing photos, walkthrough video, vertical reel, tour links and the community&rsquo;s photos and video to download,
+        plus a button to the builder&rsquo;s website. No login needed.
+        {canManage && <> Choose what it shows in <Link href="/realtor-page" className="font-semibold text-foreground underline">Realtor page settings</Link>.</>}
       </p>
       {!highlight && notice}
       {undo && canManage && (
