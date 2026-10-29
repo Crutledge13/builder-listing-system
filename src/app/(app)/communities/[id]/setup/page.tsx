@@ -65,7 +65,7 @@ async function CommunitySetup({
   const { id } = await params;
   const me = await requireProfile();
   sendPhotographersToJobs(me);
-  if (me.role === "sales" || me.role === "photographer") redirect(`/communities/${id}`);
+  if ((me.role === "sales" && !me.sales_mls_entry) || me.role === "photographer") redirect(`/communities/${id}`);
   const supabase = await createClient();
   const { data: c } = await supabase
     .from("communities")
@@ -86,7 +86,9 @@ async function CommunitySetup({
   const staff = (staffRow?.data ?? {}) as Record<string, unknown>;
   const score = communityCompleteness(c, mergeCommunityDetails(answers, staff, defaults), sections);
   const missing = new Set(score.missing.map((f) => f.key));
-  const canEdit = canEditCommunitySetup(me.role);
+  const canEdit = canEditCommunitySetup(me);
+  // Salespeople with MLS entry change the MLS answers, not the community's name, city or county.
+  const answersOnly = me.role === "sales";
   const builderName = (c.builders as unknown as { name: string } | null)?.name.replace(" (demo)", "");
   const boardName = (board as MlsBoard | null)?.short_name;
 
@@ -127,18 +129,19 @@ async function CommunitySetup({
             <div className="mt-4 grid gap-x-4 gap-y-6 sm:grid-cols-3">
               <label className="block">
                 <span className="text-sm font-medium">Community name</span>
-                <input name="name" required defaultValue={c.name} className="field-input mt-1.5" />
+                <input name="name" required defaultValue={c.name} disabled={answersOnly} className="field-input mt-1.5" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">City</span>
-                <input name="city" required defaultValue={c.city} className="field-input mt-1.5" />
+                <input name="city" required defaultValue={c.city} disabled={answersOnly} className="field-input mt-1.5" />
               </label>
               <label className="block">
                 <span className="text-sm font-medium">County</span>
-                <input name="county" defaultValue={c.county ?? ""} className="field-input mt-1.5" />
+                <input name="county" defaultValue={c.county ?? ""} disabled={answersOnly} className="field-input mt-1.5" />
                 <span className="mt-1 block text-xs text-muted">Decides which MLS the community goes to.</span>
               </label>
             </div>
+            {answersOnly && <p className="mt-3 text-xs text-muted">Marketing changes the community&rsquo;s name, city and county.</p>}
           </section>
 
           {sections.map((s) => (

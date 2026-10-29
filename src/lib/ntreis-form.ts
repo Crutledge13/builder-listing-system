@@ -1,10 +1,13 @@
 import { NTREIS_BUILDER_FIELDS, STORIES_FROM_LEVELS } from "@/lib/ntreis-fields";
 import type { MlsField } from "@/lib/mls-fields";
+import { roleOf, salesMayEditListing, type Who, type WorkflowStatus } from "@/lib/permissions";
 
 // Who may change the builder's NTREIS answers after a home is added
 // (same people who can edit its specs; mirrors enforce_home_edit_rules).
-export function canEditMlsAnswers(role: string) {
-  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
+// Salespeople with MLS entry on count too (while the home's status allows it).
+export function canEditMlsAnswers(who: Who | string, status?: WorkflowStatus | null) {
+  if (typeof who === "string") return ["platform_admin", "builder_owner", "manager", "marketing"].includes(who);
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(roleOf(who)) || salesMayEditListing(who, status);
 }
 
 const BY_KEY = new Map(NTREIS_BUILDER_FIELDS.map((f) => [f.key, f]));

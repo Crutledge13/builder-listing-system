@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { CommunitiesFold } from "@/components/communities-fold";
+import { SalesMlsSwitches } from "@/components/sales-mls-switches";
 import { CommunityPicker } from "@/components/community-picker";
 import { SetupNav } from "@/components/setup-nav";
 import { Avatar } from "@/components/avatar";
@@ -28,7 +29,7 @@ export default function TeamPage(props: PageProps<"/team">) {
 const ROLE_HINTS: Partial<Record<Role, string>> = {
   builder_owner: "Everything for your company, including adding people.",
   manager: "Can do everything marketing can; usually follows along and reads the reports.",
-  sales: "Only their communities: price, status, open houses, requests.",
+  sales: "Only their communities: price, status, open houses, requests. Can also be allowed to enter homes for the MLS.",
   marketing: "Runs listings day to day: homes, prices, photos, approvals, communities and the team.",
 };
 
@@ -38,7 +39,7 @@ async function Team() {
   if (!canManageTeam(me.role)) redirect("/communities");
   const supabase = await createClient();
   const [{ data: people }, { data: communities }, { data: assignments }] = await Promise.all([
-    supabase.from("profiles").select("id, email, full_name, role, is_active, phone, job_title, avatar_updated_at").eq("builder_id", me.builder_id!).order("full_name"),
+    supabase.from("profiles").select("id, email, full_name, role, is_active, phone, job_title, avatar_updated_at, sales_mls_entry, sales_needs_approval").eq("builder_id", me.builder_id!).order("full_name"),
     supabase.from("communities").select("id, name, city").eq("builder_id", me.builder_id!).order("name"),
     supabase.from("community_assignments").select("profile_id, community_id"),
   ]);
@@ -104,6 +105,12 @@ async function Team() {
                         <button className="mt-3 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save communities</button>
                       </form>
                     </CommunitiesFold>
+                  )}
+                  {role === "sales" && editable && (
+                    <SalesMlsSwitches profileId={p.id} name={p.full_name} mlsEntry={!!p.sales_mls_entry} needsApproval={p.sales_needs_approval !== false} back="/team" />
+                  )}
+                  {role === "sales" && !editable && p.sales_mls_entry && (
+                    <p className="mt-2 text-sm text-muted">Enters homes for the MLS{p.sales_needs_approval === false ? " (no approval needed)" : " (marketing approves)"}</p>
                   )}
                 </div>
               );

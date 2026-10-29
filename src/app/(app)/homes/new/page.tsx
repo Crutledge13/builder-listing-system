@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { WEBSITE_PAGE_HELP } from "@/lib/website-page";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
-import { canAddHomes, canRequestMedia, isStaff, NEED_LABELS, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
+import { canAddHomes, canManageMedia, canRequestMedia, isStaff, NEED_LABELS, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
 import { createHome } from "./actions";
 import { questionSections, SectionFields } from "@/components/ntreis-questions";
 import { FormSteps } from "@/components/form-steps";
@@ -33,7 +33,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
   const me = await requireProfile();
   sendPhotographersToJobs(me);
 
-  if (!canAddHomes(me.role)) {
+  if (!canAddHomes(me)) {
     return (
       <div className="mx-auto max-w-lg py-16 text-center">
         <h1 className="text-[28px] font-bold tracking-tight">Adding homes isn’t part of your role</h1>
@@ -183,13 +183,21 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
                     </div>
                   </>
                 ) : q.title === "Location and schools" ? (
-                  <CommunitySchools formId="new-home" schools={schools} canEdit={canEditCommunitySetup(me.role)} />
+                  <CommunitySchools formId="new-home" schools={schools} canEdit={canEditCommunitySetup(me)} />
                 ) : undefined
               }
             />
           ))}
           {/* Builders who haven't connected their website can paste this home's page on it (our staff work for every builder, so they always see it). */}
-          <PhotosStep canRequest={canRequestMedia(me.role)} askWebsitePage={staff || !mine?.website_feed_enabled} />
+          {canManageMedia(me.role) ? (
+            <PhotosStep canRequest={canRequestMedia(me.role)} askWebsitePage={staff || !mine?.website_feed_enabled} />
+          ) : (
+            // Salespeople with MLS entry: marketing and our photographer add the photos.
+            <p className="mt-4 rounded-2xl bg-soft p-5 text-sm text-muted">
+              Marketing and our photographer add the photos and tours. Once they&rsquo;re on the home, you can put them in MLS order and
+              pick the cover photo on the home&rsquo;s page, under &ldquo;Listing photos, video and tours&rdquo;.
+            </p>
+          )}
         </FormSteps>
       </form>
     </div>

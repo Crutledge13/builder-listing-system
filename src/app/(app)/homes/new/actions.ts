@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { canAddHomes, canRequestMedia, type Role } from "@/lib/permissions";
+import { canAddHomes, canManageMedia, canRequestMedia, type Role } from "@/lib/permissions";
 import { detectProvider } from "@/lib/listing-media";
 import { answerSources, readMlsAnswers, storiesFromLevels } from "@/lib/ntreis-form";
 import { cleanRooms } from "@/lib/rooms";
@@ -19,7 +19,7 @@ function fail(message: string): never {
 
 export async function createHome(formData: FormData) {
   const me = await requireProfile();
-  if (!canAddHomes(me.role)) fail("Your role can’t add homes. Ask a manager or owner.");
+  if (!canAddHomes(me)) fail("Your role can’t add homes. Ask a manager or owner.");
 
   const supabase = await createClient();
   const communityId = String(formData.get("community_id") ?? "");
@@ -124,14 +124,15 @@ export async function createHome(formData: FormData) {
   if (fromWebsite) await supabase.from("website_listings").update({ home_id: data.id }).eq("id", web.id).is("home_id", null);
 
   // Photos, video and tours (the home has to exist first).
-  const problems = await setUpListingMedia(supabase, data.id, community.id, me.role, formData);
+  // Salespeople with MLS entry don't add media (marketing and our photographer do).
+  const problems = canManageMedia(me.role) ? await setUpListingMedia(supabase, data.id, community.id, me.role, formData) : [];
 
   revalidatePath("/homes");
   revalidatePath("/approvals");
   revalidatePath("/media/requests");
   revalidatePath("/website-check");
   if (problems.length) redirect(`/homes/${data.id}?${new URLSearchParams({ error: `The home is saved, but: ${problems.join(" ")}`, at: "listing-media" })}#listing-media`);
-  if (formData.get("photos_by") === "own") redirect(`/media/upload?home=${data.id}`);
+  if (formData.get("photos_by") === "own" && canManageMedia(me.role)) redirect(`/media/upload?home=${data.id}`);
   redirect(`/homes/${data.id}?saved=created`);
 }
 

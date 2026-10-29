@@ -92,9 +92,10 @@ async function CommunityDetail({
     : { data: null };
   const onTeam = new Set((thisTeam ?? []).map((t) => t.profile_id));
 
-  // How much of the community's shared MLS setup is answered (not for sales).
+  // How much of the community's shared MLS setup is answered (not for sales,
+  // unless their MLS entry switch is on).
   let setup: { filled: number; required: number } | null = null;
-  if (me.role !== "sales") {
+  if (me.role !== "sales" || me.sales_mls_entry) {
     const [{ data: board }, { data: staffRow }] = await Promise.all([
       community.mls_board ? supabase.from("mls_boards").select(MLS_BOARD_SELECT).eq("code", community.mls_board).maybeSingle() : Promise.resolve({ data: null }),
       supabase.from("mls_details").select("data").eq("community_id", id).maybeSingle(),
@@ -140,7 +141,7 @@ async function CommunityDetail({
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        {canAddHomes(me.role) && (
+        {canAddHomes(me) && (
           <Link href={`/homes/new?community=${community.id}`} className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">
             <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
             Add a home here

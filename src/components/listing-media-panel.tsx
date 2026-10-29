@@ -18,6 +18,7 @@ export function ListingMediaPanel({
   home,
   listing,
   canEdit,
+  canArrange = false,
   canRequest,
   notice,
   download,
@@ -29,6 +30,8 @@ export function ListingMediaPanel({
   home: { id: string; community_name: string; plan_name: string | null; address?: string; disclaimer?: boolean };
   listing: ListingMedia;
   canEdit: boolean;
+  // Reorder and pick the cover only (salespeople with MLS entry on).
+  canArrange?: boolean;
   canRequest: boolean;
   notice?: ReactNode;
   // Download all of this home's listing photos at a picked size (the "Download media" button at the top jumps here).
@@ -46,6 +49,7 @@ export function ListingMediaPanel({
     acc.push((i as Extract<typeof i, { type: "media" }>).media.kind === "video" ? 0 : prev + 1);
     return acc;
   }, []);
+  const arrange = canEdit || canArrange;
 
   return (
     <HomeSection id="listing-media" title="Listing photos, video and tours" badge={fold?.badge} hint={fold?.hint} open={fold?.open}>
@@ -83,9 +87,9 @@ export function ListingMediaPanel({
 
       {/* 1. Photos and video on the listing, in MLS order */}
       <SubHead n={1} title="Photos and video on the listing" count={`${plural(listing.photos.length, "photo")}${listing.videos.length ? ` · ${plural(listing.videos.length, "video")}` : ""}`}>
-        In the order the MLS shows them. {canEdit ? "Drag a photo onto another spot to move it (or use Earlier / Later). Click a name to rename it." : ""}
+        In the order the MLS shows them. {canEdit ? "Drag a photo onto another spot to move it (or use Earlier / Later). Click a name to rename it." : arrange ? "Drag a photo onto another spot to move it (or use Earlier / Later)." : ""}
       </SubHead>
-      {canEdit && listing.photos.length > 1 && (
+      {arrange && listing.photos.length > 1 && (
         <p className="mt-1 text-xs text-muted">
           <b className="font-semibold text-foreground">★ Cover:</b> the photo on this home&rsquo;s cards and at the top of its page. Pick one with
           &ldquo;Make cover&rdquo;; it also becomes photo 1 on the MLS.
@@ -120,14 +124,14 @@ export function ListingMediaPanel({
             </form>
           ) : null;
         })()}
-        <ListingSortable homeId={home.id} enabled={canEdit && media.length > 1} className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <ListingSortable homeId={home.id} enabled={arrange && media.length > 1} className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {media.map((item, idx) => {
             const m = (item as Extract<typeof item, { type: "media" }>).media;
             const isVideo = m.kind === "video";
             // The cover: the chosen one, or (until one is chosen) photo 1.
             const isCover = m.id === coverId;
             return (
-              <li key={item.id} data-sort-id={item.id} className={cx("min-w-0", canEdit && media.length > 1 && "cursor-grab")}>
+              <li key={item.id} data-sort-id={item.id} className={cx("min-w-0", arrange && media.length > 1 && "cursor-grab")}>
                 <Link href={`/media/${m.id}`} className={cx("relative block aspect-[3/2] overflow-hidden rounded-lg bg-soft", isCover && "ring-2 ring-accent ring-offset-2")}>
                   <MediaPicture m={m} className="h-full w-full" />
                   <span className="absolute left-1.5 top-1.5 rounded bg-white/95 px-1.5 text-[11px] font-bold shadow-sm">{isVideo ? "Video" : numbers[idx]}</span>
@@ -145,7 +149,7 @@ export function ListingMediaPanel({
                   )}
                 </Link>
                 <RenameInline mediaId={m.id} name={m.caption ?? m.title} canEdit={canEdit && m.home_id === home.id} />
-                {canEdit && (
+                {arrange && (
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                     {idx > 0 && <Move homeId={home.id} itemId={item.id} dir="up" label="← Earlier" />}
                     {idx < media.length - 1 && <Move homeId={home.id} itemId={item.id} dir="down" label="Later →" />}
@@ -157,11 +161,13 @@ export function ListingMediaPanel({
                       </form>
                     )}
                     {idx > 0 && !isVideo && <Move homeId={home.id} itemId={item.id} dir="first" label="Make first" />}
-                    <form action={removeFromListing}>
-                      <input type="hidden" name="home_id" value={home.id} />
-                      <input type="hidden" name="item_id" value={item.id} />
-                      <button className="font-semibold text-red-700 underline" title="Takes it off the listing; it stays in the media library">Remove</button>
-                    </form>
+                    {canEdit && (
+                      <form action={removeFromListing}>
+                        <input type="hidden" name="home_id" value={home.id} />
+                        <input type="hidden" name="item_id" value={item.id} />
+                        <button className="font-semibold text-red-700 underline" title="Takes it off the listing; it stays in the media library">Remove</button>
+                      </form>
+                    )}
                   </div>
                 )}
               </li>

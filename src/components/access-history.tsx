@@ -16,6 +16,10 @@ function describe(e: Entry) {
     case "person_turned_on": return `turned ${c.name}’s access back on`;
     case "sales_community_added": return `gave ${c.name} access to ${c.community}`;
     case "sales_community_removed": return `removed ${c.name} from ${c.community}`;
+    case "person_mls_entry_on": return `let ${c.name} enter homes for the MLS`;
+    case "person_mls_entry_off": return `made ${c.name} a standard salesperson again (no MLS entry)`;
+    case "person_approval_on": return `set ${c.name}’s MLS entries to need marketing approval`;
+    case "person_approval_off": return `let ${c.name}’s MLS entries go straight to our team (no approval)`;
     case "person_staff_builder_added": return `assigned ${c.person} (our team) to work on this builder`;
     case "person_staff_builder_removed": return `took ${c.person} (our team) off this builder`;
     default: return e.action.replace(/_/g, " ");

@@ -17,6 +17,33 @@ export type WorkflowStatus =
   | "approved_for_mls"
   | "live_on_mls";
 
+// Who is asking: a role, or the signed-in person (so the sales switches count).
+// Salespeople can have "MLS entry" switched on (owners, 29 Oct 2026): for their
+// assigned communities they add homes, fill in every listing detail and the
+// community setup, and reorder the listing photos. "Needs marketing approval"
+// (on by default) decides whether marketing approves before our team gets it.
+// Mirrors private.sales_mls_on / sales_skips_approval / sales_may_edit_listing.
+export type Who = Role | { role: Role; sales_mls_entry?: boolean | null; sales_needs_approval?: boolean | null };
+
+export function roleOf(who: Who): Role {
+  return typeof who === "string" ? who : who.role;
+}
+
+export function salesMlsOn(who: Who) {
+  return typeof who !== "string" && who.role === "sales" && !!who.sales_mls_entry;
+}
+
+export function salesSkipsApproval(who: Who) {
+  return salesMlsOn(who) && typeof who !== "string" && who.sales_needs_approval === false;
+}
+
+// May this salesperson change a home's listing details in this state? Needing
+// approval locks them once it's Ready for MLS or live (they send a change request).
+export function salesMayEditListing(who: Who, status?: WorkflowStatus | null) {
+  if (!salesMlsOn(who)) return false;
+  return salesSkipsApproval(who) || !status || status === "draft" || status === "in_review";
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   platform_admin: "Platform admin",
   listing_coordinator: "Listing coordinator",
@@ -64,7 +91,10 @@ export type HomeField = (typeof HOME_FIELDS)[number];
 
 const OWNER_MANAGER_FIELDS: readonly HomeField[] = HOME_FIELDS;
 
-export function editableFields(role: Role): readonly HomeField[] {
+// `status` is the home's listing status (matters for salespeople with MLS entry).
+export function editableFields(who: Who, status?: WorkflowStatus | null): readonly HomeField[] {
+  const role = roleOf(who);
+  if (role === "sales" && salesMayEditListing(who, status)) return OWNER_MANAGER_FIELDS;
   switch (role) {
     case "platform_admin":
     case "builder_owner":
@@ -88,10 +118,11 @@ export function isStaff(role: Role) {
 
 // Status changes this role may make from the current status.
 export function allowedTransitions(
-  role: Role,
+  who: Who,
   from: WorkflowStatus,
   enterOwnMls = false, // the builder enters its own listings in the MLS
 ): WorkflowStatus[] {
+  const role = roleOf(who);
   if (role === "platform_admin") {
     return (["draft", "in_review", "approved_for_mls", "live_on_mls"] as const)
       .filter((s) => s !== from);
@@ -104,6 +135,9 @@ export function allowedTransitions(
   if (builderEditor && from === "in_review") out.push("draft");
   if (approver && from === "in_review") out.push("approved_for_mls");
   if (approver && from === "approved_for_mls") out.push("in_review");
+  // Salespeople who don't need marketing's approval send it straight to our team.
+  if (salesSkipsApproval(who) && (from === "draft" || from === "in_review")) out.push("approved_for_mls");
+  if (salesSkipsApproval(who) && from === "approved_for_mls") out.push("draft");
   if (role === "listing_coordinator" && from === "approved_for_mls") out.push("live_on_mls");
   if (enterOwnMls && ["builder_owner", "manager", "marketing"].includes(role) && from === "approved_for_mls") out.push("live_on_mls");
   return out;
@@ -117,8 +151,14 @@ export const TRANSITION_LABELS: Record<WorkflowStatus, string> = {
 };
 
 // Who may add a new home (matches the database's insert rule).
-export function canAddHomes(role: Role) {
-  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
+export function canAddHomes(who: Who) {
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(roleOf(who)) || salesMlsOn(who);
+}
+
+// Reorder the listing photos and pick the cover without the rest of media
+// managing (salespeople with MLS entry). Mirrors the listing_media / media rules.
+export function canArrangeListing(who: Who, status?: WorkflowStatus | null) {
+  return canManageMedia(roleOf(who)) || salesMayEditListing(who, status);
 }
 
 // Who may upload media and edit tags (matches the database's media rules).

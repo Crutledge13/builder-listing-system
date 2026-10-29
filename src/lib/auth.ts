@@ -14,6 +14,9 @@ export type Profile = {
   job_title: string | null;
   avatar_updated_at: string | null;
   builder_logo_at: string | null;
+  // Sales switches (owners, 29 Oct 2026): MLS entry, and whether marketing approves.
+  sales_mls_entry: boolean;
+  sales_needs_approval: boolean;
 };
 
 // The signed-in user's profile, or a redirect to /login.
@@ -33,7 +36,7 @@ export const requireProfile = cache(async (): Promise<Profile> => {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, builder_id, is_active, phone, job_title, avatar_updated_at, builders!profiles_builder_id_fkey(name, builder_branding(logo_updated_at))")
+    .select("id, email, full_name, role, builder_id, is_active, phone, job_title, avatar_updated_at, sales_mls_entry, sales_needs_approval, builders!profiles_builder_id_fkey(name, builder_branding(logo_updated_at))")
     .eq("id", user.id)
     .single();
 
@@ -53,6 +56,8 @@ export const requireProfile = cache(async (): Promise<Profile> => {
     job_title: data.job_title,
     avatar_updated_at: data.avatar_updated_at,
     builder_logo_at: builder?.builder_branding?.logo_updated_at ?? null,
+    sales_mls_entry: !!data.sales_mls_entry,
+    sales_needs_approval: data.sales_needs_approval !== false,
   };
 });
 
@@ -75,7 +80,7 @@ export const DEMO_USERS = [
   { email: "coordinator@demo.test", label: "Casey Coordinator", detail: "Listing coordinator (our staff)" },
   { email: "owner.mesquite@demo.test", label: "Morgan Reyes", detail: "Owner, Mesquite Creek (Listing Service+ and Photos)" },
   { email: "manager.mesquite@demo.test", label: "Jordan Ellis", detail: "Manager, Mesquite Creek" },
-  { email: "sales.mesquite@demo.test", label: "Taylor Brooks", detail: "Sales, Oak Creek only" },
+  { email: "sales.mesquite@demo.test", label: "Taylor Brooks", detail: "Sales, Oak Creek only (MLS entry on, marketing approves)" },
   { email: "sales2.mesquite@demo.test", label: "Jamie Ortiz", detail: "Sales, Willow Bend Ranch only" },
   { email: "marketing.mesquite@demo.test", label: "Riley Chen", detail: "Marketing, Mesquite Creek" },
   { email: "owner.prairie@demo.test", label: "Avery Patel", detail: "Owner, Prairie Lantern (Software and Photos)" },
@@ -85,7 +90,7 @@ export const DEMO_USERS = [
   { email: "sales.cedar@demo.test", label: "Sam Whitfield", detail: "Sales, Cedar Hollow" },
   { email: "owner.redbud@demo.test", label: "Elena Marsh", detail: "Owner, Redbud Ridge (Listing Service+ only)" },
   { email: "marketing.redbud@demo.test", label: "Chris Vega", detail: "Marketing, Redbud Ridge" },
-  { email: "sales.redbud@demo.test", label: "Dana Fields", detail: "Sales, Redbud Ridge" },
+  { email: "sales.redbud@demo.test", label: "Dana Fields", detail: "Sales, Redbud Ridge (MLS entry on, no approval needed)" },
   { email: "photographer@demo.test", label: "Sky Navarro", detail: "Photographer (contractor)" },
 ] as const;
 

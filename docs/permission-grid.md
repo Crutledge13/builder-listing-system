@@ -2,6 +2,8 @@
 
 **Status: DRAFT for the owners to approve.** Owners' decision, 28 Oct 2026: marketing is the builder's main operator and can do everything a manager can (approve for the MLS, prices, status, communities, people for sales and marketing, reports); managers keep the same access and mostly follow along and read reports. Written from what the database enforces today (row-level security and triggers in `supabase/migrations/`) and confirmed by role-by-role tests against the test project. Once approved, this grid is final and CLAUDE.md's role table follows it. Any change here must be made in the database rules, `src/lib/permissions.ts` and this file together.
 
+**Sales MLS entry (owners, 29 Oct 2026):** "Sales+" below is a salesperson with the MLS entry switch on, for their assigned communities only. With "Needs marketing approval" on (the default), listing details and photo order lock once a home is Ready for MLS or live; with it off, they approve for the MLS themselves.
+
 Roles: **Admin** = platform admin, **Coord** = listing coordinator (both our company). **Owner**, **Mgr** = manager, **Sales**, **Mktg** = marketing (builder company). **Photo** = photographer (contractor).
 
 Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assigned" = only communities they're assigned to · "jobs" = only homes/communities on their open photo jobs
@@ -14,11 +16,12 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Add or rename builders | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
 | See communities | all | all | own | own | assigned | own | ➖ |
 | Add communities | ✅ any builder | ➖ | own | own | ➖ | own | ➖ |
-| Community setup answers (schools, HOA, showing, directions) | ✅ | 👁 | own | own | ➖ | own | ➖ |
+| Community setup answers (schools, HOA, showing, directions) | ✅ | 👁 | own | own | ➖ (Sales+: assigned) | own | ➖ |
 | Edit communities / move to another builder | ✅ | ➖ | own (no move) | own (no move) | ➖ | own (no move) | ➖ |
 | See people | all | all | own company | own company | own company | own company | self |
 | Add people | ✅ any role | ➖ | own: owner, mgr, sales, mktg | own: sales, mktg | ➖ | own: sales, mktg | ➖ |
 | Change roles / turn off access | ✅ | ➖ | own (not self) | own sales, mktg (not self) | ➖ | own sales, mktg (not self) | ➖ |
+| Sales switches: MLS entry, needs marketing approval | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | Assign salespeople to communities | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | Edit own profile, headshot, email, password | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | See builder branding (logo, colors, notes) | all | all | own | own | own | own | ➖ |
@@ -34,12 +37,12 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Action | Admin | Coord | Owner | Mgr | Sales | Mktg | Photo |
 |---|---|---|---|---|---|---|---|
 | See homes | all | all | own | own | assigned | own | ➖ |
-| Add homes (as drafts) | ✅ | ➖ | own | own | ➖ | own | ➖ |
-| Edit address, plan, specs, lot, build stage | ✅ | ➖ | ✅ | ✅ | build stage, completion only | ✅ | ➖ |
+| Add homes (as drafts) | ✅ | ➖ | own | own | ➖ (Sales+: assigned) | own | ➖ |
+| Edit address, plan, specs, lot, build stage | ✅ | ➖ | ✅ | ✅ | build stage, completion only (Sales+: all) | ✅ | ➖ |
 | Edit price | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | ➖ |
-| Edit description | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | ➖ |
+| Edit description, NTREIS answers, room sizes | ✅ | ➖ | ✅ | ✅ | ➖ (Sales+: assigned) | ✅ | ➖ |
 | Submit for review / back to draft | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | ➖ |
-| Approve for the MLS ("Ready for MLS") | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | ➖ |
+| Approve for the MLS ("Ready for MLS") | ✅ | ➖ | ✅ | ✅ | ➖ (Sales+ with approval off: assigned) | ✅ | ➖ |
 | Mark live with MLS number | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Active / under contract / sold | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ |
 | Pause / take off market | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ➖ |
@@ -59,7 +62,7 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 |---|---|---|---|---|---|---|---|
 | See and download photos/video | all | all | own | own | assigned + builder-wide | own | jobs (existing photos, as reference) |
 | Upload | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | jobs |
-| Edit tags, room, cover; move to trash | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | only what they uploaded |
+| Edit tags, room, cover; move to trash | ✅ | ➖ | ✅ | ✅ | ➖ (Sales+: cover and listing photo order only) | ✅ | only what they uploaded |
 | Pick tags from the shared list | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | only what they uploaded |
 | Ask for a new tag | ✅ | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ |
 | Manage the tag list (add, rename, merge, retire, answer requests) | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |

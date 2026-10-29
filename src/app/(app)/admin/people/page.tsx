@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { CommunitiesFold } from "@/components/communities-fold";
+import { SalesMlsSwitches } from "@/components/sales-mls-switches";
 import { CommunityPicker } from "@/components/community-picker";
 import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -32,7 +33,7 @@ async function People() {
   const supabase = await createClient();
   const [{ data: builders }, { data: people }, { data: communities }, { data: assignments }, { data: staffBuilders }] = await Promise.all([
     supabase.from("builders").select("id, name").order("name"),
-    supabase.from("profiles").select("id, email, full_name, role, builder_id").order("full_name"),
+    supabase.from("profiles").select("id, email, full_name, role, builder_id, sales_mls_entry, sales_needs_approval").order("full_name"),
     supabase.from("communities").select("id, name, city, builder_id").order("name"),
     supabase.from("community_assignments").select("profile_id, community_id"),
     supabase.from("staff_builders").select("profile_id, builder_id"),
@@ -122,6 +123,9 @@ async function People() {
                         )}
                       </form>
                       </CommunitiesFold>
+                    )}
+                    {p.role === "sales" && (
+                      <SalesMlsSwitches profileId={p.id} name={p.full_name} mlsEntry={!!p.sales_mls_entry} needsApproval={p.sales_needs_approval !== false} back="/admin/people" />
                     )}
                   </div>
                 );

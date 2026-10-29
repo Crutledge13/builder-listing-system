@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { communityCompleteness, communitySections, mergeCommunityDetails, MLS_BOARD_SELECT, type MlsBoard } from "@/lib/mls-fields";
+import { roleOf, salesMlsOn, type Who } from "@/lib/permissions";
 
 // A builder's setup checklist. Every step is worked out from the builder's
 // real data (people, logo, communities, plans, homes), so ticking things off
@@ -254,6 +255,9 @@ export function canRunSetup(role: string) {
 }
 
 // Who changes a community's setup answers (mirrors the community edit rule).
-export function canEditCommunitySetup(role: string) {
-  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
+// Salespeople with MLS entry on change it for their assigned communities (the
+// database only shows them those).
+export function canEditCommunitySetup(who: Who | string) {
+  if (typeof who === "string") return ["platform_admin", "builder_owner", "manager", "marketing"].includes(who);
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(roleOf(who)) || salesMlsOn(who);
 }

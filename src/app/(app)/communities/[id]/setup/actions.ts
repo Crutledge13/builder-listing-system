@@ -31,7 +31,7 @@ export async function saveCommunitySetup(formData: FormData) {
   const back = `/communities/${id}/setup`;
   const go = (p: Record<string, string>): never => redirect(`${back}?${new URLSearchParams(p).toString()}`);
   const me = await requireProfile();
-  if (!canEditCommunitySetup(me.role)) go({ error: "Only an owner or manager can change a community’s setup." });
+  if (!canEditCommunitySetup(me)) go({ error: "Only an owner, marketing or a manager can change a community’s setup." });
 
   const supabase = await createClient();
   const { data: c } = await supabase.from("communities").select("id, name, mls_board, mls_fields").eq("id", id).maybeSingle();
@@ -56,14 +56,19 @@ export async function saveCommunitySetup(formData: FormData) {
   }
   if (bad.length) go({ error: `These need a number: ${bad.join(", ")}.` });
 
-  const name = String(formData.get("name") ?? "").trim();
-  const city = String(formData.get("city") ?? "").trim();
-  const county = String(formData.get("county") ?? "").trim();
-  if (!name || !city) go({ error: "The community needs a name and city." });
+  // Salespeople (MLS entry on) change only the MLS answers.
+  const patch: Record<string, unknown> = { mls_fields: next };
+  if (me.role !== "sales") {
+    const name = String(formData.get("name") ?? "").trim();
+    const city = String(formData.get("city") ?? "").trim();
+    const county = String(formData.get("county") ?? "").trim();
+    if (!name || !city) go({ error: "The community needs a name and city." });
+    Object.assign(patch, { name, city, county: county || null });
+  }
 
   const { data: saved, error } = await supabase
     .from("communities")
-    .update({ name, city, county: county || null, mls_fields: next })
+    .update(patch)
     .eq("id", id)
     .select("id");
   if (error) go({ error: error.message.includes("row-level security") ? "Your role can’t change this community." : `Couldn’t save: ${error.message}` });

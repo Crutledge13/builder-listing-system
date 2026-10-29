@@ -8,8 +8,11 @@ import { enterOwnMls } from "@/lib/mls-entry";
 import { featuresOff } from "@/lib/features";
 import {
   allowedTransitions,
+  canArrangeListing,
   editableFields,
   isStaff,
+  salesMayEditListing,
+  salesMlsOn,
   ROLE_LABELS,
   STAGE_LABELS,
   STATUS_LABELS,
@@ -238,7 +241,7 @@ async function HomeDetail({
     ? await supabase.from("floor_plans").select("id, name, rooms").eq("builder_id", home.builder_id).ilike("name", home.plan_name).maybeSingle()
     : { data: null };
   const planRooms = cleanRooms(planRow?.rooms);
-  const canEditRooms = canEditMlsAnswers(me.role);
+  const canEditRooms = canEditMlsAnswers(me, home.workflow_status as WorkflowStatus);
   const { data: incentiveRows } = await supabase.rpc("home_incentives", { p_home: home.id });
   const incentives = (incentiveRows ?? []) as Incentive[];
 
@@ -266,9 +269,11 @@ async function HomeDetail({
   const mediaRequests = (mediaReqRows ?? []) as MediaRequest[];
   const openMediaRequests = mediaRequests.filter((r) => !["completed", "cancelled"].includes(r.status));
 
-  const editable = new Set(editableFields(me.role));
   const status = home.workflow_status as WorkflowStatus;
-  const transitions = allowedTransitions(me.role, status, ownMls);
+  const editable = new Set(editableFields(me, status));
+  const transitions = allowedTransitions(me, status, ownMls);
+  // Salespeople with MLS entry whose listing is waiting on (or past) marketing's approval.
+  const salesLocked = salesMlsOn(me) && !salesMayEditListing(me, status);
   const sources = (home.field_sources ?? {}) as Record<string, string>;
   const error = typeof sp.error === "string" ? sp.error : null;
   const saved = typeof sp.saved === "string" ? sp.saved : null;
@@ -701,6 +706,7 @@ async function HomeDetail({
             listing={listing}
             download={{ presets: (presetRows ?? []) as DownloadPreset[], builderDefault: brandRow?.default_download_preset ?? null }}
             canEdit={canManageMedia(me.role)}
+            canArrange={canArrangeListing(me, status)}
             canRequest={canRequestMedia(me.role)}
             aiOn={aiTaggingAvailable()}
             notice={sectionNotice("listing-media")}
@@ -739,7 +745,7 @@ async function HomeDetail({
               // its own after saving or when a save has a problem with it. The
               // answers inside still go with "Save changes" while it's closed.
               <HomeSection id="ntreis" title="NTREIS details" open={at === "ntreis"}
-                hint={canEditMlsAnswers(me.role) ? "Open to add or change this home’s NTREIS answers" : "Open to see this home’s NTREIS answers"}>
+                hint={canEditMlsAnswers(me, status) ? "Open to add or change this home’s NTREIS answers" : "Open to see this home’s NTREIS answers"}>
                 {sectionNotice("ntreis")}
                 <p className="text-sm text-muted">
                   The rest of what NTREIS asks for this home, with NTREIS&rsquo;s own labels and choices. <b className="text-accent">MLS required</b> marks
@@ -749,18 +755,20 @@ async function HomeDetail({
                   mode="edit"
                   values={(home.mls_fields ?? {}) as Record<string, unknown>}
                   sources={sources}
-                  canEdit={canEditMlsAnswers(me.role)}
+                  canEdit={canEditMlsAnswers(me, status)}
                 />
               </HomeSection>
             )}
             <div className="flex flex-wrap items-center gap-4 py-8">
-              {editable.size > 0 || (home.mls_board === "NTREIS" && canEditMlsAnswers(me.role)) ? (
+              {editable.size > 0 || (home.mls_board === "NTREIS" && canEditMlsAnswers(me, status)) ? (
                 <>
                   <button className="rounded-xl bg-foreground px-6 py-3 font-semibold text-white hover:bg-black">Save changes</button>
                   <span className="text-sm text-muted">As {ROLE_LABELS[me.role].toLowerCase()}, you can edit the fields that aren’t grayed out.</span>
                 </>
               ) : (
-                <span className="text-sm text-muted">As {ROLE_LABELS[me.role].toLowerCase()}, you can view these details but not change them.</span>
+                <span className="text-sm text-muted">{salesLocked
+                  ? "This listing has gone to marketing for approval, so its details are locked. Use “Request a change” for anything that needs fixing."
+                  : <>As {ROLE_LABELS[me.role].toLowerCase()}, you can view these details but not change them.</>}</span>
               )}
             </div>
           </form>
@@ -1026,7 +1034,11 @@ async function HomeDetail({
                           backward ? "border border-foreground hover:bg-soft" : "bg-accent text-white hover:brightness-110",
                         )}
                       >
-                        {status === "approved_for_mls" && to === "in_review" ? "Send back for changes" : TRANSITION_LABELS[to]}
+                        {status === "approved_for_mls" && to === "in_review" ? "Send back for changes"
+                          : salesMlsOn(me) && to === "approved_for_mls" ? "Send to our team for the MLS"
+                          : salesMlsOn(me) && to === "in_review" ? "Send to marketing for approval"
+                          : salesMlsOn(me) && to === "draft" && status === "approved_for_mls" ? "Take it back to draft"
+                          : TRANSITION_LABELS[to]}
                       </button>
                     </form>
                   );

@@ -80,7 +80,7 @@ try {
   if (!failed && withSeed) {
     const seedDir = path.join(repo, "supabase/seed");
     // Same order as CLAUDE.md.
-    for (const f of ["demo_data.sql", "demo_media.sql", "demo_photo_requests.sql", "demo_round3.sql", "demo_mls.sql", "demo_plans.sql", "demo_incentives.sql", "demo_tasks.sql", "demo_billing.sql", "demo_more_builders.sql"]) {
+    for (const f of ["demo_data.sql", "demo_media.sql", "demo_photo_requests.sql", "demo_round3.sql", "demo_mls.sql", "demo_plans.sql", "demo_incentives.sql", "demo_tasks.sql", "demo_billing.sql", "demo_more_builders.sql", "demo_sales_mls.sql"]) {
       if (failed) break;
       const sql = fs.readFileSync(path.join(seedDir, f), "utf8").replaceAll("__DEMO_PASSWORD__", "replay-only");
       await runFile("seed " + f, sql);

@@ -37,6 +37,8 @@ function friendly(message: string) {
   if (message.includes("Not ready for the MLS")) return message;
   if (message.includes("already live on")) return message;
   if (message.includes("cannot change") || message.includes("cannot move")) return message;
+  if (message.includes("details are locked")) return message;
+  if (message.includes("Salespeople can")) return message;
   if (message.includes("MLS number is required")) return message;
   if (message.includes("row-level security")) return "You don’t have permission to do that.";
   return `Couldn’t save: ${message}`;
@@ -48,7 +50,10 @@ export async function saveHome(formData: FormData) {
   const supabase = await createClient();
 
   const patch: Record<string, unknown> = {};
-  for (const field of editableFields(me.role)) {
+  // Salespeople with MLS entry: what they may change depends on the listing's status.
+  const { data: now } = await supabase.from("homes").select("workflow_status").eq("id", id).maybeSingle();
+  const status = (now?.workflow_status ?? null) as WorkflowStatus | null;
+  for (const field of editableFields(me, status)) {
     if (!formData.has(field)) continue;
     const raw = String(formData.get(field) ?? "").trim();
     if (NUMERIC.includes(field)) {
@@ -60,7 +65,7 @@ export async function saveHome(formData: FormData) {
     }
   }
   // The builder's NTREIS answers, merged into what's saved.
-  if (formData.has("mls_key") && canEditMlsAnswers(me.role)) {
+  if (formData.has("mls_key") && canEditMlsAnswers(me, status)) {
     const { data: cur } = await supabase.from("homes").select("mls_fields, field_sources").eq("id", id).maybeSingle();
     const answers = readMlsAnswers(formData, (cur?.mls_fields ?? {}) as Record<string, unknown>);
     if (answers.badNumbers.length) back(id, { error: `${answers.badNumbers.join(", ")} must be a number`, at: "ntreis" });
@@ -89,7 +94,7 @@ export async function changeStatus(formData: FormData) {
   const mls = String(formData.get("mls_number") ?? "").trim();
 
   const me = await requireProfile();
-  if (!allowedTransitions(me.role, from, await enterOwnMls(me.role, me.builder_id)).includes(to)) {
+  if (!allowedTransitions(me, from, await enterOwnMls(me.role, me.builder_id)).includes(to)) {
     back(id, { error: "Your role can’t make that status change." });
   }
 
@@ -359,16 +364,16 @@ export async function setBuildStage(formData: FormData) {
 export async function saveRooms(formData: FormData) {
   const id = String(formData.get("id"));
   const me = await requireProfile();
-  if (!canEditMlsAnswers(me.role)) back(id, { error: "Your role can’t change room sizes.", at: "rooms" });
+  const supabase = await createClient();
+  const { data: cur } = await supabase.from("homes").select("mls_fields, field_sources, workflow_status").eq("id", id).maybeSingle();
+  if (!cur) back(id, { error: "You don’t have permission to edit this home.", at: "rooms" });
+  if (!canEditMlsAnswers(me, cur.workflow_status as WorkflowStatus)) back(id, { error: "Your role can’t change room sizes on this listing.", at: "rooms" });
   let rooms: Room[] = [];
   try {
     rooms = cleanRooms(JSON.parse(String(formData.get("rooms_json") ?? "[]")));
   } catch {
     back(id, { error: "Couldn’t read the room list.", at: "rooms" });
   }
-  const supabase = await createClient();
-  const { data: cur } = await supabase.from("homes").select("mls_fields, field_sources").eq("id", id).maybeSingle();
-  if (!cur) back(id, { error: "You don’t have permission to edit this home.", at: "rooms" });
   const { data, error } = await supabase
     .from("homes")
     .update({
