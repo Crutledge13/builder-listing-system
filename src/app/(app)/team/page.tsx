@@ -14,6 +14,7 @@ import { AccessHistory } from "@/components/access-history";
 import { inviteTeammate, setTeammateActive, updateTeammate } from "./actions";
 import { pendingInvites } from "@/lib/invite-links";
 import { InviteLink } from "@/components/invite-link";
+import { loadApproved } from "@/lib/email-domains";
 
 export default function TeamPage(props: PageProps<"/team">) {
   return (
@@ -45,6 +46,8 @@ async function Team() {
   ]);
   const canGive = rolesICanGive(me.role);
   const canInvite = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const approved = await loadApproved(supabase, me.builder_id);
+  const approvedDomains = approved.filter((a) => a.kind === "domain").map((a) => `@${a.value}`);
   const active = (people ?? []).filter((p) => p.is_active);
   // People who haven't opened their invite and chosen a password yet.
   const pending = await pendingInvites(active.map((p) => p.id));
@@ -153,6 +156,11 @@ async function Team() {
             <label className="mt-3 block">
               <span className="mb-1 block text-sm font-medium">Email</span>
               <input name="email" type="email" required autoCapitalize="none" className="field-input" />
+              {approvedDomains.length > 0 && (
+                <span className="mt-1 block text-xs text-muted">
+                  Their email must end in {approvedDomains.join(" or ")}. Someone outside your company? Ask Builder Listing Services to approve them.
+                </span>
+              )}
             </label>
             <fieldset className="mt-4">
               <legend className="mb-2 text-sm font-medium">What can they do?</legend>

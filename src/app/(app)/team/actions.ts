@@ -6,12 +6,14 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { createInvitedLogin, deleteLogin, invitesOn } from "@/lib/invite-links";
 import { fromChoice, rolesICanGive, type RoleChoice } from "@/lib/permissions";
+import { emailAllowed, loadApproved, notApprovedMessage } from "@/lib/email-domains";
 
 function go(params: Record<string, string>): never {
   redirect(`/team?${new URLSearchParams(params).toString()}`);
 }
 
 function friendly(msg: string) {
+  if (msg.includes("Email domain not approved")) return "That email isn’t approved for your company. Ask Builder Listing Services to approve it.";
   if (msg.includes("row-level security")) return "Your role can’t make that change.";
   if (msg.includes("duplicate key")) return "Someone with that email is already set up.";
   return msg;
@@ -31,6 +33,11 @@ export async function inviteTeammate(formData: FormData) {
   const { role, online_sales } = picked;
 
   if (!invitesOn()) go({ error: "Adding people isn’t switched on yet. Our team needs to finish one setup step." });
+  // Only approved email domains can join this builder (the database checks too).
+  const check = await createClient();
+  if (me.builder_id && !(await emailAllowed(check, me.builder_id, email))) {
+    go({ error: notApprovedMessage(email, await loadApproved(check, me.builder_id)) });
+  }
 
   // Makes the login without sending an email; the inviter copies the link and sends it.
   const made = await createInvitedLogin(email, fullName);

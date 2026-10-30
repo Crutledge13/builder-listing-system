@@ -109,6 +109,7 @@ async function OnboardingList() {
         <p className="text-xs text-muted">{canInvite ? "You get an invite link on their card to send them. It opens a page where they choose a password, then their setup checklist." : "Invites are off until SUPABASE_SERVICE_ROLE_KEY is set in Vercel. You can add the owner later."}</p>
         <Field label="Primary contact’s name" name="owner_name" />
         <Field label="Primary contact’s email" name="owner_email" type="email" />
+        <Field label="Approved email domains" name="email_domains" placeholder="lonestarhomes.com" hint="Only people with these emails can be added to this builder (the part after the @, separated by commas). Blank = the primary contact’s domain. Add others later in Admin > Builders." />
         <DetailFields />
         <button className="mt-5 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Add builder</button>
       </form>
