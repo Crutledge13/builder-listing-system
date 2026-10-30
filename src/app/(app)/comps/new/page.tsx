@@ -6,6 +6,7 @@ import { canRequestComps, isStaff } from "@/lib/permissions";
 import { BackButton } from "@/components/back-button";
 import { RequiredPill } from "@/components/required-pill";
 import { requestComps } from "../actions";
+import { MONEY_INPUT, withCommas } from "@/lib/money-input";
 
 export default function NewCompsPage(props: PageProps<"/comps/new">) {
   return (
@@ -31,7 +32,7 @@ async function Form({ searchParams }: { searchParams: PageProps<"/comps/new">["s
   const [{ data: communities }, { data: home }] = await Promise.all([
     supabase.from("communities").select("id, name, city, builders(name)").order("name"),
     homeId
-      ? supabase.from("homes").select("id, unparsed_address, city, community_id, list_price, living_area, bedrooms_total, bathrooms_full, bathrooms_half, stories, year_built").eq("id", homeId).maybeSingle()
+      ? supabase.from("homes").select("id, unparsed_address, city, postal_code, community_id, list_price, living_area, bedrooms_total, bathrooms_full, bathrooms_half, stories, year_built").eq("id", homeId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   const community = home?.community_id ?? (typeof sp.community === "string" ? sp.community : "");
@@ -66,13 +67,21 @@ async function Form({ searchParams }: { searchParams: PageProps<"/comps/new">["s
             <span className="mb-1.5 block text-sm font-medium">City</span>
             <input name="city" maxLength={80} defaultValue={home?.city ?? ""} placeholder="Leave blank to use the community’s" className="field-input" />
           </label>
+          <label className="block sm:col-span-2">
+            <span className="mb-1.5 flex items-center text-sm font-medium">ZIP codes to pull from<RequiredPill kind="save" /></span>
+            <input name="zip_codes" required maxLength={80} defaultValue={home?.postal_code?.slice(0, 5) ?? ""} inputMode="numeric" placeholder="e.g. 75009, 75078" className="field-input" />
+            <span className="mt-1 block text-xs text-muted">One or more 5-digit ZIP codes, separated by commas (up to 10).</span>
+          </label>
         </div>
       </section>
 
       <section>
         <h2 className="text-lg font-semibold">The home</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Num name="price_point" label="Price point ($)" value={home?.list_price} placeholder="e.g. 389990" />
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">Price point ($)</span>
+            <input name="price_point" defaultValue={withCommas(home?.list_price)} placeholder="e.g. 389,990" className="field-input" {...MONEY_INPUT} />
+          </label>
           <Num name="living_area" label="Square feet" value={home?.living_area} placeholder="e.g. 2400" />
           <Num name="bedrooms" label="Beds" value={home?.bedrooms_total} />
           <Num name="bathrooms" label="Baths" value={baths} step="0.5" />

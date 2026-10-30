@@ -5,13 +5,15 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { createInvitedLogin, deleteLogin, invitesOn } from "@/lib/invite-links";
-import { rolesICanGive } from "@/lib/permissions";
+import { fromChoice, rolesICanGive, type RoleChoice } from "@/lib/permissions";
+import { emailAllowed, loadApproved, notApprovedMessage } from "@/lib/email-domains";
 
 function go(params: Record<string, string>): never {
   redirect(`/team?${new URLSearchParams(params).toString()}`);
 }
 
 function friendly(msg: string) {
+  if (msg.includes("Email domain not approved")) return "That email isn’t approved for your company. Ask Builder Listing Services to approve it.";
   if (msg.includes("row-level security")) return "Your role can’t make that change.";
   if (msg.includes("duplicate key")) return "Someone with that email is already set up.";
   return msg;
@@ -23,12 +25,19 @@ export async function inviteTeammate(formData: FormData) {
   const me = await requireProfile();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const fullName = String(formData.get("full_name") ?? "").trim();
-  const role = String(formData.get("role") ?? "");
+  const choice = String(formData.get("role") ?? "");
   const communityIds = formData.getAll("community_id").map(String);
   if (!email || !fullName) go({ error: "Enter a name and email." });
-  if (!rolesICanGive(me.role).includes(role as never)) go({ error: "Your role can’t add that kind of user." });
+  const picked = fromChoice(choice);
+  if (!picked || !rolesICanGive(me.role).includes(choice as RoleChoice)) go({ error: "Your role can’t add that kind of user." });
+  const { role, online_sales } = picked;
 
   if (!invitesOn()) go({ error: "Adding people isn’t switched on yet. Our team needs to finish one setup step." });
+  // Only approved email domains can join this builder (the database checks too).
+  const check = await createClient();
+  if (me.builder_id && !(await emailAllowed(check, me.builder_id, email))) {
+    go({ error: notApprovedMessage(email, await loadApproved(check, me.builder_id)) });
+  }
 
   // Makes the login without sending an email; the inviter copies the link and sends it.
   const made = await createInvitedLogin(email, fullName);
@@ -36,7 +45,7 @@ export async function inviteTeammate(formData: FormData) {
 
   // The profile is saved with the inviter's own access, so the database rules decide.
   const supabase = await createClient();
-  const { error: pErr } = await supabase.from("profiles").insert({ id: made.userId, email, full_name: fullName, role, builder_id: me.builder_id });
+  const { error: pErr } = await supabase.from("profiles").insert({ id: made.userId, email, full_name: fullName, role, online_sales, builder_id: me.builder_id });
   if (pErr) {
     await deleteLogin(made.userId); // undo the login so nothing is half set up
     go({ error: friendly(pErr.message) });
@@ -51,11 +60,13 @@ export async function inviteTeammate(formData: FormData) {
 export async function updateTeammate(formData: FormData) {
   const me = await requireProfile();
   const id = String(formData.get("id"));
-  const role = String(formData.get("role") ?? "");
+  const choice = String(formData.get("role") ?? "");
   if (id === me.id) go({ error: "You can’t change your own access." });
-  if (!rolesICanGive(me.role).includes(role as never)) go({ error: "Your role can’t give that role." });
+  const picked = fromChoice(choice);
+  if (!picked || !rolesICanGive(me.role).includes(choice as RoleChoice)) go({ error: "Your role can’t give that role." });
+  const { role, online_sales } = picked;
   const supabase = await createClient();
-  const { data, error } = await supabase.from("profiles").update({ role }).eq("id", id).select("id");
+  const { data, error } = await supabase.from("profiles").update({ role, online_sales }).eq("id", id).select("id");
   if (error) go({ error: friendly(error.message) });
   if (!data?.length) go({ error: "Your role can’t change that person." });
   if (role !== "sales") await supabase.from("community_assignments").delete().eq("profile_id", id);

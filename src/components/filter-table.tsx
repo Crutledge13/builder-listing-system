@@ -12,8 +12,8 @@ export type FRow = { cells: FCell[]; tags?: Record<string, string> };
 export type FColumn = { label: string; numeric?: boolean };
 
 const SHOW = 10;
-const TAG_LABELS: Record<string, string> = { community: "Community", plan: "Plan", status: "Status" };
-const ALL_LABELS: Record<string, string> = { community: "All communities", plan: "All plans", status: "All statuses" };
+const TAG_LABELS: Record<string, string> = { community: "Community", plan: "Plan", status: "Status", sale: "Sale", stage: "Stage", builder: "Builder", city: "City" };
+const ALL_LABELS: Record<string, string> = { community: "All communities", plan: "All plans", status: "All statuses", sale: "Any sale status", stage: "Any stage", builder: "All builders", city: "All cities" };
 
 export function FilterTable({
   columns,
@@ -22,6 +22,8 @@ export function FilterTable({
   filters = [],
   noun = "homes",
   defaultSort,
+  pageSize = SHOW,
+  minWidth = 640,
 }: {
   columns: FColumn[];
   rows: FRow[];
@@ -29,6 +31,8 @@ export function FilterTable({
   filters?: string[]; // which tags get a dropdown: community, plan, status
   noun?: string;
   defaultSort?: { col: number; desc: boolean };
+  pageSize?: number; // rows shown before "Show all" (list views show far more)
+  minWidth?: number; // wider tables scroll sideways on phones
 }) {
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Record<string, string>>({});
@@ -81,7 +85,7 @@ export function FilterTable({
         <p className="px-4 py-4 text-sm text-muted">Nothing matches. <button type="button" onClick={() => { setQ(""); setPicked({}); }} className="underline">Clear the filters</button></p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] table-fixed text-sm">
+          <table className="w-full table-fixed text-sm" style={{ minWidth }}>
             <thead>
               <tr className="text-left text-xs text-muted">
                 {columns.map((c, i) => (
@@ -101,7 +105,7 @@ export function FilterTable({
             </thead>
             <tbody className="divide-y divide-line">
               {shown.map((r, i) => (
-                <tr key={i} className={cx(!all && i >= SHOW && "hidden print:table-row")}>
+                <tr key={i} className={cx(!all && i >= pageSize && "hidden print:table-row")}>
                   {r.cells.map((c, j) => (
                     <td key={j} className={cx("px-4 py-2", columns[j]?.numeric && "text-right tabular-nums", c.tone === "warn" && "font-semibold text-amber-900", c.tone === "bad" && "font-semibold text-red-800", c.tone === "good" && "font-semibold text-emerald-800")}>
                       {c.href ? <Link href={c.href} className="font-medium hover:underline">{c.text}</Link> : c.text}
@@ -113,7 +117,7 @@ export function FilterTable({
           </table>
         </div>
       )}
-      {shown.length > SHOW && (
+      {shown.length > pageSize && (
         <button type="button" onClick={() => setAll(!all)} className="w-full border-t border-line px-4 py-2.5 text-left text-sm font-semibold text-accent print:hidden">
           {all ? "Show fewer" : `Show all ${shown.length} ${noun}`}
         </button>

@@ -59,6 +59,7 @@ export function menuLinks(role: Role, off: ReadonlySet<Feature> = new Set()): Me
   }
   if (role === "platform_admin" || role === "listing_coordinator") {
     links.push({ href: "/todo", label: "Builders’ tasks", hint: "What each builder’s team has open" });
+    links.push({ href: "/buyer-agents", label: "Buyer’s agent ranking", hint: "Which buyers’ agents sell the most of our builders’ homes, by market" });
   }
   if (["builder_owner", "manager", "marketing"].includes(role)) {
     links.push({ href: "/company", label: "Company details", hint: "Main contact, billing, website and title company" });

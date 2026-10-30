@@ -4,12 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { HomeSection } from "@/components/home-section";
 import { cx, dateTime } from "@/lib/format";
 import { PendingButton } from "@/components/pending-button";
-import { deleteShareLink, extendShareLink, linkWebsiteListing, replaceShareLink, restoreShareLink, saveWebsitePage } from "@/app/(app)/homes/[id]/share-actions";
+import { deleteShareLink, extendShareLink, linkWebsiteListing, replaceAllShareLinks, replaceShareLink, restoreShareLink, saveWebsitePage } from "@/app/(app)/homes/[id]/share-actions";
 
 type Link = {
   id: string; token: string; recipient_name: string | null; recipient_email: string | null;
   expires_at: string | null; revoked_at: string | null; view_count: number; download_count: number; last_viewed_at: string | null;
-  created_at: string; profiles: { full_name: string } | null;
+  created_at: string; owner_id: string | null; profiles: { full_name: string } | null;
 };
 
 // "Share with a realtor" on a home: the home's one standing link, always
@@ -39,7 +39,7 @@ export async function ShareLinksPanel({
   const [{ data }, { data: home }, { data: linked }, { data: suggestions }] = await Promise.all([
     supabase
       .from("share_links")
-      .select("id, token, recipient_name, recipient_email, expires_at, revoked_at, view_count, download_count, last_viewed_at, created_at, profiles!share_links_created_by_fkey(full_name)")
+      .select("id, token, recipient_name, recipient_email, expires_at, revoked_at, view_count, download_count, last_viewed_at, created_at, owner_id, profiles!share_links_created_by_fkey(full_name)")
       .eq("home_id", homeId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
@@ -52,6 +52,8 @@ export async function ShareLinksPanel({
   const suggestion = ((suggestions ?? []) as { website_listing_id: string; website_url: string | null }[])[0] ?? null;
   const all = (data ?? []) as unknown as Link[];
   const standing = all.find((l) => l.token === token);
+  // Everyone has their own link for this home (so the page shows who to call).
+  const others = all.filter((l) => l.expires_at === null && l.token !== token && !l.revoked_at);
   const older = all.filter((l) => l.expires_at !== null);
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
@@ -60,7 +62,7 @@ export async function ShareLinksPanel({
   return (
     <HomeSection id="share" title="Share with a realtor" badge={fold?.badge} hint={fold?.hint} open={fold?.open}>
       <p className="mt-1 max-w-2xl text-sm text-muted">
-        Copy this home&rsquo;s link with the <b className="font-semibold text-foreground">Share link</b> button at the top and send it to anyone. It opens a
+        Copy your link for this home with the <b className="font-semibold text-foreground">Share link</b> button at the top and send it to anyone. Each person has their own, so the page shows who to call: a salesperson&rsquo;s link shows them; yours shows the community&rsquo;s sales team. It opens a
         page with the listing photos, walkthrough video, vertical reel, tour links and the community&rsquo;s photos and video to download,
         plus a button to the builder&rsquo;s website. No login needed.
         {canManage && <> Choose what it shows in <Link href="/realtor-page" className="font-semibold text-foreground underline">Realtor page settings</Link>.</>}
@@ -99,6 +101,36 @@ export async function ShareLinksPanel({
           )}
         </div>
       </div>
+
+      {others.length > 0 && (
+        <details className="mt-4 rounded-2xl border border-line">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold">
+            Your teammates&rsquo; links for this home ({others.length})
+          </summary>
+          <p className="border-t border-line px-4 pt-3 text-xs text-muted">Each person&rsquo;s link shows who to call: a salesperson&rsquo;s shows them; anyone else&rsquo;s shows the community&rsquo;s sales team.</p>
+          <ul className="divide-y divide-line">
+            {others.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3 text-sm">
+                <span className="font-semibold">{l.profiles?.full_name ?? "Someone"}</span>
+                <span className="text-muted">
+                  Opened {l.view_count} {l.view_count === 1 ? "time" : "times"} · {l.download_count} {l.download_count === 1 ? "download" : "downloads"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <form action={replaceAllShareLinks} className="border-t border-line px-4 py-3">
+            <input type="hidden" name="home_id" value={homeId} />
+            <PendingButton
+              pending="Turning them off…"
+              confirm="Turn off every link for this home, yours and your teammates’? They stop working right away; each person gets a new one the next time they copy it."
+              className="text-sm font-semibold text-red-700 underline"
+            >
+              Turn off everyone&rsquo;s links for this home
+            </PendingButton>
+            <p className="mt-1 text-xs text-muted">A salesperson&rsquo;s link also stops on its own when they&rsquo;re turned off or taken off this community.</p>
+          </form>
+        </details>
+      )}
 
       {/* Where the share page's "More info on the builder's website" button goes. */}
       <div id="website-page" className="mt-4 scroll-mt-28 rounded-2xl border border-line p-4">

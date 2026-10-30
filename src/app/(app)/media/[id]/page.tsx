@@ -10,7 +10,7 @@ import { VideoPlayer } from "@/components/media-client";
 import { DownloadMenu } from "@/components/download-menu";
 import { PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
 import { DISCLAIMER_TEXT, DisclaimerOverlay, planFolderHref } from "@/components/media-tile";
-import { clearAiWarning, makeCover, requestTag, rerunAi, saveMedia, setTrashed } from "./actions";
+import { clearAiWarning, makeCover, requestTag, rerunAi, saveMedia, setArchived, setTrashed } from "./actions";
 import { TagPicker } from "@/components/tag-picker";
 import { BackButton } from "@/components/back-button";
 import { loadTagList, pickedTags } from "@/lib/tags";
@@ -29,6 +29,8 @@ const MESSAGES: Record<string, string> = {
   cover: "This is now the cover photo: it shows on the cards (and for a home, it's photo 1 on the MLS).",
   trashed: "Moved to the trash. It’s kept for 30 days and can be restored until then.",
   restored: "Restored from the trash.",
+  archived: "Moved to the archive. It’s hidden from the library’s normal views; find it under More filters > Archived files.",
+  unarchived: "Back in the library. The nightly archive leaves it alone for 180 days.",
   ai: "AI took another look.",
   cleared: "Marked OK for the MLS. The warning no longer holds up the listing.",
   tagreq: "Sent. Our team will add the tag or point you to one that fits.",
@@ -40,9 +42,9 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
   const me = await requireProfile();
   const supabase = await createClient();
 
-  const { data } = await supabase.from("media").select(MEDIA_SELECT + ", deleted_at, uploaded_by, size_bytes, caption_source").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("media").select(MEDIA_SELECT + ", deleted_at, archived_at, uploaded_by, size_bytes, caption_source").eq("id", id).maybeSingle();
   if (!data) notFound();
-  const raw = data as unknown as MediaRow & { deleted_at: string | null; uploaded_by: string | null; size_bytes: number | null; caption_source: string | null };
+  const raw = data as unknown as MediaRow & { deleted_at: string | null; archived_at: string | null; uploaded_by: string | null; size_bytes: number | null; caption_source: string | null };
   const m = { ...raw, caption_source_is_ai: raw.caption_source === "ai" };
   const manage = canManageMedia(me.role) || (me.role === "photographer" && m.uploaded_by === me.id);
   const photographer = me.role === "photographer";
@@ -81,6 +83,11 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
 
       {m.deleted_at && (
         <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">This file is in the trash and hidden from the library.</p>
+      )}
+      {raw.archived_at && !m.deleted_at && (
+        <p className="mt-4 rounded-xl bg-soft px-4 py-3 text-sm">
+          Archived {new Date(raw.archived_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}: it&rsquo;s old and its home sold or came off the market, so it&rsquo;s out of the library&rsquo;s normal views. You can still download it.
+        </p>
       )}
       {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>}
       {saved && <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{saved}</p>}
@@ -222,6 +229,15 @@ async function Item({ params, searchParams }: { params: PageProps<"/media/[id]">
                 <form action={makeCover}>
                   <input type="hidden" name="id" value={m.id} />
                   <button className="w-full rounded-xl border border-foreground px-4 py-2.5 font-semibold hover:bg-soft">★ Make this the cover photo</button>
+                </form>
+              )}
+              {!photographer && !m.deleted_at && (
+                <form action={setArchived}>
+                  <input type="hidden" name="id" value={m.id} />
+                  <input type="hidden" name="archive" value={raw.archived_at ? "0" : "1"} />
+                  <button className="w-full rounded-xl border border-line px-4 py-2.5 text-sm font-semibold hover:border-foreground">
+                    {raw.archived_at ? "Bring back from the archive" : "Move to the archive"}
+                  </button>
                 </form>
               )}
               <form action={setTrashed}>

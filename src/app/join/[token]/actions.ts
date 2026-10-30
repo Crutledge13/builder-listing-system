@@ -53,6 +53,8 @@ export async function joinWithLink(formData: FormData) {
     await admin.auth.admin.deleteUser(made.user!.id); // nothing half set up
     back(/already has an account/i.test(redeemError.message)
       ? "That email already has an account. Sign in instead."
+      : /email domain not approved/i.test(redeemError.message)
+        ? "That email isn’t approved for this company. Use your work email address, or ask whoever sent the link to have yours approved."
       : /isn.t working/i.test(redeemError.message)
         ? "This join link isn’t working anymore. Ask whoever sent it for a new one."
         : "Couldn’t set up your account. Try again in a minute.");

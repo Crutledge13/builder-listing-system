@@ -4,7 +4,9 @@ import { useState } from "react";
 import { cx } from "@/lib/format";
 
 // "Share link" in the row of buttons at the top of a home: one click copies
-// the home's standing realtor link and says so.
+// your own standing realtor link for this home and says so. Each person has
+// their own, so the page shows who to call: a salesperson's link shows them;
+// anyone else's shows the community's sales team.
 export function ShareLinkTile({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -27,7 +29,7 @@ export function ShareLinkTile({ url }: { url: string }) {
     >
       <div className="font-semibold">Share link</div>
       <div className={cx("mt-0.5 text-sm", copied ? "font-semibold text-emerald-800" : "text-muted")} aria-live="polite">
-        {copied ? "Link copied ✓" : "Copy for a realtor"}
+        {copied ? "Link copied ✓" : "Copy your realtor link"}
       </div>
     </button>
   );

@@ -24,6 +24,8 @@ export async function answerAvailability(formData: FormData) {
   const priceRaw = String(formData.get("price") ?? "").replace(/[$,]/g, "");
   const price = priceRaw ? Number(priceRaw) : null;
   if (answer === "sold" && (!price || Number.isNaN(price))) back(formData, { error: "Enter the close price so the MLS can be updated." });
+  const expectedClose = String(formData.get("expected_close_date") ?? "") || null;
+  if (answer === "under_contract" && !expectedClose) back(formData, { error: "Enter the expected close date." });
   if ((answer === "under_contract" || answer === "sold") && missingBuyerAgent(formData)) back(formData, { error: "Enter the buyer’s agent and their brokerage, or tick “The buyer has no agent”." });
   const supabase = await createClient();
   const { error } = await supabase.rpc("confirm_availability", {
@@ -32,6 +34,7 @@ export async function answerAvailability(formData: FormData) {
     p_date: date,
     p_price: price,
     p_buyer: answer === "under_contract" || answer === "sold" ? buyerAgentForRpc(formData) : null,
+    p_expected_close: answer === "under_contract" ? expectedClose : null,
   });
   if (error) back(formData, { error: error.message.includes("can't") || error.message.includes("isn't") ? error.message : `Couldn’t save: ${error.message}` });
   revalidatePath("/", "layout");

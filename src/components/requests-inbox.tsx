@@ -8,7 +8,7 @@ export async function RequestsInbox({ back, showBuilder, canResolve }: { back: s
   const supabase = await createClient();
   const { data: requests } = await supabase
     .from("change_requests")
-    .select("id, message, created_at, requested_by, home_id, homes(unparsed_address, city, communities(name)), builders(name)")
+    .select("id, kind, message, created_at, requested_by, home_id, homes(unparsed_address, city, communities(name)), builders(name)")
     .eq("status", "open")
     .order("created_at", { ascending: true })
     .limit(100);
@@ -37,7 +37,10 @@ export async function RequestsInbox({ back, showBuilder, canResolve }: { back: s
             </div>
             <p className="mt-2 whitespace-pre-line">{r.message}</p>
             <p className="mt-1 text-sm text-muted">{nameOf.get(r.requested_by) ?? "Someone"}, {dateTime(r.created_at)}</p>
-            {canResolve && (
+            {canResolve && r.kind === "price" && (
+              <Link href={`/homes/${r.home_id}#price`} className="mt-3 inline-block rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Approve or decline on the home</Link>
+            )}
+            {canResolve && r.kind !== "price" && (
               <form action={resolveFromInbox} className="mt-3 flex flex-wrap items-center gap-2">
                 <input type="hidden" name="request_id" value={r.id} />
                 <input type="hidden" name="back" value={back} />

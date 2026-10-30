@@ -136,6 +136,51 @@ export async function buildReport(supabase: SupabaseClient, builderId: string, r
   }, {});
   const alerts = (alertRows ?? []).filter((a) => !opts.communityId || byId.has(a.home_id as string));
 
+  // By community (owners, 29 Oct 2026): how each community is moving.
+  const domOf = new Map(dom.map((x) => [x.h.id, x.days]));
+  const isListed = (h: ReportHome) => h.workflow_status === "live_on_mls" && (!h.market_status || h.market_status === "active");
+  const isComing = (h: ReportHome) => ["draft", "in_review", "approved_for_mls"].includes(h.workflow_status);
+  const soldInRange = (h: ReportHome) => h.market_status === "sold" && inRange(h.market_status_at);
+  const groups = <K extends string>(keyOf: (h: ReportHome) => K) => {
+    const m = new Map<K, ReportHome[]>();
+    homes.forEach((h) => m.set(keyOf(h), [...(m.get(keyOf(h)) ?? []), h]));
+    return m;
+  };
+  const byCommunity = [...groups((h) => h.community_id).entries()]
+    .map(([, list]) => {
+      const days = list.map((h) => domOf.get(h.id)).filter((d): d is number => d !== undefined);
+      return {
+        community: list[0].communities?.name ?? "",
+        homes: list.length,
+        listed: list.filter(isListed).length,
+        coming: list.filter(isComing).length,
+        underContract: list.filter((h) => h.market_status === "under_contract").length,
+        soldInRange: list.filter(soldInRange).length,
+        avgDays: days.length ? Math.round(days.reduce((n, d) => n + d, 0) / days.length) : null,
+        longest: days.length ? Math.max(...days) : null,
+      };
+    })
+    .sort((a, b) => a.community.localeCompare(b.community));
+
+  // By floor plan in each community (owners, 29 Oct 2026): how many of each plan are listed.
+  const byPlan = [...groups((h) => `${h.community_id}|${h.plan_name ?? ""}`).values()]
+    .map((list) => {
+      const prices = list.filter((h) => isListed(h) && h.list_price).map((h) => Number(h.list_price));
+      const days = list.map((h) => domOf.get(h.id)).filter((d): d is number => d !== undefined);
+      return {
+        community: list[0].communities?.name ?? "",
+        plan: list[0].plan_name ?? "No plan set",
+        listed: list.filter(isListed).length,
+        coming: list.filter(isComing).length,
+        underContract: list.filter((h) => h.market_status === "under_contract").length,
+        soldInRange: list.filter(soldInRange).length,
+        low: prices.length ? Math.min(...prices) : null,
+        high: prices.length ? Math.max(...prices) : null,
+        avgDays: days.length ? Math.round(days.reduce((n, d) => n + d, 0) / days.length) : null,
+      };
+    })
+    .sort((a, b) => a.community.localeCompare(b.community) || b.listed - a.listed || a.plan.localeCompare(b.plan));
+
   return {
     homeIds: [...byId.keys()],
     live,
@@ -148,6 +193,8 @@ export async function buildReport(supabase: SupabaseClient, builderId: string, r
     notOnMls,
     stale,
     statusNow,
+    byCommunity,
+    byPlan,
     issues: { caught: alerts.length, resolved: alerts.filter((a) => a.resolved_at).length, urgent: alerts.filter((a) => a.severity === "urgent").length },
   };
 }

@@ -5,11 +5,13 @@ import { BrokerPanel } from "@/components/broker-panel";
 import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
-import { renameBuilder, setBuilderMarkets } from "../actions";
+import { addApprovedEmail, removeApprovedEmail, renameBuilder, setBuilderMarkets } from "../actions";
 import { FEATURES } from "@/lib/features";
 import { planLabel } from "@/lib/billing";
 import { BuilderListTools } from "@/components/builder-list-tools";
 import { Chevron } from "@/components/chevron";
+import { loadApproved, type ApprovedEmail } from "@/lib/email-domains";
+import { PendingButton } from "@/components/pending-button";
 
 export default function BuildersAdmin(props: PageProps<"/admin/builders">) {
   return (
@@ -31,7 +33,10 @@ async function Builders() {
     supabase.from("mls_boards").select("code, short_name, region").eq("active", true).order("code"),
     supabase.from("builder_settings").select("builder_id, mls_boards, mls_locked, mls_entry, features_off"),
   ]);
-  const { data: billing } = await supabase.from("builder_billing").select("builder_id, plan, includes_photos");
+  const [{ data: billing }, approved] = await Promise.all([
+    supabase.from("builder_billing").select("builder_id, plan, includes_photos"),
+    loadApproved(supabase),
+  ]);
   const planFor = (id: string) => (billing ?? []).find((x) => x.builder_id === id);
   const settingsFor = (id: string) => (settings ?? []).find((x) => x.builder_id === id);
   const tally = (rows: { builder_id: string | null }[] | null, id: string) => (rows ?? []).filter((r) => r.builder_id === id).length;
@@ -70,6 +75,7 @@ async function Builders() {
               <Link href={`/admin/onboarding#b-${b.id}`} className="hover:text-foreground">Onboarding</Link>
               <Link href={`/admin/billing/builders/${b.id}`} className="hover:text-foreground">Billing</Link>
             </div>
+            <ApprovedEmails builderId={b.id} rows={approved.filter((a) => a.builder_id === b.id)} />
             <form action={setBuilderMarkets} className="w-full rounded-xl bg-soft p-3">
               <input type="hidden" name="builder_id" value={b.id} />
               <p className="text-sm font-medium">MLS markets this builder lists in</p>
@@ -136,4 +142,46 @@ async function Builders() {
 
 function plural(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`;
+}
+
+// Who can be added to this builder: their email domains, plus anyone our team
+// approved one at a time. The database refuses everyone else.
+function ApprovedEmails({ builderId, rows }: { builderId: string; rows: ApprovedEmail[] }) {
+  return (
+    <section className="w-full rounded-xl bg-soft p-3">
+      <p className="text-sm font-medium">Approved email domains</p>
+      <p className="text-xs text-muted">
+        {rows.length
+          ? "Only people with these emails can be added to this builder (invites, their Team page and join links)."
+          : "Not locked yet: anyone can be added. Add the builder’s own domain to lock it."}
+      </p>
+      {rows.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {rows.map((r) => (
+            <li key={r.id} className="flex items-center gap-1.5 rounded-full border border-line bg-white py-1 pl-3 pr-1 text-sm" title={r.reason ?? undefined}>
+              <span className="font-medium">{r.kind === "domain" ? `@${r.value}` : r.value}</span>
+              {r.reason && <span className="text-xs text-muted">({r.reason})</span>}
+              <form action={removeApprovedEmail}>
+                <input type="hidden" name="id" value={r.id} />
+                <PendingButton pending="…" confirm={`Remove ${r.value}? People already set up keep their access.`} className="rounded-full px-2 py-0.5 text-muted hover:bg-soft hover:text-red-700">×</PendingButton>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form action={addApprovedEmail} className="mt-2 flex flex-wrap items-end gap-2">
+        <input type="hidden" name="builder_id" value={builderId} />
+        <label className="block min-w-48 flex-1 text-xs">
+          <span className="mb-1 block font-medium">Domain or exact email</span>
+          <input name="value" required placeholder="acmehomes.com or jane@agency.com" autoCapitalize="none" className="field-input py-2 text-sm" />
+        </label>
+        <label className="block min-w-40 flex-1 text-xs">
+          <span className="mb-1 block font-medium">Why (for an exception)</span>
+          <input name="reason" maxLength={300} placeholder="e.g. Their outside marketing agency" className="field-input py-2 text-sm" />
+        </label>
+        <PendingButton pending="Approving…" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Approve</PendingButton>
+      </form>
+      <p className="mt-1 text-xs text-muted">Gmail, Yahoo, Outlook and other personal email services can only be approved one exact address at a time.</p>
+    </section>
+  );
 }

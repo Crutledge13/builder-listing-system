@@ -11,20 +11,25 @@ import { loadTagList, TAG_CATEGORIES } from "@/lib/tags";
 import { DISCLAIMER_TEXT, MediaGrid, MediaPicture, MediaTile, planFolderHref } from "@/components/media-tile";
 import { PhotoPackButton, type PackPhoto } from "@/components/photo-pack-button";
 import { PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
+import { loadPendingPhotos, PhotoApproval } from "@/components/photo-approval";
+import { Notice } from "@/components/notice";
 
 export default function MediaPage(props: PageProps<"/media">) {
   return (
     <Suspense fallback={<div className="mt-16 grid grid-cols-2 gap-4 sm:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[3/2] animate-pulse rounded-xl bg-soft" />)}</div>}>
+      <Notice searchParams={props.searchParams} />
       <Library searchParams={props.searchParams} />
     </Suspense>
   );
 }
 
 const ROOM_FILTERS = ["exterior", "kitchen", "living", "dining", "primary_bedroom", "primary_bath", "bedroom", "backyard", "floor_plan", "entrance", "amenity", "aerial", "site_map", "model_home"];
+// The four main views (owners, 29 Oct 2026); rooms, tags and the archive are under "More filters".
 const KINDS = [
   { key: "photo", label: "Photos" },
   { key: "video", label: "Videos" },
   { key: "floor_plan", label: "Floor plans" },
+  { key: "community", label: "Community photos" },
 ];
 
 function str(v: string | string[] | undefined) {
@@ -37,6 +42,8 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   const room = str(sp.room);
   const kind = str(sp.kind);
   const tag = str(sp.tag);
+  // Files over 600 days old that aren't in use any more (see migration 20261029000073).
+  const archived = sp.archived === "1";
   const communityId = str(sp.community);
   const homeId = str(sp.home);
   const builderId = str(sp.builder);
@@ -63,12 +70,12 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     : { data: null };
 
   const tagList = await loadTagList(supabase);
-  const filtering = !!(q || room || kind || tag);
+  const filtering = !!(q || room || kind || tag || archived);
   const atTop = !home && !community && !filtering;
 
   const params = (over: Record<string, string | null>) => {
     const p = new URLSearchParams();
-    const base: Record<string, string | null> = { q, room, kind, tag, community: home ? null : communityId, home: homeId, builder: community || home ? null : builderId, pages: null };
+    const base: Record<string, string | null> = { q, room, kind, tag, archived: archived ? "1" : null, community: home ? null : communityId, home: homeId, builder: community || home ? null : builderId, pages: null };
     for (const [k, v] of Object.entries({ ...base, ...over })) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/media?${s}` : "/media";
@@ -80,6 +87,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   let results: MediaRow[] = [];
   if (!atTop) {
     let query = supabase.from("media").select(MEDIA_SELECT).is("deleted_at", null).order("sort_order").order("created_at").limit(pageLimit);
+    query = archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
     if (home) query = query.eq("home_id", home.id);
     // A community folder (not searching) shows only the community's own items;
     // each home's files stay in that home's folder.
@@ -88,7 +96,8 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     else if (builder) query = query.eq("builder_id", builder.id);
     else if (staffFocus) query = query.eq("builder_id", staffFocus);
     if (room) query = query.eq("room", room);
-    if (kind) query = query.eq("kind", kind);
+    if (kind === "community") query = query.not("community_id", "is", null).is("home_id", null);
+    else if (kind) query = query.eq("kind", kind);
     if (tag) query = query.contains("tags", [tag]);
     if (q) query = query.ilike("search_text", `%${q.toLowerCase().replace(/[%_]/g, "")}%`);
     const { data } = await query;
@@ -102,21 +111,30 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   if (home) {
     const scoped = (qb: ReturnType<typeof supabase.from>) => {
       let x = qb.select(MEDIA_SELECT).is("deleted_at", null).is("home_id", null).order("sort_order").order("created_at").limit(80);
+      x = archived ? x.not("archived_at", "is", null) : x.is("archived_at", null);
       if (room) x = x.eq("room", room);
-      if (kind) x = x.eq("kind", kind);
+      if (kind && kind !== "community") x = x.eq("kind", kind);
       if (tag) x = x.contains("tags", [tag]);
       if (q) x = x.ilike("search_text", `%${q.toLowerCase().replace(/[%_]/g, "")}%`);
       return x;
     };
     const [c, p] = await Promise.all([
       scoped(supabase.from("media")).eq("community_id", home.community_id),
-      home.plan_name
+      home.plan_name && kind !== "community"
         ? scoped(supabase.from("media")).eq("builder_id", home.builder_id).eq("plan_name", home.plan_name).is("community_id", null)
         : Promise.resolve({ data: [] }),
     ]);
     homeCommunityMedia = (c.data ?? []) as unknown as MediaRow[];
     planMedia = (p.data ?? []) as unknown as MediaRow[];
   }
+
+  // Our photographer's community files waiting for approval.
+  const pendingCommunity = community && !home && !filtering ? await loadPendingPhotos({ communityId: community.id }) : [];
+
+  // Archived files of this home, so a sold home's folder doesn't look empty.
+  const { count: archivedHere } = home && !archived
+    ? await supabase.from("media").select("id", { count: "exact", head: true }).eq("home_id", home.id).is("deleted_at", null).not("archived_at", "is", null)
+    : { count: 0 };
 
   // "Download all photos" on a home: its photos and floor plans, with the size to save them at.
   const homePhotos: PackPhoto[] = home
@@ -228,6 +246,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
         {!homeId && !communityId && builderId && <input type="hidden" name="builder" value={builderId} />}
         {room && <input type="hidden" name="room" value={room} />}
         {kind && <input type="hidden" name="kind" value={kind} />}
+        {archived && <input type="hidden" name="archived" value="1" />}
         <label htmlFor="media-q" className="sr-only">Search media</label>
         <input
           id="media-q"
@@ -239,25 +258,36 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
         <button className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">Search</button>
       </form>
 
-      {/* Room and type filters */}
-      <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+      {/* The main views, then everything else under "More filters" (owners, 29 Oct 2026). */}
+      <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" aria-label="What to show">
+        <Link href={params({ kind: null })} className={tab(!kind)} aria-current={!kind ? "page" : undefined}>All</Link>
         {KINDS.map((k) => (
-          <Link key={k.key} href={params({ kind: kind === k.key ? null : k.key })} className={chip(kind === k.key)}>{k.label}</Link>
-        ))}
-        <span className="mx-1 w-px shrink-0 bg-line" aria-hidden />
-        {ROOM_FILTERS.map((r) => (
-          <Link key={r} href={params({ room: room === r ? null : r })} className={chip(room === r)}>{ROOM_LABELS[r]}</Link>
+          <Link key={k.key} href={params({ kind: k.key })} className={tab(kind === k.key)} aria-current={kind === k.key ? "page" : undefined}>{k.label}</Link>
         ))}
       </div>
-      <details key={tag ?? "none"} data-popover className="relative mt-3 inline-block">
-        <summary className={chip(!!tag) + " cursor-pointer list-none"}>{tag ? `Tag: ${tag}` : "Filter by tag"} ▾</summary>
-        <div className="absolute z-30 mt-2 max-h-96 w-[min(92vw,560px)] overflow-y-auto rounded-2xl border border-line bg-white p-3 shadow-xl">
-          {tag && <Link href={params({ tag: null })} className="mb-2 inline-block text-sm font-semibold text-accent underline">Clear the tag filter</Link>}
+      <details key={`${room ?? ""}-${tag ?? ""}-${archived}`} open={!!(room || tag || archived)} className="mt-3 rounded-2xl border border-line">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-2.5 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+          More filters
+          {[room ? ROOM_LABELS[room] ?? room : null, tag ? `Tag: ${tag}` : null, archived ? "Archive" : null].filter(Boolean).map((f) => (
+            <span key={f} className="rounded-full bg-foreground px-2.5 py-0.5 text-xs font-semibold text-white">{f}</span>
+          ))}
+          {(room || tag || archived) && <Link href={params({ room: null, tag: null, archived: null })} className="text-xs font-semibold text-accent underline">Clear</Link>}
+          <span className="ml-auto text-muted" aria-hidden>▾</span>
+        </summary>
+        <div className="space-y-4 border-t border-line px-4 py-4">
+          <div>
+            <p className="pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Room or shot</p>
+            <div className="flex flex-wrap gap-1.5">
+              {ROOM_FILTERS.map((r) => (
+                <Link key={r} href={params({ room: room === r ? null : r })} className={chip(room === r)}>{ROOM_LABELS[r]}</Link>
+              ))}
+            </div>
+          </div>
           {TAG_CATEGORIES.map((c) => {
             const tags = tagList.filter((t) => t.category === c.key);
             return tags.length ? (
-              <div key={c.key} className="mb-3 last:mb-0">
-                <p className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">{c.label}</p>
+              <div key={c.key}>
+                <p className="pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Tags: {c.label}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {tags.map((t) => (
                     <Link key={t.id} href={params({ tag: tag === t.label ? null : t.label })} className={chip(tag === t.label)}>{t.label}</Link>
@@ -266,6 +296,11 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
               </div>
             ) : null;
           })}
+          <div>
+            <p className="pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Archive</p>
+            <Link href={params({ archived: archived ? null : "1" })} className={chip(archived)}>Archived files</Link>
+            <span className="ml-2 text-xs text-muted">Over 600 days old, from homes that sold or came off the market and communities that sold out. Open one to bring it back.</span>
+          </div>
         </div>
       </details>
 
@@ -324,6 +359,14 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
       {/* Community level: community media, then a folder per home */}
       {community && !home && !filtering && (
         <>
+          {pendingCommunity.length > 0 && (
+            <section className="mt-8">
+              <h2 className="text-[22px] font-semibold">Photos to approve</h2>
+              <div className="mt-3">
+                <PhotoApproval items={pendingCommunity} back={`/media?community=${community.id}`} canReview={canManageMedia(me.role)} forHome={false} />
+              </div>
+            </section>
+          )}
           <section className="mt-10">
             <h2 className="text-[22px] font-semibold">Community photos and video</h2>
             <p className="mt-1 text-sm text-muted">Entrance, amenities, aerials and site plans. Use them on any home here.</p>
@@ -379,7 +422,10 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
                 />
               )}
             </div>
-            <p className="mt-1 text-sm text-muted">{moreHref ? `${results.length}+` : results.length} {results.length === 1 && !moreHref ? "file" : "files"} taken at {home.unparsed_address}.</p>
+            <p className="mt-1 text-sm text-muted">
+              {moreHref ? `${results.length}+` : results.length} {results.length === 1 && !moreHref ? "file" : "files"} taken at {home.unparsed_address}.
+              {(archivedHere ?? 0) > 0 && <> <Link href={params({ archived: "1" })} className="font-semibold text-foreground underline">{archivedHere} more in the archive</Link>.</>}
+            </p>
             <div className="mt-4">
               <MediaGrid>{results.map((m) => <MediaTile key={m.id} m={m} disclaimer={home.show_representative_disclaimer} />)}</MediaGrid>
               <ShowMore href={moreHref} />
@@ -418,6 +464,13 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
         </div>
       )}
     </div>
+  );
+}
+
+function tab(on: boolean) {
+  return cx(
+    "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-[15px] font-semibold transition-colors",
+    on ? "bg-foreground text-white" : "bg-soft text-foreground hover:bg-line",
   );
 }
 

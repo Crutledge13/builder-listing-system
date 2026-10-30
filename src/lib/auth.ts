@@ -8,6 +8,7 @@ export type Profile = {
   email: string;
   full_name: string;
   role: Role;
+  online_sales: boolean; // a salesperson who's an online sales counselor (same access as sales)
   builder_id: string | null;
   builder_name: string | null;
   phone: string | null;
@@ -33,7 +34,7 @@ export const requireProfile = cache(async (): Promise<Profile> => {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, builder_id, is_active, phone, job_title, avatar_updated_at, builders!profiles_builder_id_fkey(name, builder_branding(logo_updated_at))")
+    .select("id, email, full_name, role, online_sales, builder_id, is_active, phone, job_title, avatar_updated_at, builders!profiles_builder_id_fkey(name, builder_branding(logo_updated_at))")
     .eq("id", user.id)
     .single();
 
@@ -47,6 +48,7 @@ export const requireProfile = cache(async (): Promise<Profile> => {
     email: data.email,
     full_name: data.full_name,
     role: data.role as Role,
+    online_sales: !!data.online_sales,
     builder_id: data.builder_id,
     builder_name: builder?.name ?? null,
     phone: data.phone,

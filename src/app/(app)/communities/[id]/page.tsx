@@ -6,10 +6,10 @@ import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { hasFeature } from "@/lib/features";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { money } from "@/lib/format";
-import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
+import { HomeCard, HomeGrid, HOME_CARD_SELECT } from "@/components/home-card";
 import { cardIncentive, forHome, INCENTIVE_SELECT, type Incentive } from "@/lib/incentives";
 import { IncentiveList } from "@/components/incentive-list";
-import { canManageIncentives, canRequestComps } from "@/lib/permissions";
+import { canBulkChangePrices, canManageIncentives, canRequestComps } from "@/lib/permissions";
 import { StatusChips } from "@/components/status-chips";
 import { HomeArt } from "@/components/home-art";
 import { MediaPicture } from "@/components/media-tile";
@@ -18,6 +18,10 @@ import { openHouseWhen } from "@/lib/time";
 import { setAssignments } from "@/app/(app)/admin/actions";
 import { Notice } from "@/components/notice";
 import { communityCompleteness, communitySections, mergeCommunityDetails, MLS_BOARD_SELECT, type MlsBoard } from "@/lib/mls-fields";
+import { HOME_LIST_COLUMNS, HOME_LIST_EXTRA, homeRow, type ListHome } from "@/lib/home-list";
+import { FilterTable } from "@/components/filter-table";
+import { viewPref } from "@/lib/view-pref";
+import { ViewToggle } from "@/components/view-toggle";
 
 export default function CommunityPage(props: PageProps<"/communities/[id]">) {
   return (
@@ -56,11 +60,12 @@ async function CommunityDetail({
 
   const { data: homeRows } = await supabase
     .from("homes")
-    .select(HOME_CARD_SELECT)
+    .select(HOME_CARD_SELECT + HOME_LIST_EXTRA)
     .eq("community_id", id)
     .is("deleted_at", null)
     .order("unparsed_address");
-  const all = (homeRows ?? []) as unknown as HomeCardData[];
+  const all = (homeRows ?? []) as unknown as ListHome[];
+  const view = await viewPref("homes");
   const homes = status ? all.filter((h) => h.workflow_status === status) : all;
   const [{ data: incentiveRows }, homeCovers, communityCovers] = await Promise.all([
     supabase.from("incentives").select(INCENTIVE_SELECT).eq("builder_id", community.builder_id).eq("status", "active").order("ends_on"),
@@ -85,7 +90,7 @@ async function CommunityDetail({
   ]);
   const canManageTeam = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const { data: builderSales } = canManageTeam
-    ? await supabase.from("profiles").select("id, full_name").eq("builder_id", community.builder_id).eq("role", "sales").order("full_name")
+    ? await supabase.from("profiles").select("id, full_name, online_sales").eq("builder_id", community.builder_id).eq("role", "sales").eq("is_active", true).order("full_name")
     : { data: null };
   const { data: thisTeam } = canManageTeam
     ? await supabase.from("community_assignments").select("profile_id").eq("community_id", id)
@@ -156,6 +161,11 @@ async function CommunityDetail({
             Community setup {setup.filled < setup.required ? `(${setup.filled} of ${setup.required})` : "✓"}
           </Link>
         )}
+        {canBulkChangePrices(me.role) && all.length > 0 && (
+          <Link href={`/communities/${community.id}/prices`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
+            Change prices
+          </Link>
+        )}
         <Link href={`/media?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
           Community photos and videos
         </Link>
@@ -180,7 +190,7 @@ async function CommunityDetail({
                 <input type="hidden" name="scope" value={community.id} />
                 <input type="hidden" name="back" value={`/communities/${community.id}`} />
                 {!onTeam.has(p.id) && <input type="hidden" name="community_id" value={community.id} />}
-                <span className="text-sm font-medium">{p.full_name}</span>
+                <span className="text-sm font-medium">{p.full_name}{p.online_sales && <span className="ml-2 text-xs font-normal text-muted">Online sales counselor</span>}</span>
                 <button className={onTeam.has(p.id) ? "rounded-lg border border-foreground px-3 py-1.5 text-sm font-semibold hover:bg-white" : "rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black"}>
                   {onTeam.has(p.id) ? "Remove" : "Add to this community"}
                 </button>
@@ -233,7 +243,10 @@ async function CommunityDetail({
       <section className="mt-10">
         <div className="flex items-baseline justify-between">
           <h2 className="text-[22px] font-semibold">Homes in {community.name}</h2>
-          <Link href={`/homes?community=${community.id}`} className="text-sm font-semibold underline">Open in all homes</Link>
+          <div className="flex items-center gap-3">
+            <ViewToggle name="homes" view={view} />
+            <Link href={`/homes?community=${community.id}`} className="text-sm font-semibold underline">Open in all homes</Link>
+          </div>
         </div>
         <StatusChips
           active={status}
@@ -242,9 +255,17 @@ async function CommunityDetail({
           hrefFor={(s) => (s ? `/communities/${community.id}?status=${s}` : `/communities/${community.id}`)}
         />
         <div className="mt-8">
-          <HomeGrid>
-            {homes.map((h, i) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} cover={homeCovers.get(h.id)} priority={i < 4} />)}
-          </HomeGrid>
+          {view === "list" ? (
+            homes.length > 0 && (
+              <div className="rounded-2xl border border-line">
+                <FilterTable columns={HOME_LIST_COLUMNS(false, false)} rows={homes.map((h) => homeRow(h, false, false))} filters={["plan", "sale", "stage"]} empty="No homes here yet." pageSize={500} minWidth={1000} />
+              </div>
+            )
+          ) : (
+            <HomeGrid>
+              {homes.map((h, i) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} cover={homeCovers.get(h.id)} priority={i < 4} />)}
+            </HomeGrid>
+          )}
           {homes.length === 0 && (
             <p className="rounded-2xl border border-dashed border-line px-6 py-12 text-center text-muted">No homes with this status here.</p>
           )}

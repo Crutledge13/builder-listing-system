@@ -101,10 +101,25 @@ export async function updateMediaRequest(formData: FormData) {
       patch.photographer_note = String(formData.get("note") ?? "").trim() || null;
       message = "Marked delivered. The builder’s team will review it.";
       break;
-    case "complete":
+    case "complete": {
       patch.status = "completed";
       message = "Marked complete. Thanks!";
+      // "Looks good" also approves the photographer's files still waiting on
+      // that home or community, so they go on the listing (owners, 29 Oct 2026).
+      const supabase = await createClient();
+      const { data: req } = await supabase.from("media_requests").select("home_id, community_id").eq("id", id).maybeSingle();
+      if (req) {
+        let q = supabase.from("media").select("id").eq("review_status", "pending").is("deleted_at", null);
+        q = req.home_id ? q.eq("home_id", req.home_id) : q.eq("community_id", req.community_id).is("home_id", null);
+        const { data: waiting } = await q;
+        if (waiting?.length) {
+          const { data: n, error } = await supabase.rpc("review_media", { p_ids: waiting.map((w) => w.id), p_decision: "approved" });
+          if (error) go(back, { error: friendly(error.message) });
+          if (Number(n)) message = `Marked complete and approved ${n} ${Number(n) === 1 ? "file" : "files"}: they’re on the listing for the MLS now.`;
+        }
+      }
       break;
+    }
     case "redo":
       patch.status = "scheduled";
       message = "Sent back to the photographer.";

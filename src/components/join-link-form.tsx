@@ -49,7 +49,7 @@ export function JoinLinkForm({
           </label>
         )}
 
-        {role === "sales" && builder && (
+        {(role === "sales" || role === "online_sales") && builder && (
           <fieldset>
             <legend className="mb-1 text-sm font-medium">Communities they see</legend>
             {theirCommunities.length ? (

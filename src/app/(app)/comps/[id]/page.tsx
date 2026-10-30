@@ -75,6 +75,7 @@ async function Request({ params }: { params: PageProps<"/comps/[id]">["params"] 
       <section className="mt-6 rounded-2xl border border-line p-5">
         <h2 className="font-semibold">What was asked for</h2>
         <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+          <Fact label="ZIP codes" value={(r.zip_codes as string[] | null)?.length ? (r.zip_codes as string[]).join(", ") : "—"} />
           <Fact label="Price point" value={r.price_point ? money(r.price_point) : "—"} />
           <Fact label="Size" value={r.living_area ? `${num(r.living_area)} sq ft` : "—"} />
           <Fact label="Beds / baths" value={`${r.bedrooms ?? "—"} / ${r.bathrooms ?? "—"}`} />

@@ -7,13 +7,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { ROLE_LABELS, canManageTeam, rolesICanGive, type Role } from "@/lib/permissions";
+import { canManageTeam, choiceLabel, roleLabel, rolesICanGive, toChoice, type Role, type RoleChoice } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { setAssignments } from "@/app/(app)/admin/actions";
 import { AccessHistory } from "@/components/access-history";
 import { inviteTeammate, setTeammateActive, updateTeammate } from "./actions";
 import { pendingInvites } from "@/lib/invite-links";
 import { InviteLink } from "@/components/invite-link";
+import { loadApproved } from "@/lib/email-domains";
 import { BrokerPanel } from "@/components/broker-panel";
 import { mlsEntryFor } from "@/lib/mls-entry";
 
@@ -27,7 +28,8 @@ export default function TeamPage(props: PageProps<"/team">) {
   );
 }
 
-const ROLE_HINTS: Partial<Record<Role, string>> = {
+const ROLE_HINTS: Partial<Record<RoleChoice, string>> = {
+  online_sales: "Same as sales for now: only their communities. For the team answering online leads.",
   builder_owner: "Everything for your company, including adding people.",
   manager: "Can do everything marketing can; usually follows along and reads the reports.",
   sales: "Only their communities: price, status, open houses, requests.",
@@ -40,7 +42,7 @@ async function Team() {
   if (!canManageTeam(me.role)) redirect("/communities");
   const supabase = await createClient();
   const [{ data: people }, { data: communities }, { data: assignments }, entry] = await Promise.all([
-    supabase.from("profiles").select("id, email, full_name, role, is_active, phone, job_title, avatar_updated_at").eq("builder_id", me.builder_id!).order("full_name"),
+    supabase.from("profiles").select("id, email, full_name, role, online_sales, is_active, phone, job_title, avatar_updated_at").eq("builder_id", me.builder_id!).order("full_name"),
     supabase.from("communities").select("id, name, city").eq("builder_id", me.builder_id!).order("name"),
     supabase.from("community_assignments").select("profile_id, community_id"),
     mlsEntryFor(me.builder_id),
@@ -48,6 +50,8 @@ async function Team() {
   const brokerMode = entry === "broker";
   const canGive = rolesICanGive(me.role);
   const canInvite = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const approved = await loadApproved(supabase, me.builder_id);
+  const approvedDomains = approved.filter((a) => a.kind === "domain").map((a) => `@${a.value}`);
   const active = (people ?? []).filter((p) => p.is_active);
   // People who haven't opened their invite and chosen a password yet.
   const pending = await pendingInvites(active.map((p) => p.id));
@@ -66,6 +70,7 @@ async function Team() {
           <div className="divide-y divide-line rounded-2xl border border-line">
             {active.map((p) => {
               const role = p.role as Role;
+              const choice = toChoice(role, p.online_sales);
               const editable = p.id !== me.id && canGive.includes(role);
               const mine = new Set((assignments ?? []).filter((a) => a.profile_id === p.id).map((a) => a.community_id));
               return (
@@ -82,13 +87,13 @@ async function Team() {
                     {editable ? (
                       <form action={updateTeammate} className="flex items-center gap-2">
                         <input type="hidden" name="id" value={p.id} />
-                        <select name="role" defaultValue={role} className="field-input w-40 py-2" aria-label={`Role for ${p.full_name}`}>
-                          {canGive.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                        <select name="role" defaultValue={choice} className="field-input w-48 py-2" aria-label={`Role for ${p.full_name}`}>
+                          {canGive.map((r) => <option key={r} value={r}>{choiceLabel(r)}</option>)}
                         </select>
                         <button className="rounded-lg border border-line px-3 py-2 text-sm font-semibold hover:border-foreground">Save</button>
                       </form>
                     ) : (
-                      <span className="rounded-full bg-soft px-3 py-1 text-sm">{ROLE_LABELS[role]}</span>
+                      <span className="rounded-full bg-soft px-3 py-1 text-sm">{roleLabel(role, p.online_sales)}</span>
                     )}
                     {editable && (
                       <form action={setTeammateActive}>
@@ -129,7 +134,7 @@ async function Team() {
                   <div key={p.id} className="flex items-center gap-3 p-4">
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium text-muted">{p.full_name}</div>
-                      <div className="truncate text-sm text-muted">{ROLE_LABELS[p.role as Role]}, {p.email}</div>
+                      <div className="truncate text-sm text-muted">{roleLabel(p.role as Role, p.online_sales)}, {p.email}</div>
                     </div>
                     {canGive.includes(p.role as Role) && (
                       <form action={setTeammateActive}>
@@ -161,6 +166,11 @@ async function Team() {
             <label className="mt-3 block">
               <span className="mb-1 block text-sm font-medium">Email</span>
               <input name="email" type="email" required autoCapitalize="none" className="field-input" />
+              {approvedDomains.length > 0 && (
+                <span className="mt-1 block text-xs text-muted">
+                  Their email must end in {approvedDomains.join(" or ")}. Someone outside your company? Ask Builder Listing Services to approve them.
+                </span>
+              )}
             </label>
             <fieldset className="mt-4">
               <legend className="mb-2 text-sm font-medium">What can they do?</legend>
@@ -169,7 +179,7 @@ async function Team() {
                   <label key={r} className="flex gap-3 rounded-xl border border-line p-3 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
                     <input type="radio" name="role" value={r} defaultChecked={r === "sales" || (i === 0 && !canGive.includes("sales"))} className="mt-1 h-4 w-4 accent-[#3452c7]" />
                     <span>
-                      <span className="block text-sm font-semibold">{ROLE_LABELS[r]}</span>
+                      <span className="block text-sm font-semibold">{choiceLabel(r)}</span>
                       <span className="block text-xs text-muted">{ROLE_HINTS[r]}</span>
                     </span>
                   </label>
@@ -178,7 +188,7 @@ async function Team() {
             </fieldset>
             {(communities ?? []).length > 0 && (
               <fieldset className="mt-4">
-                <legend className="text-sm font-medium">Communities (for sales)</legend>
+                <legend className="text-sm font-medium">Communities (for sales and online sales)</legend>
                 <CommunityPicker communities={communities ?? []} />
               </fieldset>
             )}

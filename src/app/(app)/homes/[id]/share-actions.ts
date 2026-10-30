@@ -34,6 +34,24 @@ export async function replaceShareLink(formData: FormData) {
   back(homeId, { saved: "New link made. The old one no longer works, so send this one from now on." });
 }
 
+// Turn off everyone's standing links for this home at once (each person gets a
+// new one the next time they copy it). Owners, managers, marketing, our admins.
+export async function replaceAllShareLinks(formData: FormData) {
+  await requireProfile();
+  const homeId = String(formData.get("home_id"));
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("share_links")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("home_id", homeId)
+    .is("expires_at", null)
+    .is("deleted_at", null)
+    .select("id");
+  if (!data?.length) back(homeId, { error: "Your role can’t turn off this home’s links." });
+  await supabase.rpc("home_share_link", { p_home: homeId });
+  back(homeId, { saved: `Turned off ${data.length} ${data.length === 1 ? "link" : "links"}. Everyone gets a new link the next time they copy one.` });
+}
+
 // Delete a link: it stops working at once and leaves the list. It goes to the
 // trash, so "Undo" right after puts it back as it was.
 export async function deleteShareLink(formData: FormData) {

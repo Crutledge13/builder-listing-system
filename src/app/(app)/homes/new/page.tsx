@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { WEBSITE_PAGE_HELP } from "@/lib/website-page";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
-import { canAddHomes, canRequestMedia, isStaff, NEED_LABELS, ROLE_LABELS, STAGE_LABELS } from "@/lib/permissions";
+import { canAddHomes, canRequestMedia, isStaff, NEED_LABELS, STAGE_LABELS, roleLabel } from "@/lib/permissions";
 import { createHome } from "./actions";
 import { questionSections, SectionFields } from "@/components/ntreis-questions";
 import { FormSteps } from "@/components/form-steps";
@@ -16,6 +16,7 @@ import { RequiredPill } from "@/components/required-pill";
 import { RoomsEditor } from "@/components/rooms-editor";
 import { cleanRooms } from "@/lib/rooms";
 import { StartFrom, type CopyOption, type PlanOption, type Prefill, type WebsiteOption } from "@/components/start-from";
+import { GpsField } from "@/components/gps-field";
 
 export default function NewHomePage(props: PageProps<"/homes/new">) {
   return (
@@ -38,7 +39,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
       <div className="mx-auto max-w-lg py-16 text-center">
         <h1 className="text-[28px] font-bold tracking-tight">Adding homes isn’t part of your role</h1>
         <p className="mt-3 text-muted">
-          As {ROLE_LABELS[me.role].toLowerCase()}, you can work on homes once they’re added. Ask your
+          As {roleLabel(me.role, me.online_sales).toLowerCase()}, you can work on homes once they’re added. Ask your
           sales team, a manager or the owner to add new ones.
         </p>
         <Link href="/homes" className="mt-6 inline-block rounded-xl border border-foreground px-5 py-2.5 font-semibold">Back to homes</Link>
@@ -110,6 +111,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
             <Text name="postal_code" label="ZIP" required />
             <Text name="lot_number" label="Your lot reference" placeholder="B3-L12" help="However your team refers to the lot. The plat's lot and block numbers for the MLS are asked further down." />
             <Text name="plan_name" label="Floor plan" placeholder="Brazos" />
+            <GpsField />
           </div>
         </section>
 

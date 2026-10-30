@@ -351,3 +351,8 @@ begin
     notes = 'Net 30 on the first invoice, as agreed.' where id = inv;
   perform setval('public.invoice_number_seq', greatest(n, (select last_value from public.invoice_number_seq)));
 end $$;
+
+-- Approved email domains (29 Oct 2026): every demo builder approves the demo
+-- logins' domain, so the lock is on and Admin > Builders shows how it looks.
+insert into public.builder_email_domains (builder_id, value, reason)
+select id, 'demo.test', null from public.builders;

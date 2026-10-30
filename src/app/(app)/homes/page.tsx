@@ -4,10 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { builderFocus } from "@/lib/builder-focus";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
-import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
+import { HomeCard, HomeGrid, HOME_CARD_SELECT } from "@/components/home-card";
 import { loadHomeCovers } from "@/lib/covers";
 import { cardIncentive, INCENTIVE_SELECT, type Incentive } from "@/lib/incentives";
 import { StatusChips } from "@/components/status-chips";
+import { ViewToggle } from "@/components/view-toggle";
+import { viewPref } from "@/lib/view-pref";
+import { FilterTable } from "@/components/filter-table";
+import { HOME_LIST_COLUMNS, HOME_LIST_EXTRA, homeRow, type ListHome } from "@/lib/home-list";
 
 export default function HomesPage(props: PageProps<"/homes">) {
   return (
@@ -33,7 +37,7 @@ function GridSkeleton() {
 
 const STATUSES = Object.keys(STATUS_LABELS) as WorkflowStatus[];
 
-type Row = HomeCardData;
+type Row = ListHome;
 
 async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["searchParams"] }) {
   const sp = await searchParams;
@@ -44,14 +48,14 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
   sendPhotographersToJobs(me);
   const supabase = await createClient();
 
-  const focus = await builderFocus(me.role);
+  const [focus, view] = await Promise.all([builderFocus(me.role), viewPref("homes")]);
   let cq = supabase.from("communities").select("id, name, builders(name)").order("name");
   if (focus) cq = cq.eq("builder_id", focus);
   const { data: communities } = await cq;
 
   let query = supabase
     .from("homes")
-    .select(HOME_CARD_SELECT)
+    .select(HOME_CARD_SELECT + HOME_LIST_EXTRA)
     .is("deleted_at", null)
     .order("unparsed_address");
   if (community) query = query.eq("community_id", community);
@@ -61,7 +65,8 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
   const homes = status ? all.filter((h) => h.workflow_status === status) : all;
   let iq = supabase.from("incentives").select(INCENTIVE_SELECT).eq("status", "active");
   if (focus) iq = iq.eq("builder_id", focus);
-  const [{ data: incentiveRows }, covers] = await Promise.all([iq, loadHomeCovers(supabase, homes.map((h) => h.id))]);
+  // The list view has no pictures, so it skips loading the cover photos.
+  const [{ data: incentiveRows }, covers] = await Promise.all([iq, view === "list" ? Promise.resolve(new Map()) : loadHomeCovers(supabase, homes.map((h) => h.id))]);
   const incentives = (incentiveRows ?? []) as Incentive[];
 
   const counts = new Map<string, number>();
@@ -109,6 +114,7 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
           </select>
           <button className="shrink-0 rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">Show</button>
         </form>
+        <ViewToggle name="homes" view={view} />
         {canAddHomes(me.role) && (
           <Link href={community ? `/homes/new?community=${community}` : "/homes/new"} className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">
             <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
@@ -121,13 +127,28 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
 
       {error && <p className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">Couldn’t load homes: {error.message}</p>}
 
-      <div className="mt-8">
-        <HomeGrid>
-          {homes.map((h, i) => (
-            <HomeCard key={h.id} h={h} showBuilder={staff} incentive={cardIncentive(incentives, h)} cover={covers.get(h.id)} priority={i < 4} />
-          ))}
-        </HomeGrid>
-      </div>
+      {view === "list" ? (
+        homes.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-line">
+            <FilterTable
+              columns={HOME_LIST_COLUMNS(staff)}
+              rows={homes.map((h) => homeRow(h, staff))}
+              filters={["community", "plan", "status", "sale", "stage", ...(staff ? ["builder"] : [])]}
+              empty="No homes here yet."
+              pageSize={500}
+              minWidth={staff ? 1240 : 1120}
+            />
+          </div>
+        )
+      ) : (
+        <div className="mt-8">
+          <HomeGrid>
+            {homes.map((h, i) => (
+              <HomeCard key={h.id} h={h} showBuilder={staff} incentive={cardIncentive(incentives, h)} cover={covers.get(h.id)} priority={i < 4} />
+            ))}
+          </HomeGrid>
+        </div>
+      )}
 
       {homes.length === 0 && !error && (
         <div className="mt-10 rounded-2xl border border-dashed border-line px-6 py-16 text-center">

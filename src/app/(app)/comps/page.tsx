@@ -26,13 +26,13 @@ async function Comps() {
   const focus = await builderFocus(me.role);
   let q = supabase
     .from("comp_requests")
-    .select("id, location, city, price_point, living_area, bedrooms, bathrooms, status, requester_name, created_at, delivered_at, builders(name), communities(name)")
+    .select("id, location, city, zip_codes, price_point, living_area, bedrooms, bathrooms, status, requester_name, created_at, delivered_at, builders(name), communities(name)")
     .order("created_at", { ascending: false })
     .limit(200);
   if (focus) q = q.eq("builder_id", focus);
   const { data } = await q;
   const rows = (data ?? []) as unknown as {
-    id: string; location: string; city: string | null; price_point: number | null; living_area: number | null; bedrooms: number | null; bathrooms: number | null;
+    id: string; location: string; city: string | null; zip_codes: string[] | null; price_point: number | null; living_area: number | null; bedrooms: number | null; bathrooms: number | null;
     status: string; requester_name: string | null; created_at: string; delivered_at: string | null; builders: { name: string } | null; communities: { name: string } | null;
   }[];
   const open = rows.filter((r) => r.status === "requested" || r.status === "in_progress");
@@ -63,7 +63,7 @@ async function Comps() {
                 <li key={r.id}>
                   <Link href={`/comps/${r.id}`} className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-soft">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold">{r.location}{r.city ? `, ${r.city}` : ""}</p>
+                      <p className="truncate font-semibold">{r.location}{r.city ? `, ${r.city}` : ""}{r.zip_codes?.length ? ` · ${r.zip_codes.join(", ")}` : ""}</p>
                       <p className="text-sm text-muted">
                         {[r.price_point ? money(r.price_point) : null, r.living_area ? `${num(r.living_area)} sq ft` : null, r.bedrooms != null ? `${r.bedrooms} bd` : null, r.bathrooms != null ? `${r.bathrooms} ba` : null].filter(Boolean).join(" · ")}
                         {" · "}

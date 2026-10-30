@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { FEATURES } from "@/lib/features";
 import { createInvitedLogin, deleteLogin, invitesOn } from "@/lib/invite-links";
+import { domainOf, emailAllowed, isPersonalDomain, readDomainList } from "@/lib/email-domains";
 
 // Every action here is for our platform admins. The database rules enforce
 // this too; the check below just gives a clear message.
@@ -56,6 +57,21 @@ export async function addBuilder(formData: FormData) {
   // The branding and onboarding rows are made by the database when a builder is added.
   const { error: oErr } = await supabase.from("builder_onboarding").update(onboardingFields(formData)).eq("builder_id", created.id);
 
+  // Approved email domains: only people with these emails can be set up at the
+  // builder. Blank = the primary contact's domain (or, on gmail and the like,
+  // just their exact address).
+  const domains = readDomainList(text("email_domains"));
+  const ownerDomain = domainOf(ownerEmail);
+  const approve = domains.length
+    ? domains.map((d) => ({ builder_id: created.id, value: d, reason: null as string | null }))
+    : ownerDomain ? [{ builder_id: created.id, value: isPersonalDomain(ownerDomain) ? ownerEmail : ownerDomain, reason: "Primary contact" }] : [];
+  if (ownerEmail && domains.length && !domains.includes(ownerDomain)) approve.push({ builder_id: created.id, value: ownerEmail, reason: "Primary contact" });
+  let domainNote = "";
+  for (const row of approve) {
+    const { error: dErr } = await supabase.from("builder_email_domains").insert(row);
+    if (dErr) domainNote += ` ${row.value} wasn’t approved: ${friendly(dErr.message)}`;
+  }
+
   let invited = "";
   if (ownerEmail) {
     const problem = await inviteOne({ email: ownerEmail, fullName: ownerName, role: "builder_owner", builderId: created.id });
@@ -63,7 +79,7 @@ export async function addBuilder(formData: FormData) {
   }
   revalidatePath("/", "layout");
   go("/admin/onboarding", {
-    saved: `Added ${name}.${oErr ? ` Some onboarding details didn’t save: ${friendly(oErr.message)}` : ""}${invited}`,
+    saved: `Added ${name}.${oErr ? ` Some onboarding details didn’t save: ${friendly(oErr.message)}` : ""}${domainNote}${invited}`,
   });
 }
 
@@ -154,7 +170,10 @@ const STAFF_ROLES = ["platform_admin", "listing_coordinator", "photographer"];
 export async function updatePerson(formData: FormData) {
   const me = await requireAdmin("/admin/people");
   const id = String(formData.get("id"));
-  const role = String(formData.get("role") ?? "");
+  // "online_sales" in the picker = a salesperson with online_sales on.
+  const choice = String(formData.get("role") ?? "");
+  const onlineSales = choice === "online_sales";
+  const role = onlineSales ? "sales" : choice;
   const builderId = String(formData.get("builder_id") ?? "") || null;
   if (![...BUILDER_ROLES, ...STAFF_ROLES].includes(role)) go("/admin/people", { error: "Pick a role." });
   if (BUILDER_ROLES.includes(role) && !builderId) go("/admin/people", { error: "Builder roles need a builder." });
@@ -162,7 +181,7 @@ export async function updatePerson(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
-    .update({ role, builder_id: STAFF_ROLES.includes(role) ? null : builderId })
+    .update({ role, online_sales: onlineSales, builder_id: STAFF_ROLES.includes(role) ? null : builderId })
     .eq("id", id);
   if (error) go("/admin/people", { error: friendly(error.message) });
   // Community assignments only apply to sales within the same builder.
@@ -200,7 +219,9 @@ export async function setAssignments(formData: FormData) {
 const JOIN_DAYS = new Set([7, 14, 30, 90]);
 export async function createJoinLink(formData: FormData) {
   await requireAdmin("/admin/people");
-  const role = String(formData.get("role") ?? "");
+  const choice = String(formData.get("role") ?? "");
+  const onlineSales = choice === "online_sales";
+  const role = onlineSales ? "sales" : choice;
   if (!role || role === "platform_admin") go("/admin/people", { error: "Pick a role. Join links can’t make platform admins.", at: "join" });
   const staffRole = ["listing_coordinator", "photographer"].includes(role);
   const builderId = staffRole ? null : String(formData.get("builder_id") ?? "") || null;
@@ -212,6 +233,7 @@ export async function createJoinLink(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("join_links").insert({
     role,
+    online_sales: onlineSales,
     builder_id: builderId,
     label: String(formData.get("label") ?? "").trim().slice(0, 120) || null,
     community_ids: role === "sales" ? formData.getAll("community_id").map(String) : [],
@@ -258,7 +280,7 @@ export async function setStaffBuilders(formData: FormData) {
 
 // Sends one invite and sets up the person's account. Returns a problem in
 // plain words, or null when it worked. Callers check the admin role first.
-async function inviteOne(p: { email: string; fullName: string; role: string; builderId: string | null }): Promise<string | null> {
+async function inviteOne(p: { email: string; fullName: string; role: string; builderId: string | null; onlineSales?: boolean }): Promise<string | null> {
   if (!invitesOn()) return "invite links need the SUPABASE_SERVICE_ROLE_KEY setting in Vercel. Invite them later from Admin > Onboarding.";
   // Makes the login without sending an email; we copy the invite link from the page and send it ourselves.
   const made = await createInvitedLogin(p.email, p.fullName);
@@ -270,6 +292,7 @@ async function inviteOne(p: { email: string; fullName: string; role: string; bui
     email: p.email,
     full_name: p.fullName,
     role: p.role,
+    online_sales: p.role === "sales" && !!p.onlineSales,
     builder_id: STAFF_ROLES.includes(p.role) ? null : p.builderId,
   });
   if (pErr) {
@@ -279,18 +302,56 @@ async function inviteOne(p: { email: string; fullName: string; role: string; bui
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Approved email domains (Admin > Builders)
+// ---------------------------------------------------------------------------
+export async function addApprovedEmail(formData: FormData) {
+  await requireAdmin("/admin/builders");
+  const builderId = String(formData.get("builder_id"));
+  const back = `/admin/builders`;
+  const values = readDomainList(String(formData.get("value") ?? ""));
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 300) || null;
+  if (!values.length) go(back, { error: "Enter a domain (acmehomes.com) or an exact email address." });
+  const supabase = await createClient();
+  for (const value of values) {
+    const { error } = await supabase.from("builder_email_domains").insert({ builder_id: builderId, value, reason });
+    if (error) go(back, { error: error.message.includes("duplicate key") ? `${value} is already approved.` : error.message.includes("check constraint") ? `${value} doesn’t look like a domain or an email address.` : friendly(error.message) });
+  }
+  revalidatePath("/admin/builders");
+  go(back, { saved: `Approved ${values.join(", ")}.` });
+}
+
+export async function removeApprovedEmail(formData: FormData) {
+  await requireAdmin("/admin/builders");
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("builder_email_domains")
+    .update({ removed_at: new Date().toISOString() })
+    .eq("id", String(formData.get("id")))
+    .is("removed_at", null)
+    .select("value");
+  if (error || !data?.length) go("/admin/builders", { error: friendly(error?.message ?? "Couldn’t remove it.") });
+  revalidatePath("/admin/builders");
+  go("/admin/builders", { saved: `Removed ${data[0].value}. People already set up keep their access; new people with it can’t be added.` });
+}
+
 export async function invitePerson(formData: FormData) {
   const back = String(formData.get("back") ?? "/admin/people");
   await requireAdmin(back);
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const fullName = String(formData.get("full_name") ?? "").trim();
-  const role = String(formData.get("role") ?? "");
+  const choice = String(formData.get("role") ?? "");
+  const onlineSales = choice === "online_sales";
+  const role = onlineSales ? "sales" : choice;
   const builderId = String(formData.get("builder_id") ?? "") || null;
   if (!email || !fullName) go(back, { error: "Enter a name and email." });
   if (![...BUILDER_ROLES, ...STAFF_ROLES].includes(role)) go(back, { error: "Pick a role." });
   if (BUILDER_ROLES.includes(role) && !builderId) go(back, { error: "Builder roles need a builder." });
+  if (BUILDER_ROLES.includes(role) && builderId && !(await emailAllowed(await createClient(), builderId, email))) {
+    go(back, { error: `${email} isn’t an approved email for that builder. Approve the domain or address first in Admin > Builders.` });
+  }
 
-  const problem = await inviteOne({ email, fullName, role, builderId });
+  const problem = await inviteOne({ email, fullName, role, builderId, onlineSales });
   if (problem) go(back, { error: problem[0].toUpperCase() + problem.slice(1) });
   revalidatePath("/", "layout");
   go(back, { saved: `Added ${fullName}. Copy their invite link next to their name and send it to them.` });

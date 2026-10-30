@@ -45,6 +45,10 @@ export async function requestComps(formData: FormData) {
     months_back: num(formData.get("months_back")),
   };
   if (Object.values(fields).some((v) => Number.isNaN(v))) fail("/comps/new", "Price, size, beds and baths need to be numbers.");
+  const zipText = String(formData.get("zip_codes") ?? "").trim();
+  const zips = [...new Set(zipText.split(/[\s,;]+/).filter(Boolean))];
+  if (!zips.length) fail("/comps/new", "Enter at least one ZIP code.");
+  if (zips.length > 10 || zips.some((z) => !/^\d{5}$/.test(z))) fail("/comps/new", "ZIP codes are 5 digits each, separated by commas (up to 10).");
   const type = String(formData.get("comp_type") ?? "both");
   const { data, error } = await supabase
     .from("comp_requests")
@@ -54,6 +58,7 @@ export async function requestComps(formData: FormData) {
       home_id: homeId,
       location,
       city: String(formData.get("city") ?? "").trim().slice(0, 80) || null,
+      zip_codes: zips,
       ...fields,
       living_area: fields.living_area === null ? null : Math.round(fields.living_area),
       comp_type: ["new", "resale", "both"].includes(type) ? type : "both",

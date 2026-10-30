@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { demoModeOn, requireProfile } from "@/lib/auth";
+import { emailAllowed } from "@/lib/email-domains";
 
 function go(params: Record<string, string>, hash = ""): never {
   redirect(`/account?${new URLSearchParams(params).toString()}${hash}`);
@@ -63,6 +64,10 @@ export async function changeEmail(formData: FormData) {
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
   const supabase = await createClient();
+  // Builder people keep an email their company approved (owners, 29 Oct 2026).
+  if (me.builder_id && !(await emailAllowed(supabase, me.builder_id, email))) {
+    go({ error: "That email isn’t approved for your company. Use your work email, or ask Builder Listing Services to approve it." }, "#email");
+  }
   const { error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: `${origin}/auth/confirm?next=/account` });
   if (error) go({ error: error.message.includes("already") ? "Another login already uses that email." : `Couldn’t change your email: ${error.message}` }, "#email");
   go({ saved: `We sent a confirmation link to ${email} (and possibly to ${me.email} too, to make sure it’s really you). Your email changes once you click it; until then, keep signing in with ${me.email}.` }, "#email");

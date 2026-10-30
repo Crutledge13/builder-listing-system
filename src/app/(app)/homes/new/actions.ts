@@ -9,6 +9,7 @@ import { canAddHomes, canRequestMedia, type Role } from "@/lib/permissions";
 import { detectProvider } from "@/lib/listing-media";
 import { answerSources, readMlsAnswers, storiesFromLevels } from "@/lib/ntreis-form";
 import { cleanRooms } from "@/lib/rooms";
+import { parseGps } from "@/lib/gps";
 
 const TEXT = ["unparsed_address", "city", "postal_code", "lot_number", "plan_name", "public_remarks", "build_stage", "estimated_completion"] as const;
 const NUMBERS = ["list_price", "bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area", "lot_size_acres", "stories", "garage_spaces", "year_built"] as const;
@@ -53,6 +54,16 @@ export async function createHome(formData: FormData) {
     if (Number.isNaN(n)) fail(`${f.replace(/_/g, " ")} must be a number.`);
     row[f] = n;
     sources[f] = "staff";
+  }
+
+  // GPS coordinates (optional): pasted, a Google Maps link, or "Use my location".
+  const gps = parseGps(String(formData.get("gps") ?? ""));
+  if (gps === "bad") fail("We couldn’t read the GPS coordinates. Use two numbers like 32.776700, -96.797000, or leave it blank.");
+  if (gps) {
+    row.latitude = gps.latitude;
+    row.longitude = gps.longitude;
+    sources.latitude = "staff";
+    sources.longitude = "staff";
   }
 
   // The builder's NTREIS answers (only sent when the home is going to NTREIS).
