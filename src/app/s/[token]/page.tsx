@@ -54,6 +54,8 @@ const PROVIDERS: Record<string, string> = { matterport: "Matterport 3D tour", zi
 const TZ = "America/Chicago";
 
 // The short line on the hero that says where the home is in its life.
+type Contact = { name: string; title: string | null; phone: string | null; email: string | null };
+
 function statusLine(h: Shared["home"]) {
   if (h.market_status === "sold") return "Sold";
   if (h.market_status === "under_contract") return "Under contract";
@@ -85,10 +87,13 @@ export default function SharePage(props: PageProps<"/s/[token]">) {
 async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) {
   const { token } = await params;
   const supabase = await createClient();
-  const [{ data }, { data: websiteData }] = await Promise.all([
+  const [{ data }, { data: websiteData }, { data: contactData }] = await Promise.all([
     supabase.rpc("share_page", { p_token: token }),
     supabase.rpc("share_website", { p_token: token }),
+    // Who to call: the salesperson who sent it, or the community's sales team.
+    supabase.rpc("share_contacts", { p_token: token }),
   ]);
+  const contacts = (Array.isArray(contactData) ? contactData : []) as Contact[];
   const s = data as Shared | null;
   // The home's own page on the builder's website when we know it, otherwise their main site.
   const showWebsite = (data as Shared | null)?.settings?.website !== false;
@@ -267,6 +272,26 @@ async function Share({ params }: { params: PageProps<"/s/[token]">["params"] }) 
           More info on {builders} website
           <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6" /></svg>
         </a>
+      )}
+      {contacts.length > 0 && (
+        <section className="mt-8 rounded-2xl border border-line p-5">
+          <h3 className="text-[19px] font-bold" style={display}>{contacts.length === 1 ? "Your contact for this home" : "Your contacts for this home"}</h3>
+          <ul className={cx("mt-3 grid gap-4", contacts.length > 1 && "sm:grid-cols-2")}>
+            {contacts.map((c) => (
+              <li key={`${c.name}-${c.email ?? ""}`} className="flex gap-3">
+                <span aria-hidden className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: brand, color: onBrand }}>
+                  {c.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                </span>
+                <span className="min-w-0 text-sm">
+                  <span className="block text-[16px] font-semibold leading-snug">{c.name}</span>
+                  {c.title && <span className="block text-muted">{c.title}, {builderName}</span>}
+                  {c.phone && <a href={`tel:${c.phone.replace(/[^\d+]/g, "")}`} className="mt-1 block font-semibold underline underline-offset-4" style={{ color: brandText }}>{c.phone}</a>}
+                  {c.email && <a href={`mailto:${c.email}`} className="block break-all underline underline-offset-4" style={{ color: brandText }}>{c.email}</a>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       {incentives.length > 0 && (
         <section className="mt-8 overflow-hidden rounded-2xl" style={{ background: tint }}>

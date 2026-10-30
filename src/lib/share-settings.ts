@@ -3,6 +3,7 @@
 // switched-off item isn't on the page and its files can't be downloaded.
 
 export const SHARE_SWITCHES = [
+  { key: "show_contact", group: "Who to call", label: "Salesperson contact", help: "Name, phone and email of who to call. A salesperson’s link shows them; links from marketing, managers or the owner show the community’s sales team." },
   { key: "show_community", group: "The community", label: "Community section", help: "The community’s own photos, video and tour links in their own section, so a realtor can market the whole community and point buyers to this home." },
   { key: "show_photos", group: "This home", label: "Listing photos", help: "The home’s photos, with a size picker and Download all." },
   { key: "show_walkthrough", group: "This home", label: "Walkthrough video", help: "Horizontal walkthrough videos, with Download." },
