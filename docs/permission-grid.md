@@ -120,11 +120,24 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Add, extend, reword or end incentives | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | Change a home's room sizes | ✅ | ➖ | own | own | ➖ | own | ➖ |
 
+## Planned: outside broker (broker mode, not built yet)
+
+Owners' direction, 29 Oct 2026. For builders set to have their own listing broker enter the MLS (see `docs/build-map.md`, Broker mode). The broker is a separate role with no builder of its own, like a photographer.
+
+| Action | Outside broker |
+|---|---|
+| See MLS tasks (new listing, update, status change, open house) | only for builders who invited them |
+| See work sheet fields, MLS-ready photos, videos, tour links; download the MLS photo pack | those tasks only |
+| Tick lines, add notes, enter MLS number and mark live | those tasks only |
+| See homes list, communities, media library, reports, website check, share links, activity log, billing, other builders | ➖ |
+| Edit any listing details, photos or prices | ➖ |
+| Invite or remove a broker | builder owner (own builder) and platform admin |
+
 ## Always true
 
 - One builder never sees another builder's homes, people, photos, website or MLS data.
 - Turned-off people can't sign in and their role gives no access.
-- Nothing is sent to the MLS by the system; our team enters it by hand.
+- Nothing is sent to the MLS by the system; our team, the builder, or (planned) the builder's broker enters it by hand.
 - Nothing is public except realtor share links: one home each, unlisted, never indexed, replaceable or deletable at any time, every view and download logged. Each home's standing link has no end date (owners' decision, 27 Oct 2026); older one-off links still expire.
 - Emails are read and marked sent only by our server (service key), never by signed-in users.
 
