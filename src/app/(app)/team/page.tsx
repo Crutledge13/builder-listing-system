@@ -15,6 +15,8 @@ import { inviteTeammate, setTeammateActive, updateTeammate } from "./actions";
 import { pendingInvites } from "@/lib/invite-links";
 import { InviteLink } from "@/components/invite-link";
 import { loadApproved } from "@/lib/email-domains";
+import { BrokerPanel } from "@/components/broker-panel";
+import { mlsEntryFor } from "@/lib/mls-entry";
 
 export default function TeamPage(props: PageProps<"/team">) {
   return (
@@ -39,11 +41,13 @@ async function Team() {
   if (me.role === "platform_admin") redirect("/admin/people");
   if (!canManageTeam(me.role)) redirect("/communities");
   const supabase = await createClient();
-  const [{ data: people }, { data: communities }, { data: assignments }] = await Promise.all([
+  const [{ data: people }, { data: communities }, { data: assignments }, entry] = await Promise.all([
     supabase.from("profiles").select("id, email, full_name, role, online_sales, is_active, phone, job_title, avatar_updated_at").eq("builder_id", me.builder_id!).order("full_name"),
     supabase.from("communities").select("id, name, city").eq("builder_id", me.builder_id!).order("name"),
     supabase.from("community_assignments").select("profile_id, community_id"),
+    mlsEntryFor(me.builder_id),
   ]);
+  const brokerMode = entry === "broker";
   const canGive = rolesICanGive(me.role);
   const canInvite = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
   const approved = await loadApproved(supabase, me.builder_id);
@@ -114,6 +118,12 @@ async function Team() {
               );
             })}
           </div>
+
+          {brokerMode && (
+            <div className="mt-8">
+              <BrokerPanel builderId={me.builder_id!} canManage={me.role === "builder_owner"} back="/team#broker" brokerMode />
+            </div>
+          )}
 
           {inactive.length > 0 && (
             <section className="mt-8">

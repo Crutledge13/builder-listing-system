@@ -9,7 +9,8 @@ export type Role =
   | "manager"
   | "sales"
   | "marketing"
-  | "photographer";
+  | "photographer"
+  | "broker";
 
 export type WorkflowStatus =
   | "draft"
@@ -25,6 +26,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   sales: "Sales",
   marketing: "Marketing",
   photographer: "Photographer",
+  broker: "Outside listing broker",
 };
 
 // Online sales counselors are salespeople with profiles.online_sales on: the

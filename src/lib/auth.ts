@@ -80,7 +80,7 @@ export const DEMO_USERS = [
   { email: "sales.mesquite@demo.test", label: "Taylor Brooks", detail: "Sales, Oak Creek only" },
   { email: "sales2.mesquite@demo.test", label: "Jamie Ortiz", detail: "Sales, Willow Bend Ranch only" },
   { email: "marketing.mesquite@demo.test", label: "Riley Chen", detail: "Marketing, Mesquite Creek" },
-  { email: "owner.prairie@demo.test", label: "Avery Patel", detail: "Owner, Prairie Lantern (Software and Photos)" },
+  { email: "owner.prairie@demo.test", label: "Avery Patel", detail: "Owner, Prairie Lantern (Software and Photos, lists through its own broker)" },
   { email: "marketing.prairie@demo.test", label: "Quinn Harper", detail: "Marketing, Prairie Lantern" },
   { email: "owner.cedar@demo.test", label: "Drew Coleman", detail: "Owner, Cedar Hollow (Software only, enters own MLS)" },
   { email: "marketing.cedar@demo.test", label: "Parker Lane", detail: "Marketing, Cedar Hollow" },
@@ -89,6 +89,7 @@ export const DEMO_USERS = [
   { email: "marketing.redbud@demo.test", label: "Chris Vega", detail: "Marketing, Redbud Ridge" },
   { email: "sales.redbud@demo.test", label: "Dana Fields", detail: "Sales, Redbud Ridge" },
   { email: "photographer@demo.test", label: "Sky Navarro", detail: "Photographer (contractor)" },
+  { email: "broker@demo.test", label: "Blake Sutton", detail: "Outside listing broker for Prairie Lantern (broker mode)" },
 ] as const;
 
 // The demo's admin login: sees everything, and the "Back to admin" button returns here.

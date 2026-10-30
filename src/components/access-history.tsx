@@ -20,6 +20,8 @@ function describe(e: Entry) {
     case "person_staff_builder_removed": return `took ${c.person} (our team) off this builder`;
     case "person_domain_added": return c.kind === "address" ? `approved ${c.value} to be added${c.reason ? ` (${c.reason})` : ""}` : `approved emails ending in @${c.value}${c.reason ? ` (${c.reason})` : ""}`;
     case "person_domain_removed": return `removed ${c.kind === "address" ? c.value : `@${c.value}`} from the approved emails`;
+    case "person_broker_added": return `added ${c.name} (${c.email}) as the outside listing broker`;
+    case "person_broker_removed": return `removed ${c.name} as the outside listing broker`;
     default: return e.action.replace(/_/g, " ");
   }
 }

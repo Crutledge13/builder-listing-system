@@ -25,7 +25,8 @@ export default function PeopleAdmin(props: PageProps<"/admin/people">) {
   );
 }
 
-const ROLES = Object.keys(ROLE_LABELS) as Role[];
+// Brokers are only made by a builder adding its broker (Team page), never picked here.
+const ROLES = (Object.keys(ROLE_LABELS) as Role[]).filter((r) => r !== "broker");
 // The role pickers: every role, with online sales counselor right after sales.
 const CHOICES: RoleChoice[] = ROLES.flatMap((r): RoleChoice[] => (r === "sales" ? ["sales", "online_sales"] : [r]));
 
@@ -69,6 +70,13 @@ async function People() {
                 return (
                   <div key={p.id} className="p-4">
                     {pending.has(p.id) && <div className="mb-3"><InviteLink profileId={p.id} name={p.full_name} /></div>}
+                    {p.role === "broker" ? (
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold">{p.full_name}</div>
+                        <div className="truncate text-sm text-muted">{p.email}</div>
+                        <div className="mt-1 text-xs text-muted">Outside listing broker. Builders add and remove their broker on their Team page (Admin can do it from Admin &gt; Builders).</div>
+                      </div>
+                    ) : (
                     <form action={updatePerson} className="grid gap-3 sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-end">
                       <input type="hidden" name="id" value={p.id} />
                       <div className="min-w-0">
@@ -90,6 +98,7 @@ async function People() {
                       </label>
                       <button className="rounded-lg border border-line px-3 py-2.5 text-sm font-semibold hover:border-foreground">Save</button>
                     </form>
+                    )}
 
                     {p.role === "listing_coordinator" && (() => {
                       const theirs = new Set((staffBuilders ?? []).filter((a) => a.profile_id === p.id).map((a) => a.builder_id));

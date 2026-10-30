@@ -42,7 +42,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   const room = str(sp.room);
   const kind = str(sp.kind);
   const tag = str(sp.tag);
-  // Files over 600 days old that aren't in use any more (see migration 20261029000070).
+  // Files over 600 days old that aren't in use any more (see migration 20261029000073).
   const archived = sp.archived === "1";
   const communityId = str(sp.community);
   const homeId = str(sp.home);
