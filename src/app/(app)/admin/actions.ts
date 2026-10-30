@@ -385,6 +385,9 @@ export async function setBuilderMarkets(formData: FormData) {
   const markets = formData.getAll("mls").map(String);
   const ticked = new Set(formData.getAll("feature").map(String));
   const featuresOff = FEATURES.map((f) => f.key).filter((k) => !ticked.has(k));
+  const picked = String(formData.get("mls_entry") ?? "");
+  const entry = picked === "builder" || picked === "broker" ? picked : "our_team";
+  const entryText = { our_team: "Our team enters the MLS listings.", builder: "The builder enters its own MLS listings.", broker: "The builder’s own broker enters its MLS listings (add the broker below)." }[entry];
   const supabase = await createClient();
   const { error } = await supabase
     .from("builder_settings")
@@ -392,14 +395,14 @@ export async function setBuilderMarkets(formData: FormData) {
       builder_id: builderId,
       mls_boards: markets,
       mls_locked: formData.get("locked") === "on",
-      mls_entry: formData.get("mls_entry") === "builder" ? "builder" : "our_team",
+      mls_entry: entry,
       features_off: featuresOff,
       updated_at: new Date().toISOString(),
     });
   if (error) go("/admin/builders", { error: friendly(error.message) });
   revalidatePath("/", "layout");
   go("/admin/builders", {
-    saved: `${markets.length ? `Markets saved: ${markets.join(", ")}.` : "Markets cleared."} ${formData.get("mls_entry") === "builder" ? "The builder enters its own MLS listings." : "Our team enters the MLS listings."}${featuresOff.length ? ` Turned off: ${featuresOff.map((k) => FEATURES.find((f) => f.key === k)?.label).join(", ")}.` : ""}`,
+    saved: `${markets.length ? `Markets saved: ${markets.join(", ")}.` : "Markets cleared."} ${entryText}${featuresOff.length ? ` Turned off: ${featuresOff.map((k) => FEATURES.find((f) => f.key === k)?.label).join(", ")}.` : ""}`,
   });
 }
 

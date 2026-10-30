@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireProfile, DEMO_ADMIN, DEMO_USERS, demoModeOn } from "@/lib/auth";
 import { ROLE_LABELS, isStaff } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
@@ -33,6 +34,15 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
 
 async function Header() {
   const me = await requireProfile();
+  // A broker only reaches this layout on /welcome (choosing their password; the
+  // sign-in router keeps them out of everything else): a plain bar, no menus.
+  // Backup to the sign-in router: a broker who has already chosen a password has
+  // no reason to be here at all.
+  if (me.role === "broker") {
+    const { data: auth } = await (await createClient()).auth.getClaims();
+    if (!(auth?.claims?.user_metadata as Record<string, unknown> | undefined)?.needs_password) redirect("/broker");
+    return <div className="border-b border-line px-4 py-4 sm:px-8"><Logo /></div>;
+  }
   const showDemo = demoModeOn() && me.email.endsWith("@demo.test");
   const company = me.role === "photographer" ? "Contractor" : isStaff(me.role) ? "Our team" : me.builder_name?.replace(" (demo)", "");
 

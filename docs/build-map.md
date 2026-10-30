@@ -136,7 +136,7 @@ Platform admin and listing coordinator are your company's staff. These are start
 
 ## Broker mode
 
-For builders who list through their own broker instead of your team. The builder does all the work in the full system; the broker gets a bare-bones sheet with only what's needed to get the listing live on the MLS. The broker should never see how much the system does.
+**Built 29 Oct 2026** (demo: Prairie Lantern lists through Blake Sutton, broker@demo.test). For builders who list through their own broker instead of your team. The builder does all the work in the full system; the broker gets a bare-bones sheet with only what's needed to get the listing live on the MLS. The broker should never see how much the system does.
 
 Much of this already exists: builders set to enter their own MLS listings already get work sheets with copy buttons, ticks, the photo pack and "MLS number → mark live". Broker mode hands that same work to an outside person, inside a stripped-down shell.
 

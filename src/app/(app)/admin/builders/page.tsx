@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { isPlatformAdmin } from "@/lib/auth";
 import Link from "next/link";
+import { BrokerPanel } from "@/components/broker-panel";
 import { BuilderLogo } from "@/components/avatar";
 import { createClient } from "@/lib/supabase/server";
 import { Notice } from "@/components/notice";
@@ -94,6 +95,10 @@ async function Builders() {
                   <input type="radio" name="mls_entry" value="builder" defaultChecked={settingsFor(b.id)?.mls_entry === "builder"} className="mt-0.5 h-4 w-4 accent-[#3452c7]" />
                   <span>The builder&rsquo;s own team <span className="text-muted">(software only: their owners, managers and marketing get the MLS work sheets, notices and emails)</span></span>
                 </label>
+                <label className="mt-1 flex items-start gap-2 text-sm">
+                  <input type="radio" name="mls_entry" value="broker" defaultChecked={settingsFor(b.id)?.mls_entry === "broker"} className="mt-0.5 h-4 w-4 accent-[#3452c7]" />
+                  <span>The builder&rsquo;s own outside broker <span className="text-muted">(broker mode: the broker gets a bare work sheet for each listing and sees nothing else; the builder is told when it&rsquo;s done)</span></span>
+                </label>
               </fieldset>
               <fieldset className="mt-3 border-t border-line pt-3">
                 <legend className="text-sm font-medium">Features this builder has</legend>
@@ -109,6 +114,11 @@ async function Builders() {
               </fieldset>
               <button className="mt-2 rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black">Save builder settings</button>
             </form>
+            {settingsFor(b.id)?.mls_entry === "broker" && (
+              <div className="mt-4">
+                <BrokerPanel builderId={b.id} canManage back={`/admin/builders#${b.id}`} brokerMode title="Their listing broker" anchor={`broker-${b.id}`} />
+              </div>
+            )}
           </div>
           </details>
         ))}

@@ -18,6 +18,8 @@ function describe(e: Entry) {
     case "sales_community_removed": return `removed ${c.name} from ${c.community}`;
     case "person_staff_builder_added": return `assigned ${c.person} (our team) to work on this builder`;
     case "person_staff_builder_removed": return `took ${c.person} (our team) off this builder`;
+    case "person_broker_added": return `added ${c.name} (${c.email}) as the outside listing broker`;
+    case "person_broker_removed": return `removed ${c.name} as the outside listing broker`;
     default: return e.action.replace(/_/g, " ");
   }
 }

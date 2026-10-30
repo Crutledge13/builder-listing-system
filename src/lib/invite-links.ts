@@ -40,12 +40,15 @@ async function siteOrigin() {
 
 // Makes the login (no email is sent). The caller then saves the profile with
 // their own database access, so the database rules decide who can add whom.
-export async function createInvitedLogin(email: string, fullName: string): Promise<{ userId: string } | { error: string }> {
+// appMetadata: set only by our server, never by the person (brokers get
+// role "broker" here, which the sign-in router uses to keep them in /broker).
+export async function createInvitedLogin(email: string, fullName: string, appMetadata?: Record<string, string>): Promise<{ userId: string } | { error: string }> {
   const admin = adminClient();
   const { data, error } = await admin.auth.admin.createUser({
     email,
     email_confirm: true, // nothing to confirm by email: the invite link is the proof
     user_metadata: { full_name: fullName, needs_password: true },
+    ...(appMetadata ? { app_metadata: appMetadata } : {}),
   });
   if (error || !data.user) {
     const msg = error?.message ?? "unknown error";

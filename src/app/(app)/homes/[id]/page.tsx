@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
-import { enterOwnMls } from "@/lib/mls-entry";
+import { enterOwnMls, mlsEntryFor } from "@/lib/mls-entry";
 import { featuresOff } from "@/lib/features";
 import {
   allowedTransitions,
@@ -189,7 +189,9 @@ async function HomeDetail({
       : Promise.resolve({ data: null }),
   ]);
   // Builders who enter their own listings get the MLS sheet and the "mark live" step too.
-  const ownMls = !staff && (await enterOwnMls(me.role, me.builder_id));
+  const [ownMls, entry] = await Promise.all([!staff ? enterOwnMls(me.role, me.builder_id) : Promise.resolve(false), mlsEntryFor(home.builder_id)]);
+  // Broker mode: approving sends it to the builder's own outside broker.
+  const brokerMode = entry === "broker";
   // Optional features this builder has turned off (Admin > Builders).
   const off = await featuresOff(me.role, me.builder_id);
   const mlsScore = staff || ownMls ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
@@ -833,7 +835,7 @@ async function HomeDetail({
                 )}
               </div>
               <div className="flex flex-col items-end gap-1.5">
-                <StatusBadge status={status} />
+                <StatusBadge status={status} label={brokerMode && status === "approved_for_mls" ? (staff ? "With the builder’s broker" : "With your broker") : undefined} />
                 <MarketBadge status={home.market_status} />
               </div>
             </div>
@@ -1026,14 +1028,14 @@ async function HomeDetail({
                           backward ? "border border-foreground hover:bg-soft" : "bg-accent text-white hover:brightness-110",
                         )}
                       >
-                        {status === "approved_for_mls" && to === "in_review" ? "Send back for changes" : TRANSITION_LABELS[to]}
+                        {status === "approved_for_mls" && to === "in_review" ? "Send back for changes" : brokerMode && to === "approved_for_mls" ? "Approve and send to broker" : TRANSITION_LABELS[to]}
                       </button>
                     </form>
                   );
                 })}
               </div>
             ) : (
-              <p className="mt-6 rounded-xl bg-soft px-4 py-3 text-sm text-muted">{nextStepHint(status, ownMls)}</p>
+              <p className="mt-6 rounded-xl bg-soft px-4 py-3 text-sm text-muted">{nextStepHint(status, ownMls, brokerMode)}</p>
             )}
 
             {mlsScore && (
@@ -1079,11 +1081,11 @@ function Field({ def, value, source, canEdit }: { def: FieldDef; value: unknown;
   );
 }
 
-function nextStepHint(status: WorkflowStatus, ownMls = false) {
+function nextStepHint(status: WorkflowStatus, ownMls = false, brokerMode = false) {
   switch (status) {
     case "draft": return "Waiting for the builder team to submit this for review.";
     case "in_review": return "Waiting for a builder manager or owner to approve it for the MLS.";
-    case "approved_for_mls": return ownMls ? "Approved. It's on your MLS work list with a work sheet to copy from." : "Approved. Our listing coordinator will enter it into the MLS.";
+    case "approved_for_mls": return brokerMode ? "Approved and sent to your broker to enter in the MLS. You’ll get a notice and an email when it’s live." : ownMls ? "Approved. It's on your MLS work list with a work sheet to copy from." : "Approved. Our listing coordinator will enter it into the MLS.";
     case "live_on_mls": return "This listing is live on the MLS.";
   }
 }
