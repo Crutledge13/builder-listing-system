@@ -137,6 +137,43 @@ export async function requestChange(formData: FormData) {
   back(id, { saved: "request", at: "requests" });
 }
 
+// A salesperson's price change request (they can't change the price themselves).
+export async function requestPriceChange(formData: FormData) {
+  const id = String(formData.get("id"));
+  const price = Number(String(formData.get("requested_price") ?? "").replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(price) || price <= 0) back(id, { error: "Enter the new price you’d like.", at: "price" });
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 1000);
+
+  const supabase = await createClient();
+  const { data: me } = await supabase.auth.getUser();
+  // The database writes the message ("Change the price from $X to $Y") and the price it was.
+  const { error } = await supabase
+    .from("change_requests")
+    .insert({ home_id: id, builder_id: id, requested_by: me.user?.id, kind: "price", requested_price: Math.round(price * 100) / 100, message: reason });
+  if (error) back(id, { error: error.message.includes("already the price") ? "That’s already the price." : friendly(error.message), at: "price" });
+
+  revalidatePath(`/homes/${id}`);
+  back(id, { saved: "price_request", at: "price" });
+}
+
+// Approve (the price changes) or decline a price change request.
+export async function resolvePriceRequest(formData: FormData) {
+  const id = String(formData.get("id"));
+  const requestId = String(formData.get("request_id"));
+  const approve = formData.get("decision") === "approve";
+  const at = formData.get("at") === "requests" ? "requests" : "price";
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("resolve_price_request", {
+    p_request: requestId,
+    p_approve: approve,
+    p_note: String(formData.get("note") ?? "").trim() || null,
+  });
+  if (error) back(id, { error: friendly(error.message), at });
+  revalidatePath(`/homes/${id}`);
+  revalidatePath("/homes");
+  back(id, { saved: approve ? "price_approved" : "price_declined", at });
+}
+
 export async function resolveRequest(formData: FormData) {
   const id = String(formData.get("id"));
   const requestId = String(formData.get("request_id"));
@@ -261,6 +298,11 @@ export async function setMarketStatus(formData: FormData) {
     const d = String(formData.get("purchase_contract_date") ?? "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) back(id, { error: "Enter the contract date." });
     patch.purchase_contract_date = d;
+    // When it's expected to close (owners, 29 Oct 2026; the database requires it too).
+    const ec = String(formData.get("expected_close_date") ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ec)) back(id, { error: "Enter the expected close date.", at: "home-status" });
+    if (ec < d) back(id, { error: "The expected close date can’t be before the contract date.", at: "home-status" });
+    patch.expected_close_date = ec;
     // The buyer's agent the MLS needs (the database checks this too).
     if (missingBuyerAgent(formData)) back(id, { error: "Enter the buyer’s agent and their brokerage, or tick “The buyer has no agent”.", at: "home-status" });
     Object.assign(patch, readBuyerAgent(formData));
@@ -281,6 +323,19 @@ export async function setMarketStatus(formData: FormData) {
   if (!data?.length) back(id, { error: "You don’t have permission to change this home.", at: "home-status" });
   revalidatePath("/", "layout");
   back(id, { saved: data[0].workflow_status === "live_on_mls" ? `market-${to}` : "status-saved", at: "home-status" });
+}
+
+// Closings slip: change the expected close date while under contract.
+export async function setExpectedClose(formData: FormData) {
+  const id = String(formData.get("id"));
+  const d = String(formData.get("expected_close_date") ?? "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) back(id, { error: "Enter the expected close date.", at: "home-status" });
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("homes").update({ expected_close_date: d }).eq("id", id).eq("market_status", "under_contract").select("id");
+  if (error) back(id, { error: friendly(error.message), at: "home-status" });
+  if (!data?.length) back(id, { error: "Only a home under contract has an expected close date you can change.", at: "home-status" });
+  revalidatePath("/", "layout");
+  back(id, { saved: "expected-close", at: "home-status" });
 }
 
 export async function setDisclaimer(formData: FormData) {

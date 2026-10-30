@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { demoModeOn, requireProfile } from "@/lib/auth";
-import { ROLE_LABELS, canEditBranding, isStaff } from "@/lib/permissions";
+import { canEditBranding, isStaff, roleLabel } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { Avatar } from "@/components/avatar";
 import { ImageUpload } from "@/components/image-upload";
@@ -46,7 +46,7 @@ async function Account() {
           <label className="block"><span className="mb-1 block text-sm font-medium">Phone</span><input name="phone" type="tel" defaultValue={me.phone ?? ""} maxLength={30} placeholder="(214) 555-0100" className="field-input" /></label>
         </div>
         <p className="mt-3 text-sm text-muted">
-          Role: <b className="text-foreground">{ROLE_LABELS[me.role]}</b>, {company}.{" "}
+          Role: <b className="text-foreground">{roleLabel(me.role, me.online_sales)}</b>, {company}.{" "}
           {isStaff(me.role) || me.role === "photographer" ? "Ask an admin to change your role." : "Your company’s owner or a manager changes roles."}
         </p>
         <button className="mt-4 rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save</button>

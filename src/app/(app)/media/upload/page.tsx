@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { canManageMedia, isStaff, ROLE_LABELS } from "@/lib/permissions";
+import { canManageMedia, isStaff, roleLabel } from "@/lib/permissions";
 import { MEDIA_REQUEST_SELECT, type MediaRequest } from "@/components/media-requests";
 import { addJobTour } from "./tour-action";
 import { UploadForm } from "./upload-form";
@@ -26,7 +26,7 @@ async function Upload({ searchParams }: { searchParams: PageProps<"/media/upload
     return (
       <div className="mx-auto max-w-lg py-16 text-center">
         <h1 className="text-[28px] font-bold tracking-tight">Uploading isn’t part of your role</h1>
-        <p className="mt-3 text-muted">As {ROLE_LABELS[me.role].toLowerCase()}, you can view and download media. Marketing, managers and owners upload it.</p>
+        <p className="mt-3 text-muted">As {roleLabel(me.role, me.online_sales).toLowerCase()}, you can view and download media. Marketing, managers and owners upload it.</p>
         <Link href="/media" className="mt-6 inline-block rounded-xl border border-foreground px-5 py-2.5 font-semibold">Back to media</Link>
       </div>
     );

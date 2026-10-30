@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { requireProfile, DEMO_ADMIN, DEMO_USERS, demoModeOn } from "@/lib/auth";
-import { ROLE_LABELS, isStaff } from "@/lib/permissions";
+import { isStaff, roleLabel } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { menuLinks, primaryTabs } from "@/lib/menu";
 import { enterOwnMls } from "@/lib/mls-entry";
@@ -74,7 +74,7 @@ async function Header() {
           ) : (
             <>
               <span>
-                Demo: viewing as <b>{me.full_name}</b> ({ROLE_LABELS[me.role].toLowerCase()}{me.builder_name ? `, ${me.builder_name.replace(" (demo)", "")}` : ""}).
+                Demo: viewing as <b>{me.full_name}</b> ({roleLabel(me.role, me.online_sales).toLowerCase()}{me.builder_name ? `, ${me.builder_name.replace(" (demo)", "")}` : ""}).
               </span>
               {/* One click back to the admin view, from any role. */}
               <form action={switchDemoUser}>
@@ -123,7 +123,7 @@ async function Header() {
               <Avatar id={me.id} name={me.full_name} version={me.avatar_updated_at} className="h-10 w-10 text-sm" />
               <span className="min-w-0">
                 <span className="block font-semibold">{me.full_name}</span>
-                <span className="block text-sm text-muted">{ROLE_LABELS[me.role]}, {company}</span>
+                <span className="block text-sm text-muted">{roleLabel(me.role, me.online_sales)}, {company}</span>
                 <span className="block text-xs font-semibold text-accent">My profile and sign-in</span>
               </span>
             </Link>

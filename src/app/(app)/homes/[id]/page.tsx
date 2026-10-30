@@ -10,13 +10,11 @@ import {
   allowedTransitions,
   editableFields,
   isStaff,
-  ROLE_LABELS,
   STAGE_LABELS,
   STATUS_LABELS,
   TRANSITION_LABELS,
   type HomeField,
-  type WorkflowStatus,
-} from "@/lib/permissions";
+  type WorkflowStatus, roleLabel } from "@/lib/permissions";
 import { baths, cx, dateTime, money, num } from "@/lib/format";
 import { SourceBadge, StatusBadge } from "@/components/badges";
 import { HomeArt } from "@/components/home-art";
@@ -37,6 +35,9 @@ import {
   setMarketStatus,
   stopOpenHouseSeries,
   updateReverseProspecting,
+  requestPriceChange,
+  resolvePriceRequest,
+  setExpectedClose,
 } from "./actions";
 import { nextSaturdayCentral, openHouseWhen } from "@/lib/time";
 import { MEDIA_REQUEST_SELECT, RequestCard, RequestForm, type MediaRequest } from "@/components/media-requests";
@@ -48,6 +49,7 @@ import {
   canRequestMedia,
   canRequestReverseProspecting,
   canScheduleOpenHouses,
+  canRequestPriceChange,
   canToggleDisclaimer,
   marketChoices,
   MARKET_LABELS,
@@ -55,6 +57,7 @@ import {
   type MarketStatus,
 } from "@/lib/permissions";
 import { MarketBadge } from "@/components/badges";
+import { PendingButton } from "@/components/pending-button";
 import { DisclaimerOverlay } from "@/components/media-tile";
 import { loadMlsSheet } from "@/lib/mls-sheet";
 import { AlertCard, loadAlerts } from "@/components/alerts";
@@ -172,7 +175,7 @@ async function HomeDetail({
 
   const [{ data: openHouses }, { data: requests }] = await Promise.all([
     supabase.from("open_houses").select("id, starts_at, ends_at, remarks, created_by, cancelled_at").eq("home_id", id).is("cancelled_at", null).gte("ends_at", new Date().toISOString()).order("starts_at"),
-    supabase.from("change_requests").select("id, message, status, resolution_note, requested_by, resolved_by, created_at, resolved_at").eq("home_id", id).order("created_at", { ascending: false }),
+    supabase.from("change_requests").select("id, kind, requested_price, message, status, resolution_note, requested_by, resolved_by, created_at, resolved_at").eq("home_id", id).order("created_at", { ascending: false }),
   ]);
   const peopleIds = [...new Set((requests ?? []).flatMap((r) => [r.requested_by, r.resolved_by]).filter((x): x is string => !!x && !actorName.has(x)))];
   if (peopleIds.length) {
@@ -234,6 +237,7 @@ async function HomeDetail({
   const reverseFiles = await loadDeliverables(supabase, "reverse_prospect_requests", (reverse ?? []).map((r) => r.id));
   const canResolve = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const openRequests = (requests ?? []).filter((r) => r.status === "open");
+  const openPriceRequests = openRequests.filter((r) => r.kind === "price");
 
   // Room sizes: the home's own list, and its floor plan's list to pull from.
   const rooms = cleanRooms(((home.mls_fields ?? {}) as Record<string, unknown>).Rooms);
@@ -270,6 +274,8 @@ async function HomeDetail({
   const openMediaRequests = mediaRequests.filter((r) => !["completed", "cancelled"].includes(r.status));
 
   const editable = new Set(editableFields(me.role));
+  // Salespeople (in person or online) ask for price changes instead of making them.
+  const canAskPrice = !editable.has("list_price") && canRequestPriceChange(me.role);
   const status = home.workflow_status as WorkflowStatus;
   const transitions = allowedTransitions(me.role, status, ownMls);
   const sources = (home.field_sources ?? {}) as Record<string, string>;
@@ -529,7 +535,7 @@ async function HomeDetail({
           </HomeSection>
 
           <HomeSection id="price" title="Price" open={at === "price"} badge={home.list_price ? money(home.list_price) : null}
-            hint={home.list_price ? (status === "live_on_mls" ? "Changing it adds an MLS update for the new price" : "Open to change it") : "No price yet"}>
+            hint={openPriceRequests.length ? `${openPriceRequests.length} price change ${openPriceRequests.length === 1 ? "request" : "requests"} waiting` : !editable.has("list_price") ? "Open to ask for a price change" : home.list_price ? (status === "live_on_mls" ? "Changing it adds an MLS update for the new price" : "Open to change it") : "No price yet"}>
             <form action={saveHome} className="flex flex-wrap items-end gap-3">
               <input type="hidden" name="id" value={home.id} />
               <div className="w-60">
@@ -539,6 +545,36 @@ async function HomeDetail({
               <input type="hidden" name="at" value="price" />
             </form>
             {sectionNotice("price")}
+
+            {openPriceRequests.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {openPriceRequests.map((r) => (
+                  <li key={r.id} className="rounded-2xl border border-amber-300 bg-amber-50/50 p-4 text-sm">
+                    <p className="whitespace-pre-line font-medium">{r.message}</p>
+                    <p className="mt-1 text-muted">Asked by {actorName.get(r.requested_by) ?? "a salesperson"}, {dateTime(r.created_at)}</p>
+                    {canResolve ? <PriceRequestButtons homeId={home.id} requestId={r.id} at="price" price={Number(r.requested_price)} /> : <p className="mt-1 font-semibold text-amber-900">Waiting for the owner, a manager or marketing to approve it.</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canAskPrice && (
+              <form action={requestPriceChange} className="mt-5 rounded-2xl border border-line p-4">
+                <input type="hidden" name="id" value={home.id} />
+                <h4 className="font-semibold">Ask for a price change</h4>
+                <p className="mt-0.5 text-sm text-muted">Salespeople can’t change the price themselves. Your owner, managers and marketing get the request and approve or decline it.</p>
+                <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <label className="block w-48">
+                    <span className="mb-1.5 block text-sm font-medium">New price ($)</span>
+                    <input name="requested_price" required placeholder="384,990" className="field-input" {...MONEY_INPUT} />
+                  </label>
+                  <label className="block min-w-48 flex-1">
+                    <span className="mb-1.5 block text-sm font-medium">Why? (optional)</span>
+                    <input name="reason" maxLength={1000} placeholder="e.g. Buyer comparing us to the resale next door" className="field-input" />
+                  </label>
+                  <PendingButton pending="Sending…" className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Send price request</PendingButton>
+                </div>
+              </form>
+            )}
 
             <h4 className="mt-6 text-sm font-semibold">Price history</h4>
             {priceHistory.length === 0 ? (
@@ -605,7 +641,10 @@ async function HomeDetail({
                     {r.resolved_by && `. ${REQUEST_LABELS[r.status].toLowerCase()} by ${actorName.get(r.resolved_by) ?? "a teammate"}`}
                     {r.resolution_note && `: “${r.resolution_note}”`}
                   </p>
-                  {canResolve && r.status === "open" && (
+                  {canResolve && r.status === "open" && r.kind === "price" && (
+                    <PriceRequestButtons homeId={home.id} requestId={r.id} at="requests" price={Number(r.requested_price)} />
+                  )}
+                  {canResolve && r.status === "open" && r.kind !== "price" && (
                     <form action={resolveRequest} className="mt-3 flex flex-wrap items-center gap-2">
                       <input type="hidden" name="id" value={home.id} />
                       <input type="hidden" name="request_id" value={r.id} />
@@ -763,10 +802,10 @@ async function HomeDetail({
               {editable.size > 0 || (home.mls_board === "NTREIS" && canEditMlsAnswers(me.role)) ? (
                 <>
                   <button className="rounded-xl bg-foreground px-6 py-3 font-semibold text-white hover:bg-black">Save changes</button>
-                  <span className="text-sm text-muted">As {ROLE_LABELS[me.role].toLowerCase()}, you can edit the fields that aren’t grayed out.</span>
+                  <span className="text-sm text-muted">As {roleLabel(me.role, me.online_sales).toLowerCase()}, you can edit the fields that aren’t grayed out.</span>
                 </>
               ) : (
-                <span className="text-sm text-muted">As {ROLE_LABELS[me.role].toLowerCase()}, you can view these details but not change them.</span>
+                <span className="text-sm text-muted">As {roleLabel(me.role, me.online_sales).toLowerCase()}, you can view these details but not change them.</span>
               )}
             </div>
           </form>
@@ -875,6 +914,16 @@ async function HomeDetail({
                 )}
                 {home.market_status === "sold" && home.close_price ? `, ${money(home.close_price)}` : ""}
               </p>
+              {home.market_status === "under_contract" && (
+                <form action={setExpectedClose} className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-soft p-2">
+                  <input type="hidden" name="id" value={home.id} />
+                  <label className="block min-w-0 flex-1 text-xs">
+                    <span className="mb-1 block font-medium">Expected close</span>
+                    <input type="date" name="expected_close_date" required defaultValue={home.expected_close_date ?? ""} disabled={saleChoices.length === 0} className="field-input py-1.5 text-sm" />
+                  </label>
+                  {saleChoices.length > 0 && <button className="rounded-lg border border-foreground bg-white px-3 py-1.5 text-xs font-semibold">Save date</button>}
+                </form>
+              )}
               {saleChoices.length > 0 && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {saleChoices.map((m) =>
@@ -889,6 +938,10 @@ async function HomeDetail({
                               <label className="block text-sm">
                                 <span className="mb-1 block font-medium">Contract date</span>
                                 <input type="date" name="purchase_contract_date" required className="field-input py-2" />
+                              </label>
+                              <label className="block text-sm">
+                                <span className="mb-1 block font-medium">Expected close date</span>
+                                <input type="date" name="expected_close_date" required className="field-input py-2" />
                               </label>
                               <BuyerAgentFields />
                             </>
@@ -1174,6 +1227,9 @@ const SAVED_MESSAGES: Record<string, string> = {
   status: "Status updated.",
   created: "Home added as a draft. Finish any details below, then submit it for review.",
   request: "Request sent. The builder’s managers and marketing team will see it on this home.",
+  price_request: "Price change request sent. The owner, managers and marketing have it; you’ll get a notice when they answer.",
+  price_approved: "Approved. The price is changed and the salesperson has been told.",
+  price_declined: "Declined. The salesperson has been told.",
   resolved: "Request updated.",
   "open-house": "Open house scheduled.",
   "open-house-cancelled": "Open house cancelled.",
@@ -1185,6 +1241,7 @@ const SAVED_MESSAGES: Record<string, string> = {
   "status-saved": "Sale status saved.",
   "market-paused": "Listing paused. Our team will update the MLS, and its open houses have stopped.",
   "market-under_contract": "Marked under contract. Our team will update the MLS, and its open houses have stopped.",
+  "expected-close": "Expected close date saved.",
   "market-sold": "Marked sold. Our team will update the MLS.",
   "market-withdrawn": "Taken off the market. Our team will update the MLS, and its open houses have stopped.",
   "mls-board": "MLS updated. The required fields now follow that MLS.",
@@ -1264,3 +1321,17 @@ function QuickLinks({ homeId, openRequests, upcomingOH, openShoots, openReverse,
 const NEED_TEXT: Record<string, string> = {
   photos: "photos", twilight: "twilight photos", video: "a horizontal walkthrough video", vertical_video: "a vertical social reel", drone: "drone shots", floor_plan: "a floor plan", virtual_tour: "a 3D tour",
 };
+
+// Approve / Decline on a salesperson's price change request.
+function PriceRequestButtons({ homeId, requestId, at, price }: { homeId: string; requestId: string; at: "price" | "requests"; price: number }) {
+  return (
+    <form action={resolvePriceRequest} className="mt-3 flex flex-wrap items-center gap-2">
+      <input type="hidden" name="id" value={homeId} />
+      <input type="hidden" name="request_id" value={requestId} />
+      <input type="hidden" name="at" value={at} />
+      <input name="note" maxLength={1000} placeholder="Note to the salesperson (optional)" className="field-input max-w-xs flex-1 py-2 text-sm" />
+      <button name="decision" value="approve" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white hover:bg-black">Approve: change to {money(price)}</button>
+      <button name="decision" value="decline" className="rounded-lg border border-foreground px-3 py-2 text-sm font-semibold hover:bg-white">Decline</button>
+    </form>
+  );
+}

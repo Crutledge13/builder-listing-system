@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { ROLE_LABELS, type Role } from "@/lib/permissions";
+import { roleLabel, type Role } from "@/lib/permissions";
 import { HomeArt } from "@/components/home-art";
 import { Logo } from "@/components/logo";
 import { PendingButton } from "@/components/pending-button";
@@ -38,7 +38,7 @@ export default function JoinPage(props: PageProps<"/join/[token]">) {
   );
 }
 
-type Info = { ok: boolean; reason: string | null; role: Role; builder_name: string | null };
+type Info = { ok: boolean; reason: string | null; role: Role; builder_name: string | null; online_sales: boolean | null };
 
 async function Join({ params, searchParams }: { params: PageProps<"/join/[token]">["params"]; searchParams: PageProps<"/join/[token]">["searchParams"] }) {
   const { token } = await params;
@@ -63,7 +63,7 @@ async function Join({ params, searchParams }: { params: PageProps<"/join/[token]
     );
   }
 
-  const joiningAs = `${ROLE_LABELS[info.role]}${info.builder_name ? ` at ${info.builder_name}` : " on our team"}`;
+  const joiningAs = `${roleLabel(info.role, info.online_sales)}${info.builder_name ? ` at ${info.builder_name}` : " on our team"}`;
 
   if (user) {
     return (

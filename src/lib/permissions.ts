@@ -27,6 +27,33 @@ export const ROLE_LABELS: Record<Role, string> = {
   photographer: "Photographer",
 };
 
+// Online sales counselors are salespeople with profiles.online_sales on: the
+// same access as sales for now (owners, 29 Oct 2026). Shown with their own label.
+export const ONLINE_SALES_LABEL = "Online sales counselor";
+
+export function roleLabel(role: Role, onlineSales?: boolean | null) {
+  return role === "sales" && onlineSales ? ONLINE_SALES_LABEL : ROLE_LABELS[role];
+}
+
+// What the role pickers offer: each real role, plus "online_sales", which saves
+// as role "sales" with online_sales on.
+export type RoleChoice = Role | "online_sales";
+
+export function choiceLabel(choice: RoleChoice) {
+  return choice === "online_sales" ? ONLINE_SALES_LABEL : ROLE_LABELS[choice];
+}
+
+// Splits a picked choice into what's stored.
+export function fromChoice(choice: string): { role: Role; online_sales: boolean } | null {
+  if (choice === "online_sales") return { role: "sales", online_sales: true };
+  if (choice in ROLE_LABELS) return { role: choice as Role, online_sales: false };
+  return null;
+}
+
+export function toChoice(role: Role, onlineSales?: boolean | null): RoleChoice {
+  return role === "sales" && onlineSales ? "online_sales" : role;
+}
+
 export const STATUS_LABELS: Record<WorkflowStatus, string> = {
   draft: "Draft",
   in_review: "In review",
@@ -72,7 +99,8 @@ export function editableFields(role: Role): readonly HomeField[] {
     case "marketing":
       return OWNER_MANAGER_FIELDS;
     case "sales":
-      return ["list_price", "build_stage", "estimated_completion"];
+      // No price: salespeople send a price change request (owners, 29 Oct 2026).
+      return ["build_stage", "estimated_completion"];
     default:
       return [];
   }
@@ -190,9 +218,9 @@ export const REQUEST_STATUS_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 // Builder team management (mirrors private.can_manage_person)
 // ---------------------------------------------------------------------------
-export function rolesICanGive(role: Role): Role[] {
-  if (role === "builder_owner") return ["builder_owner", "manager", "sales", "marketing"];
-  if (role === "manager" || role === "marketing") return ["sales", "marketing"];
+export function rolesICanGive(role: Role): RoleChoice[] {
+  if (role === "builder_owner") return ["builder_owner", "manager", "sales", "online_sales", "marketing"];
+  if (role === "manager" || role === "marketing") return ["sales", "online_sales", "marketing"];
   return [];
 }
 
@@ -222,6 +250,12 @@ export function marketChoices(role: Role): MarketStatus[] {
     return ["active", "paused", "under_contract", "sold", "withdrawn"];
   if (role === "sales") return ["active", "under_contract", "sold"];
   return [];
+}
+
+// Salespeople (in person and online) ask for price changes; owners, managers,
+// marketing and our admins approve them. Mirrors public.resolve_price_request.
+export function canRequestPriceChange(role: Role) {
+  return role === "sales";
 }
 
 export function canToggleDisclaimer(role: Role) {

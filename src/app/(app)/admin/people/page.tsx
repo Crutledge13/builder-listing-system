@@ -3,7 +3,7 @@ import { CommunitiesFold } from "@/components/communities-fold";
 import { CommunityPicker } from "@/components/community-picker";
 import { isPlatformAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { ROLE_LABELS, type Role } from "@/lib/permissions";
+import { ROLE_LABELS, choiceLabel, roleLabel, toChoice, type Role, type RoleChoice } from "@/lib/permissions";
 import { Notice } from "@/components/notice";
 import { createJoinLink, invitePerson, setAssignments, setJoinLinkOn, setStaffBuilders, updatePerson } from "../actions";
 import { JoinLinkForm } from "@/components/join-link-form";
@@ -26,13 +26,15 @@ export default function PeopleAdmin(props: PageProps<"/admin/people">) {
 }
 
 const ROLES = Object.keys(ROLE_LABELS) as Role[];
+// The role pickers: every role, with online sales counselor right after sales.
+const CHOICES: RoleChoice[] = ROLES.flatMap((r): RoleChoice[] => (r === "sales" ? ["sales", "online_sales"] : [r]));
 
 async function People() {
   if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
   const [{ data: builders }, { data: people }, { data: communities }, { data: assignments }, { data: staffBuilders }] = await Promise.all([
     supabase.from("builders").select("id, name").order("name"),
-    supabase.from("profiles").select("id, email, full_name, role, builder_id").order("full_name"),
+    supabase.from("profiles").select("id, email, full_name, role, online_sales, builder_id").order("full_name"),
     supabase.from("communities").select("id, name, city, builder_id").order("name"),
     supabase.from("community_assignments").select("profile_id, community_id"),
     supabase.from("staff_builders").select("profile_id, builder_id"),
@@ -42,7 +44,7 @@ async function People() {
   const canJoin = invitesOn();
   const { data: joinLinks } = await supabase
     .from("join_links")
-    .select("id, token, role, builder_id, label, expires_at, max_uses, use_count, revoked_at, created_at")
+    .select("id, token, role, online_sales, builder_id, label, expires_at, max_uses, use_count, revoked_at, created_at")
     .order("created_at", { ascending: false })
     .limit(30);
   const h = await headers();
@@ -75,8 +77,8 @@ async function People() {
                       </div>
                       <label className="block">
                         <span className="mb-1 block text-xs font-medium text-muted">Role</span>
-                        <select name="role" defaultValue={p.role} className="field-input">
-                          {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                        <select name="role" defaultValue={toChoice(p.role as Role, p.online_sales)} className="field-input">
+                          {CHOICES.map((r) => <option key={r} value={r}>{choiceLabel(r)}</option>)}
                         </select>
                       </label>
                       <label className="block">
@@ -153,7 +155,7 @@ async function People() {
           <label className="mt-3 block">
             <span className="mb-1 block text-sm font-medium">Role</span>
             <select name="role" defaultValue="marketing" className="field-input">
-              {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+              {CHOICES.map((r) => <option key={r} value={r}>{choiceLabel(r)}</option>)}
             </select>
           </label>
           <label className="mt-3 block">
@@ -183,7 +185,7 @@ async function People() {
           <JoinLinkForm
             action={createJoinLink}
             disabled={!canJoin}
-            roles={ROLES.filter((r) => r !== "platform_admin").map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
+            roles={CHOICES.filter((r) => r !== "platform_admin").map((r) => ({ value: r, label: choiceLabel(r) }))}
             builders={(builders ?? []).map((b) => ({ id: b.id, name: b.name.replace(" (demo)", "") }))}
             communities={(communities ?? []).map((c) => ({ id: c.id, name: c.name, builder_id: c.builder_id }))}
           />
@@ -200,13 +202,13 @@ async function People() {
               return (
                 <li key={l.id} className="py-3 text-sm">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="min-w-0 truncate font-semibold">{l.label ?? ROLE_LABELS[l.role as Role]}</span>
+                    <span className="min-w-0 truncate font-semibold">{l.label ?? roleLabel(l.role as Role, l.online_sales)}</span>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${live ? "bg-emerald-100 text-emerald-800" : "bg-line text-muted"}`}>
                       {live ? "On" : off ? "Off" : expired ? "Expired" : "Used up"}
                     </span>
                   </div>
                   <p className="text-xs text-muted">
-                    {ROLE_LABELS[l.role as Role]}{l.builder_id ? `, ${builderName.get(l.builder_id) ?? "a builder"}` : ", our team"} · {l.use_count}
+                    {roleLabel(l.role as Role, l.online_sales)}{l.builder_id ? `, ${builderName.get(l.builder_id) ?? "a builder"}` : ", our team"} · {l.use_count}
                     {l.max_uses ? ` of ${l.max_uses}` : ""} joined · {expired ? "ended" : "until"} {dateTime(l.expires_at)}
                   </p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-3">
