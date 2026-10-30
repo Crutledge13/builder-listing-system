@@ -66,6 +66,8 @@ export function MediaTile({ m, showPlace, disclaimer, direct }: { m: MediaRow; s
         )}
         <div className="absolute left-2 top-2 flex gap-1">
           {m.is_cover && <span className="rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold shadow-sm">Cover</span>}
+          {m.review_status === "pending" && <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[11px] font-semibold text-amber-950 shadow-sm">Waiting for approval</span>}
+          {m.review_status === "not_used" && <span className="rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-muted shadow-sm">Not used</span>}
           {m.plan_name && !m.home_id && <span className="rounded-full bg-white/95 px-2 py-0.5 text-[11px] font-semibold shadow-sm">{m.plan_name} plan</span>}
           {m.kind === "video" && m.duration_seconds && (
             <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">

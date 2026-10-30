@@ -202,7 +202,7 @@ export function RequestCard({
             <>
               <form action={updateMediaRequest}>
                 <Hidden r={r} op="complete" back={back} />
-                <button className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">Looks good, mark complete</button>
+                <button className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:brightness-110">Looks good: approve the photos and mark complete</button>
               </form>
               <form action={updateMediaRequest}>
                 <Hidden r={r} op="redo" back={back} />

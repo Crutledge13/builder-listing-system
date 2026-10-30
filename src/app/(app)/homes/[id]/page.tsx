@@ -82,6 +82,7 @@ import { loadDeliverables } from "@/lib/deliverables";
 import { MONEY_INPUT, withCommas } from "@/lib/money-input";
 import { GpsField } from "@/components/gps-field";
 import { gpsText } from "@/lib/gps";
+import { loadPendingPhotos, PhotoApproval } from "@/components/photo-approval";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -199,7 +200,7 @@ async function HomeDetail({
   // Optional features this builder has turned off (Admin > Builders).
   const off = await featuresOff(me.role, me.builder_id);
   const mlsScore = staff || ownMls ? (await loadMlsSheet(supabase, id))?.score ?? null : null;
-  const alerts = await loadAlerts({ homeId: id });
+  const [alerts, pendingPhotos] = await Promise.all([loadAlerts({ homeId: id }), loadPendingPhotos({ homeId: id })]);
   // Download sizes for "Download all photos" in the listing photos section.
   const [{ data: presetRows }, { data: brandRow }] = await Promise.all([
     supabase.from("download_presets").select(PRESET_SELECT).order("sort").order("name"),
@@ -737,6 +738,15 @@ async function HomeDetail({
           )}
 
           <p className="mt-10 border-b border-line pb-2 text-xs font-semibold uppercase tracking-wide text-muted first:mt-6">Photos and marketing<span className="ml-2 font-normal normal-case tracking-normal">what goes on the MLS and what you share</span></p>
+
+          {pendingPhotos.length === 0 && sectionNotice("photo-approval")}
+          {pendingPhotos.length > 0 && (
+            <HomeSection id="photo-approval" title="Photos to approve" tone="attention" open={canManageMedia(me.role) || at === "photo-approval"}
+              badge={`${pendingPhotos.length} waiting`} hint="New from our photographer. Approve them to put them on the listing for the MLS.">
+              {sectionNotice("photo-approval")}
+              <PhotoApproval items={pendingPhotos} back={`/homes/${home.id}?at=photo-approval#photo-approval`} canReview={canManageMedia(me.role)} forHome />
+            </HomeSection>
+          )}
 
           <ListingMediaPanel
             home={{ id: home.id, community_name: (home.communities as { name: string } | null)?.name ?? "the community", plan_name: home.plan_name, address: home.unparsed_address, disclaimer: !!home.show_representative_disclaimer }}

@@ -19,6 +19,7 @@ export type MediaRow = {
   builder_id: string;
   is_cover: boolean;
   mls_ready: boolean;
+  review_status?: "pending" | "approved" | "not_used" | null; // our photographer's files wait for approval
   sort_order: number;
   created_at: string;
   duration_seconds: number | null;
@@ -41,7 +42,7 @@ export type MediaRow = {
 };
 
 export const MEDIA_SELECT =
-  "id, title, kind, room, tags, source, demo_key, mime_type, thumb_path, home_id, community_id, builder_id, is_cover, mls_ready, sort_order, created_at, duration_seconds, room_source, ai_status, ai_suggestion, caption, plan_name, homes(unparsed_address, stories, plan_name, bedrooms_total, bathrooms_full, bathrooms_half, living_area), communities(name), builders(name)";
+  "id, title, kind, room, tags, source, demo_key, mime_type, thumb_path, home_id, community_id, builder_id, is_cover, mls_ready, review_status, sort_order, created_at, duration_seconds, room_source, ai_status, ai_suggestion, caption, plan_name, homes(unparsed_address, stories, plan_name, bedrooms_total, bathrooms_full, bathrooms_half, living_area), communities(name), builders(name)";
 
 const DEMO_VIDEOS = new Set(["video:home1", "video:home2", "video:home3", "video:community"]);
 

@@ -11,10 +11,13 @@ import { loadTagList, TAG_CATEGORIES } from "@/lib/tags";
 import { DISCLAIMER_TEXT, MediaGrid, MediaPicture, MediaTile, planFolderHref } from "@/components/media-tile";
 import { PhotoPackButton, type PackPhoto } from "@/components/photo-pack-button";
 import { PRESET_SELECT, type DownloadPreset } from "@/lib/image-resize";
+import { loadPendingPhotos, PhotoApproval } from "@/components/photo-approval";
+import { Notice } from "@/components/notice";
 
 export default function MediaPage(props: PageProps<"/media">) {
   return (
     <Suspense fallback={<div className="mt-16 grid grid-cols-2 gap-4 sm:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[3/2] animate-pulse rounded-xl bg-soft" />)}</div>}>
+      <Notice searchParams={props.searchParams} />
       <Library searchParams={props.searchParams} />
     </Suspense>
   );
@@ -124,6 +127,9 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     homeCommunityMedia = (c.data ?? []) as unknown as MediaRow[];
     planMedia = (p.data ?? []) as unknown as MediaRow[];
   }
+
+  // Our photographer's community files waiting for approval.
+  const pendingCommunity = community && !home && !filtering ? await loadPendingPhotos({ communityId: community.id }) : [];
 
   // Archived files of this home, so a sold home's folder doesn't look empty.
   const { count: archivedHere } = home && !archived
@@ -353,6 +359,14 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
       {/* Community level: community media, then a folder per home */}
       {community && !home && !filtering && (
         <>
+          {pendingCommunity.length > 0 && (
+            <section className="mt-8">
+              <h2 className="text-[22px] font-semibold">Photos to approve</h2>
+              <div className="mt-3">
+                <PhotoApproval items={pendingCommunity} back={`/media?community=${community.id}`} canReview={canManageMedia(me.role)} forHome={false} />
+              </div>
+            </section>
+          )}
           <section className="mt-10">
             <h2 className="text-[22px] font-semibold">Community photos and video</h2>
             <p className="mt-1 text-sm text-muted">Entrance, amenities, aerials and site plans. Use them on any home here.</p>
