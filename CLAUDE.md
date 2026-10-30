@@ -225,7 +225,8 @@ Agreed direction for two features; build them one at a time when the owners say 
 - Its own route group and bare layout (no main nav, menu, builder focus or demo switcher), so none of the main app's screens are ever sent to a broker's browser. `src/proxy.ts` keeps brokers inside it. Hiding links in the main app is not enough.
 - A broker can mark live with the MLS number and tick lines; nothing else changes listings. Each new task notifies and emails the broker.
 - Terms of use accepted on first sign-in (no copying, sharing logins, reverse-engineering).
-- Open questions for the owners: billing (recommended: the builder pays, broker access included; likely the Software plan) and whether builder staff should still see the work sheets in broker mode.
+- Billing (owners, 29 Oct 2026): the builder pays; broker access is included at no charge to the broker.
+- Builder's side (owners, 29 Oct 2026): builder staff never see the broker's view or work sheets. They approve the listing with an "Approve and send to broker" button (approving is the send), and get a notice and email when the broker finishes each task (marked live with the MLS number, update done, status change done, open house entered). The home shows where it stands: "With your broker" until live, then the MLS number.
 
 **Website push: approved listings and photos out to the builder's website.** The reverse of the website feed, opt-in per builder (a new switch next to `website_feed_enabled`). Build rules:
 - One shared export door; each website platform is a small connector (same pattern as the import door). Recommended route: the website platform's own API (WordPress and most builder-site platforms have one).

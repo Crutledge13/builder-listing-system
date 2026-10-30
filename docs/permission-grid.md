@@ -133,6 +133,8 @@ Owners' direction, 29 Oct 2026. For builders set to have their own listing broke
 | Edit any listing details, photos or prices | ➖ |
 | Invite or remove a broker | builder owner (own builder) and platform admin |
 
+Builder staff in broker mode don't see the broker's work sheets; they send with "Approve and send to broker" and get a notice and email when each task is done. Billing: the builder pays (owners, 29 Oct 2026).
+
 ## Always true
 
 - One builder never sees another builder's homes, people, photos, website or MLS data.

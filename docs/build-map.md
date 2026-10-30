@@ -23,7 +23,7 @@ Most expensive mistakes start here. Cheapest place to fix them.
 - Get your MLS's photo rules: max count, minimum size, branding limits
 - Ask the pilot builder what runs their website, whether it already sends a listing feed to Zillow or similar sites, and whether it can accept listings and photos sent in
 - Pick the 5–8 features for version one; park the rest
-- Decide how you charge builders (monthly, per listing), including broker mode (recommended: the builder pays; broker access is included)
+- Decide how you charge builders (monthly, per listing). Broker mode: the builder pays; broker access is included (decided 29 Oct 2026)
 - Ask a Texas real estate attorney who may enter listings into the MLS and under whose license (legal)
 - Write short terms of use for outside brokers: no copying, sharing logins or reverse-engineering (legal)
 
@@ -142,12 +142,19 @@ Much of this already exists: builders set to enter their own MLS listings alread
 
 **How it flows**
 
-1. Builder enters the listing and photos and approves it for the MLS
+1. Builder enters the listing and photos, then clicks "Approve and send to broker"
 2. The MLS task goes to the builder's broker, who gets an email
 3. Broker signs in and sees only their to-do list
 4. Broker opens one: MLS fields in the MLS's screen order, each with a copy button, plus the MLS photo pack download
-5. Broker enters the MLS number and marks it live; the builder sees the status change
-6. When the builder changes a live listing, the broker gets an update item showing only what changed
+5. Broker enters the MLS number and marks it live; the builder gets a notice and email, and the home shows its MLS number
+6. When the builder changes a live listing, the broker gets an update item showing only what changed; the builder is told when it's done
+
+**What the builder sees** (decided 29 Oct 2026)
+
+- An "Approve and send to broker" button instead of plain approve
+- "With your broker" on the home until it's live, then the MLS number
+- A notice and email each time the broker finishes something
+- Never the broker's view or work sheets
 
 **What the broker sees**
 
