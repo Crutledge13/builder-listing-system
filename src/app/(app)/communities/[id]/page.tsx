@@ -9,7 +9,7 @@ import { money } from "@/lib/format";
 import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
 import { cardIncentive, forHome, INCENTIVE_SELECT, type Incentive } from "@/lib/incentives";
 import { IncentiveList } from "@/components/incentive-list";
-import { canManageIncentives, canRequestComps } from "@/lib/permissions";
+import { canBulkChangePrices, canManageIncentives, canRequestComps } from "@/lib/permissions";
 import { StatusChips } from "@/components/status-chips";
 import { HomeArt } from "@/components/home-art";
 import { MediaPicture } from "@/components/media-tile";
@@ -85,7 +85,7 @@ async function CommunityDetail({
   ]);
   const canManageTeam = ["platform_admin", "builder_owner", "manager", "marketing"].includes(me.role);
   const { data: builderSales } = canManageTeam
-    ? await supabase.from("profiles").select("id, full_name").eq("builder_id", community.builder_id).eq("role", "sales").order("full_name")
+    ? await supabase.from("profiles").select("id, full_name, online_sales").eq("builder_id", community.builder_id).eq("role", "sales").eq("is_active", true).order("full_name")
     : { data: null };
   const { data: thisTeam } = canManageTeam
     ? await supabase.from("community_assignments").select("profile_id").eq("community_id", id)
@@ -156,6 +156,11 @@ async function CommunityDetail({
             Community setup {setup.filled < setup.required ? `(${setup.filled} of ${setup.required})` : "✓"}
           </Link>
         )}
+        {canBulkChangePrices(me.role) && all.length > 0 && (
+          <Link href={`/communities/${community.id}/prices`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
+            Change prices
+          </Link>
+        )}
         <Link href={`/media?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
           Community photos and videos
         </Link>
@@ -180,7 +185,7 @@ async function CommunityDetail({
                 <input type="hidden" name="scope" value={community.id} />
                 <input type="hidden" name="back" value={`/communities/${community.id}`} />
                 {!onTeam.has(p.id) && <input type="hidden" name="community_id" value={community.id} />}
-                <span className="text-sm font-medium">{p.full_name}</span>
+                <span className="text-sm font-medium">{p.full_name}{p.online_sales && <span className="ml-2 text-xs font-normal text-muted">Online sales counselor</span>}</span>
                 <button className={onTeam.has(p.id) ? "rounded-lg border border-foreground px-3 py-1.5 text-sm font-semibold hover:bg-white" : "rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-white hover:bg-black"}>
                   {onTeam.has(p.id) ? "Remove" : "Add to this community"}
                 </button>

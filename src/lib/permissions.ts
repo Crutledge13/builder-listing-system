@@ -258,6 +258,11 @@ export function canRequestPriceChange(role: Role) {
   return role === "sales";
 }
 
+// Raise or lower many prices in a community at once. Mirrors public.bulk_change_prices.
+export function canBulkChangePrices(role: Role) {
+  return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
+}
+
 export function canToggleDisclaimer(role: Role) {
   return ["platform_admin", "builder_owner", "manager", "marketing"].includes(role);
 }
