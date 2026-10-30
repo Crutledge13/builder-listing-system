@@ -58,6 +58,22 @@ export async function setTrashed(formData: FormData) {
   back(id, { saved: trash ? "trashed" : "restored" });
 }
 
+// Archive a file now, or bring an archived one back (it's then left out of the
+// nightly archive for 180 days). Owners, managers, marketing and our admins.
+export async function setArchived(formData: FormData) {
+  const id = String(formData.get("id"));
+  const archive = formData.get("archive") === "1";
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("media")
+    .update({ archived_at: archive ? new Date().toISOString() : null })
+    .eq("id", id)
+    .select("id");
+  if (error || !data?.length) back(id, { error: error?.message.includes("archive media") ? error.message : "Your role can’t archive media." });
+  revalidatePath("/media");
+  back(id, { saved: archive ? "archived" : "unarchived" });
+}
+
 export async function rerunAi(formData: FormData) {
   const id = String(formData.get("id"));
   if (!aiTaggingAvailable()) back(id, { error: "AI tagging is off until the ANTHROPIC_API_KEY setting is added in Vercel." });

@@ -78,10 +78,13 @@ const size = (b: number) => (b >= 1_073_741_824 ? `${(b / 1_073_741_824).toFixed
 async function StorageMeter() {
   if (!(await isPlatformAdmin())) return null;
   const supabase = await createClient();
-  const [{ data: rows }, { data: limitRow }] = await Promise.all([
+  const [{ data: rows }, { data: limitRow }, { data: archiveRows }] = await Promise.all([
     supabase.rpc("storage_usage"),
     supabase.from("app_settings").select("value").eq("key", "storage_limit_mb").maybeSingle(),
+    supabase.rpc("media_archive_summary"),
   ]);
+  const archive = ((archiveRows ?? []) as { archived: number; archived_bytes: number }[])
+    .reduce((t, r) => ({ files: t.files + Number(r.archived), bytes: t.bytes + Number(r.archived_bytes) }), { files: 0, bytes: 0 });
   const list = (rows ?? []) as { bucket: string; files: number; bytes: number }[];
   const used = list.reduce((s, r) => s + Number(r.bytes), 0);
   const limit = Number(limitRow?.value ?? 1024) * 1_048_576;
@@ -102,6 +105,10 @@ async function StorageMeter() {
           {pct >= 100 ? "Storage is over the plan's limit." : "Storage is over 80% of the plan's limit."} Upgrade the Supabase plan before adding more photos or video, then update the limit in Admin → Settings.
         </p>
       )}
+      <p className="mt-3 text-sm text-muted">
+        Archive: <b className="text-foreground">{archive.files}</b> {archive.files === 1 ? "file" : "files"} ({size(archive.bytes)}) over 600 days old from sold or off-market homes and sold-out communities, moved out of the library each night.
+        They move to cheaper storage when media moves to Cloudflare.
+      </p>
       {list.length > 0 && (
         <ul className="mt-3 grid gap-x-6 gap-y-1 text-sm text-muted sm:grid-cols-2">
           {list.map((r) => (
