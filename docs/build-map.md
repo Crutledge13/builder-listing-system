@@ -73,7 +73,8 @@ One feature at a time. Test each before starting the next.
 - Media library: upload, organize, search and download (details below)
 - AI photo tagging and quality checks
 - Approval step before a listing is "ready for MLS"
-- MLS entry sheet laid out in the MLS's field order, for fast manual entry
+- MLS entry sheet laid out like Matrix: same tabs, same labels, only the boxes that get a value, tick-box answers shown as the boxes to tick, Copy ticks the line (rebuilt 29 Oct 2026)
+- Listing package: the same values as one RESO record, ready for an automatic upload if NTREIS ever approves one (nothing sends it today)
 - Broker mode: the builder's own broker gets the MLS work in a bare-bones sheet
 - MLS tracker: MLS number, status, last change, what needs updating (filled in automatically once the MLS feed is connected)
 - Activity log: who changed what and when
@@ -145,7 +146,7 @@ Much of this already exists: builders set to enter their own MLS listings alread
 1. Builder enters the listing and photos, then clicks "Approve and send to broker"
 2. The MLS task goes to the builder's broker, who gets an email
 3. Broker signs in and sees only their to-do list
-4. Broker opens one: MLS fields in the MLS's screen order, each with a copy button, plus the MLS photo pack download
+4. Broker opens one: the MLS's tabs in its order, only the boxes to fill, tick-box answers shown as the boxes to tick, Copy buttons that tick the line, plus the MLS photo pack download on the last tab
 5. Broker enters the MLS number and marks it live; the builder gets a notice and email, and the home shows its MLS number
 6. When the builder changes a live listing, the broker gets an update item showing only what changed; the builder is told when it's done
 

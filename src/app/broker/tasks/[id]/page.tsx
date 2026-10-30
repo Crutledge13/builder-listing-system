@@ -10,6 +10,7 @@ import { openHouseWhen, whenCentral } from "@/lib/time";
 import { CONDITION, formatMls, MLS_FIELD_FOR_COLUMN } from "@/lib/mls-fields";
 import { Notice } from "@/components/notice";
 import { MlsScore, MlsSheetView } from "@/components/mls-sheet";
+import { OpenBesideMatrix } from "@/components/mls-sheet-client";
 import { CheckOff, CopyButton } from "@/components/mls-client";
 import { MediaPicture } from "@/components/media-tile";
 import { brokerAddNote, brokerMarkLive, brokerSetStatus, brokerToggleCheck } from "../../actions";
@@ -125,24 +126,23 @@ function Progress({ checked, total }: { checked: number; total: number }) {
 
 // A brand-new listing: the full MLS input, then the MLS number.
 function EntryWork({ t, sheet, check, closed, fileBase }: { t: BrokerTask; sheet: MlsSheet; check: Check; closed: boolean; fileBase: string }) {
-  const lines = sheet.sections.reduce((n, s) => n + s.fields.length, 0) + 1;
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
       <div className="min-w-0 space-y-6">
         <Steps
           items={[
             `Start a new listing in ${sheet.board?.short_name ?? "the MLS"} (Residential, For Sale).`,
-            "Copy each field below into the MLS, in order. Tick each line as you go.",
-            "Download the photo pack and upload the photos in that order.",
+            "Go tab by tab, same as the MLS. Copy each value (it ticks itself) or tick the boxes shown.",
+            "On the last tab, download the photo pack and upload the photos in that order.",
             "Submit the listing, then enter the MLS number on the right.",
           ]}
         />
         <MlsScore sheet={sheet} homeId={sheet.home.id} edit={false} />
+        <div className="flex justify-end"><OpenBesideMatrix /></div>
         <MlsSheetView sheet={sheet} check={check} fileBase={fileBase} broker />
       </div>
       <aside>
         <div className="sticky top-24 space-y-4">
-          <Progress checked={check.checked.length} total={lines} />
           {sheet.home.workflow_status === "approved_for_mls" && !closed ? (
             <form action={brokerMarkLive} className="rounded-2xl border border-line p-4">
               <input type="hidden" name="id" value={t.id} />

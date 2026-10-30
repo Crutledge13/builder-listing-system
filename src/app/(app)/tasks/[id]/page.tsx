@@ -13,6 +13,7 @@ import { loadMlsSheet, type MlsSheet } from "@/lib/mls-sheet";
 import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { Notice } from "@/components/notice";
 import { MlsScore, MlsSheetView } from "@/components/mls-sheet";
+import { OpenBesideMatrix } from "@/components/mls-sheet-client";
 import { CheckOff, CopyButton } from "@/components/mls-client";
 import { MediaPicture } from "@/components/media-tile";
 import { addTaskNote, assignTask, markListingLive, setTaskStatus, toggleTaskCheck } from "../actions";
@@ -160,17 +161,17 @@ function EntryWork({ t, sheet, check, closed }: { t: Task; sheet: MlsSheet; chec
         <Steps
           items={[
             `Start a new listing in ${sheet.board?.short_name ?? "the MLS"} (Residential, For Sale).`,
-            "Copy each field below into the MLS, in order. Tick each line as you go.",
-            "Upload the photos in the order shown.",
+            "Go tab by tab, same as the MLS. Copy each value (it ticks itself) or tick the boxes shown.",
+            "On the last tab, download the photo pack and upload the photos in that order.",
             "Submit the listing, then enter the MLS number on the right.",
           ]}
         />
         <MlsScore sheet={sheet} homeId={sheet.home.id} />
+        <div className="flex justify-end"><OpenBesideMatrix /></div>
         <MlsSheetView sheet={sheet} check={check} />
       </div>
       <aside>
         <div className="sticky top-28 space-y-4">
-          <Progress checked={check.checked.length} total={entryLines(sheet)} />
           {sheet.home.workflow_status === "approved_for_mls" && !closed ? (
             <form action={markListingLive} className="rounded-2xl border border-line p-4">
               <input type="hidden" name="back" value={`/tasks/${t.id}`} />
@@ -191,9 +192,6 @@ function EntryWork({ t, sheet, check, closed }: { t: Task; sheet: MlsSheet; chec
     </div>
   );
 }
-
-// Every field this MLS asks for, plus the photos line.
-const entryLines = (sheet: MlsSheet) => sheet.sections.reduce((n, s) => n + s.fields.length, 0) + 1;
 
 function Progress({ checked, total }: { checked: number; total: number }) {
   const pct = total ? Math.min(100, Math.round((checked / total) * 100)) : 0;
