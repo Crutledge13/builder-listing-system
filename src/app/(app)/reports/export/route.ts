@@ -67,13 +67,39 @@ export async function GET(request: Request) {
   summary.getRow(1).font = { bold: true, size: 14 };
   summary.getCell("B10").numFmt = money;
 
+  addSheet("By community", [
+    { header: "Community", key: "community", width: 24 },
+    { header: "Listed now", key: "listed", width: 12 },
+    { header: "Average days on market", key: "avg", width: 22 },
+    { header: "Longest days on market", key: "longest", width: 22 },
+    { header: "Under contract", key: "uc", width: 15 },
+    { header: "Sold in period", key: "sold", width: 15 },
+    { header: "Coming soon", key: "coming", width: 13 },
+  ], r.byCommunity.map((c) => ({ community: c.community, listed: c.listed, avg: c.avgDays ?? "—", longest: c.longest ?? "—", uc: c.underContract, sold: c.soldInRange, coming: c.coming })));
+
   addSheet("Days on market", [
     { header: "Home", key: "home", width: 28 },
     { header: "Community", key: "community", width: 22 },
+    { header: "Status", key: "status", width: 16 },
     { header: "List price", key: "price", width: 14, numFmt: money },
     { header: "Live since", key: "live", width: 14, numFmt: "mmm d, yyyy" },
     { header: "Days on market", key: "days", width: 16 },
-  ], r.dom.map(({ h, days }) => ({ home: h.unparsed_address, community: h.communities?.name ?? "", price: h.list_price, live: d(h.live_at), days })));
+  ], r.dom.map(({ h, days }) => ({
+    home: h.unparsed_address, community: h.communities?.name ?? "", status: MARKET_LABELS[(h.market_status ?? "active") as MarketStatus],
+    price: h.list_price, live: d(h.live_at), days,
+  })));
+
+  addSheet("By floor plan", [
+    { header: "Community", key: "community", width: 24 },
+    { header: "Floor plan", key: "plan", width: 20 },
+    { header: "Listed now", key: "listed", width: 12 },
+    { header: "Lowest price", key: "low", width: 14, numFmt: money },
+    { header: "Highest price", key: "high", width: 14, numFmt: money },
+    { header: "Average days on market", key: "avg", width: 22 },
+    { header: "Under contract", key: "uc", width: 15 },
+    { header: "Sold in period", key: "sold", width: 15 },
+    { header: "Coming soon", key: "coming", width: 13 },
+  ], r.byPlan.map((p) => ({ community: p.community, plan: p.plan, listed: p.listed, low: p.low, high: p.high, avg: p.avgDays ?? "—", uc: p.underContract, sold: p.soldInRange, coming: p.coming })));
 
   addSheet("Price changes", [
     { header: "Home", key: "home", width: 28 },

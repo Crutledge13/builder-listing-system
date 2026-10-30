@@ -173,13 +173,37 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
         </Section>
       )}
 
-      <Section title="Days on market" hint="Every listing live at the end of the period, longest first.">
+      <Section title="Days on market by community" hint="How each community is moving: homes listed now, average and longest days on the MLS, contracts, and sales in this period.">
         <FilterTable
-          columns={[{ label: "Home" }, { label: "Community" }, { label: "Price", numeric: true }, { label: "Live since" }, { label: "Days", numeric: true }]}
+          columns={[
+            { label: "Community" }, { label: "Listed now", numeric: true }, { label: "Average days", numeric: true }, { label: "Longest", numeric: true },
+            { label: "Under contract", numeric: true }, { label: "Sold in period", numeric: true }, { label: "Coming soon", numeric: true },
+          ]}
+          rows={r.byCommunity.map((c) => ({
+            cells: [
+              { text: c.community },
+              { text: String(c.listed), sort: c.listed },
+              { text: c.avgDays === null ? "—" : String(c.avgDays), sort: c.avgDays ?? -1, tone: c.avgDays !== null && c.avgDays >= 60 ? "warn" : undefined },
+              { text: c.longest === null ? "—" : String(c.longest), sort: c.longest ?? -1 },
+              { text: String(c.underContract), sort: c.underContract },
+              { text: String(c.soldInRange), sort: c.soldInRange },
+              { text: String(c.coming), sort: c.coming },
+            ],
+            tags: { community: c.community },
+          }))}
+          noun="communities"
+          empty="No homes yet."
+        />
+      </Section>
+
+      <Section title="Days on market" hint="Every listing live at the end of the period, longest first, with its status.">
+        <FilterTable
+          columns={[{ label: "Home" }, { label: "Community" }, { label: "Status" }, { label: "Price", numeric: true }, { label: "Live since" }, { label: "Days", numeric: true }]}
           rows={r.dom.map(({ h, days }) => ({
             cells: [
               { text: h.unparsed_address, href: `/homes/${h.id}` },
               { text: h.communities?.name ?? "" },
+              { text: tagsFor(h)?.status ?? "" },
               { text: money(h.list_price), sort: Number(h.list_price ?? 0) },
               { text: shortDate(h.live_at!), sort: h.live_at! },
               { text: String(days), sort: days, tone: days >= 60 ? "warn" : undefined },
@@ -187,8 +211,33 @@ async function ReportView({ searchParams }: { searchParams: PageProps<"/reports"
             tags: tagsFor(h),
           }))}
           filters={["community", "plan", "status"]}
-          defaultSort={{ col: 4, desc: true }}
+          defaultSort={{ col: 5, desc: true }}
           empty="No live listings."
+        />
+      </Section>
+
+      <Section title="Homes by floor plan" hint="How many of each floor plan are listed in each community right now, with their prices and days on the MLS.">
+        <FilterTable
+          columns={[
+            { label: "Community" }, { label: "Floor plan" }, { label: "Listed now", numeric: true }, { label: "Price range" }, { label: "Average days", numeric: true },
+            { label: "Under contract", numeric: true }, { label: "Sold in period", numeric: true }, { label: "Coming soon", numeric: true },
+          ]}
+          rows={r.byPlan.map((p) => ({
+            cells: [
+              { text: p.community },
+              { text: p.plan },
+              { text: String(p.listed), sort: p.listed },
+              { text: p.low === null ? "—" : p.low === p.high ? money(p.low) : `${money(p.low)} – ${money(p.high)}`, sort: p.low ?? -1 },
+              { text: p.avgDays === null ? "—" : String(p.avgDays), sort: p.avgDays ?? -1 },
+              { text: String(p.underContract), sort: p.underContract },
+              { text: String(p.soldInRange), sort: p.soldInRange },
+              { text: String(p.coming), sort: p.coming },
+            ],
+            tags: { community: p.community, plan: p.plan },
+          }))}
+          filters={["community", "plan"]}
+          noun="plans"
+          empty="No homes yet."
         />
       </Section>
 
