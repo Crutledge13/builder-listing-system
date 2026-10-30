@@ -32,6 +32,8 @@ const KINDS = [
   { key: "community", label: "Community photos" },
 ];
 
+const PAGE = 20;
+
 function str(v: string | string[] | undefined) {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
@@ -47,9 +49,12 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   const communityId = str(sp.community);
   const homeId = str(sp.home);
   const builderId = str(sp.builder);
-  // Results come in pages of 120; "Show more" adds the next page.
-  const pages = Math.min(8, Math.max(1, Number(str(sp.pages)) || 1));
-  const pageLimit = 120 * pages;
+  // 20 at a time; "Load more" adds the next 20 (owners, 29 Oct 2026: big
+  // builders were slow to open). Files and folders page separately.
+  const pages = Math.min(50, Math.max(1, Number(str(sp.pages)) || 1));
+  const pageLimit = PAGE * pages;
+  const fpages = Math.min(50, Math.max(1, Number(str(sp.fpages)) || 1));
+  const folderLimit = PAGE * fpages;
 
   const me = await requireProfile();
   sendPhotographersToJobs(me);
@@ -75,7 +80,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
 
   const params = (over: Record<string, string | null>) => {
     const p = new URLSearchParams();
-    const base: Record<string, string | null> = { q, room, kind, tag, archived: archived ? "1" : null, community: home ? null : communityId, home: homeId, builder: community || home ? null : builderId, pages: null };
+    const base: Record<string, string | null> = { q, room, kind, tag, archived: archived ? "1" : null, community: home ? null : communityId, home: homeId, builder: community || home ? null : builderId, pages: null, fpages: null };
     for (const [k, v] of Object.entries({ ...base, ...over })) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/media?${s}` : "/media";
@@ -86,7 +91,8 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   // Results grid (scoped to the current folder).
   let results: MediaRow[] = [];
   if (!atTop) {
-    let query = supabase.from("media").select(MEDIA_SELECT).is("deleted_at", null).order("sort_order").order("created_at").limit(pageLimit);
+    // One extra tells us whether there's more to load.
+    let query = supabase.from("media").select(MEDIA_SELECT).is("deleted_at", null).order("sort_order").order("created_at").limit(pageLimit + 1);
     query = archived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
     if (home) query = query.eq("home_id", home.id);
     // A community folder (not searching) shows only the community's own items;
@@ -103,6 +109,8 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     const { data } = await query;
     results = (data ?? []) as unknown as MediaRow[];
   }
+  const hasMore = results.length > pageLimit;
+  results = results.slice(0, pageLimit);
 
   // On a home: also its community's media and its floor plan's library media,
   // in case the builder team needs them (or the home isn't built yet).
@@ -110,7 +118,8 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   let planMedia: MediaRow[] = [];
   if (home) {
     const scoped = (qb: ReturnType<typeof supabase.from>) => {
-      let x = qb.select(MEDIA_SELECT).is("deleted_at", null).is("home_id", null).order("sort_order").order("created_at").limit(80);
+      // The first 20 of each; the community or plan folder has the rest.
+      let x = qb.select(MEDIA_SELECT).is("deleted_at", null).is("home_id", null).order("sort_order").order("created_at").limit(PAGE + 1);
       x = archived ? x.not("archived_at", "is", null) : x.is("archived_at", null);
       if (room) x = x.eq("room", room);
       if (kind && kind !== "community") x = x.eq("kind", kind);
@@ -136,12 +145,19 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     ? await supabase.from("media").select("id", { count: "exact", head: true }).eq("home_id", home.id).is("deleted_at", null).not("archived_at", "is", null)
     : { count: 0 };
 
-  // "Download all photos" on a home: its photos and floor plans, with the size to save them at.
-  const homePhotos: PackPhoto[] = home
-    ? results
-        .filter((m) => m.kind !== "video")
-        .map((m, i) => ({ id: m.id, file: m.source !== "demo", label: `${String(i + 1).padStart(2, "0")}-${(m.room ?? m.kind).replace(/_/g, "-")}` }))
-    : [];
+  const communityMore = homeCommunityMedia.length > PAGE;
+  const planMore = planMedia.length > PAGE;
+  homeCommunityMedia = homeCommunityMedia.slice(0, PAGE);
+  planMedia = planMedia.slice(0, PAGE);
+
+  // "Download all photos" on a home: every photo and floor plan (not just the
+  // 20 on screen), read as a short list, with the size to save them at.
+  const { data: packRows } = home && !archived
+    ? await supabase.from("media").select("id, kind, room, source").eq("home_id", home.id).is("deleted_at", null).is("archived_at", null).neq("kind", "video").order("sort_order").order("created_at").limit(500)
+    : { data: null };
+  const homePhotos: PackPhoto[] = (packRows ?? []).map((m, i) => ({
+    id: m.id, file: m.source !== "demo", label: `${String(i + 1).padStart(2, "0")}-${(m.room ?? m.kind).replace(/_/g, "-")}`,
+  }));
   const { data: presetRows } = home ? await supabase.from("download_presets").select(PRESET_SELECT).order("sort").order("name") : { data: null };
   const presets = (presetRows ?? []) as DownloadPreset[];
   const { data: brand } = home ? await supabase.from("builder_branding").select("default_download_preset").eq("builder_id", home.builder_id).maybeSingle() : { data: null };
@@ -152,7 +168,10 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     : { data: null };
   // Our team can narrow the top level to one builder from the top bar.
   const focus = staffFocus;
-  const folderCommunities = (communities ?? []).filter((c) => (!builder || c.builder_id === builder.id) && (!focus || builder || c.builder_id === focus));
+  const allFolderCommunities = (communities ?? []).filter((c) => (!builder || c.builder_id === builder.id) && (!focus || builder || c.builder_id === focus));
+  // 20 folders at a time, and only their covers and counts are loaded.
+  const folderCommunities = allFolderCommunities.slice(0, folderLimit);
+  const foldersMoreHref = allFolderCommunities.length > folderLimit ? params({ fpages: String(fpages + 1) }) : null;
   const { data: covers } = folderCommunities.length
     ? await supabase.from("media").select(MEDIA_SELECT).in("community_id", folderCommunities.map((c) => c.id)).is("home_id", null).eq("room", "entrance").is("deleted_at", null)
     : { data: null };
@@ -164,9 +183,10 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
   const counts = new Map<string, number>(((countRows ?? []) as { community_id: string; items: number }[]).map((r) => [r.community_id, Number(r.items)]));
 
   // Inside a community: the homes as folders.
-  const { data: homeFolders } = community && !home && !filtering
-    ? await supabase.from("homes").select("id, unparsed_address, plan_name, stories").eq("community_id", community.id).is("deleted_at", null).order("unparsed_address")
-    : { data: null };
+  const { data: homeFolders, count: homeFolderCount } = community && !home && !filtering
+    ? await supabase.from("homes").select("id, unparsed_address, plan_name, stories", { count: "exact" }).eq("community_id", community.id).is("deleted_at", null).order("unparsed_address").range(0, folderLimit - 1)
+    : { data: null, count: 0 };
+  const homeFoldersMoreHref = (homeFolderCount ?? 0) > folderLimit ? params({ fpages: String(fpages + 1) }) : null;
   const { data: homeCovers } = homeFolders?.length
     ? await supabase.from("media").select(MEDIA_SELECT).in("home_id", homeFolders.map((h) => h.id)).eq("is_cover", true).is("deleted_at", null)
     : { data: null };
@@ -176,7 +196,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
     : { data: null };
   const homeCounts = new Map<string, number>(((homeCountRows ?? []) as { home_id: string; items: number }[]).map((r) => [r.home_id, Number(r.items)]));
   const communityOnly = results;
-  const moreHref = results.length === pageLimit && pages < 8 ? params({ pages: String(pages + 1) }) : null;
+  const moreHref = hasMore && pages < 50 ? params({ pages: String(pages + 1) }) : null;
 
   // Group top-level folders by builder for our staff.
   const byBuilder = new Map<string, typeof folderCommunities>();
@@ -335,6 +355,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
             </section>
           ))}
           {folderCommunities.length === 0 && <Empty text="No media you can see yet." />}
+          <ShowMore href={foldersMoreHref} label="Load more communities" />
         </div>
       )}
 
@@ -353,6 +374,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
               </Link>
             );
           })}
+          <div className="sm:col-span-2 lg:col-span-3"><ShowMore href={foldersMoreHref} label="Load more communities" /></div>
         </div>
       )}
 
@@ -394,6 +416,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
                 );
               })}
             </div>
+            <ShowMore href={homeFoldersMoreHref} label={`Load more homes (${homeFolderCount} in all)`} />
           </section>
         </>
       )}
@@ -438,6 +461,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
             <div className="mt-4">
               <MediaGrid>{homeCommunityMedia.map((m) => <MediaTile key={m.id} m={m} />)}</MediaGrid>
               {homeCommunityMedia.length === 0 && <Empty text="No community media yet." />}
+              {communityMore && <p className="mt-4 text-sm"><Link href={`/media?community=${home.community_id}`} className="font-semibold underline">See all of the community&rsquo;s photos and video</Link></p>}
             </div>
           </section>
           <section>
@@ -449,6 +473,7 @@ async function Library({ searchParams }: { searchParams: PageProps<"/media">["se
             <div className="mt-4">
               <MediaGrid>{planMedia.map((m) => <MediaTile key={m.id} m={m} disclaimer={home.show_representative_disclaimer} />)}</MediaGrid>
               {planMedia.length === 0 && <Empty text="No plan photos in the library yet." />}
+              {planMore && home.plan_name && <p className="mt-4 text-sm"><Link href={planFolderHref(home.builder_id, home.plan_name)} className="font-semibold underline">See all of the {home.plan_name} plan&rsquo;s photos and video</Link></p>}
             </div>
           </section>
         </div>
@@ -481,11 +506,12 @@ function chip(on: boolean) {
   );
 }
 
-function ShowMore({ href }: { href: string | null }) {
+// "Load more": the next 20, without jumping back to the top.
+function ShowMore({ href, label = "Load more" }: { href: string | null; label?: string }) {
   if (!href) return null;
   return (
     <div className="mt-8 text-center">
-      <Link href={href} scroll={false} className="inline-block rounded-full border border-foreground px-5 py-2.5 text-sm font-semibold hover:bg-soft">Show more</Link>
+      <Link href={href} scroll={false} className="inline-block rounded-full border border-foreground px-5 py-2.5 text-sm font-semibold hover:bg-soft">{label}</Link>
     </div>
   );
 }
