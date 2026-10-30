@@ -12,6 +12,9 @@ import { loadCommunityCovers } from "@/lib/covers";
 import { AttentionPanel, loadAlerts } from "@/components/alerts";
 import { Notice } from "@/components/notice";
 import { SetupBanner } from "@/components/setup-banner";
+import { FilterTable } from "@/components/filter-table";
+import { viewPref } from "@/lib/view-pref";
+import { ViewToggle } from "@/components/view-toggle";
 
 export default function CommunitiesPage(props: PageProps<"/communities">) {
   return (
@@ -28,9 +31,9 @@ async function CommunityList() {
   const supabase = await createClient();
   const staff = isStaff(me.role);
 
-  const focus = await builderFocus(me.role);
+  const [focus, view] = await Promise.all([builderFocus(me.role), viewPref("communities")]);
   let cq = supabase.from("communities").select("id, name, city, county, builder_id, builders(name, builder_branding(logo_updated_at))").order("name");
-  let hq = supabase.from("homes").select("id, community_id, stories, list_price, workflow_status").is("deleted_at", null);
+  let hq = supabase.from("homes").select("id, community_id, stories, list_price, workflow_status, market_status, live_at").is("deleted_at", null);
   if (focus) {
     cq = cq.eq("builder_id", focus);
     hq = hq.eq("builder_id", focus);
@@ -52,7 +55,7 @@ async function CommunityList() {
   // A real photo for each card: the community's cover (or one of its homes').
   const [alerts, communityCovers] = await Promise.all([
     staff ? Promise.resolve([]) : loadAlerts(),
-    loadCommunityCovers(supabase, (communities ?? []).map((c) => c.id)),
+    view === "list" ? Promise.resolve(new Map()) : loadCommunityCovers(supabase, (communities ?? []).map((c) => c.id)),
   ]);
   const title = me.role === "sales" ? "Your communities" : "Communities";
   const subtitle =
@@ -69,7 +72,8 @@ async function CommunityList() {
           <h1 className="text-[28px] font-bold leading-tight tracking-tight">{title}</h1>
           <p className="mt-1 text-muted">{subtitle}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle name="communities" view={view} />
           <Link href="/homes" className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
             View all homes
           </Link>
@@ -85,8 +89,49 @@ async function CommunityList() {
 
       <AttentionPanel alerts={alerts} back="/communities" canAnswer staff={false} fullHref="/attention" />
 
-      <div className="mt-8 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-        {communities?.map((c, i) => {
+      {view === "list" && (communities?.length ?? 0) > 0 && (
+        <div className="mt-8 rounded-2xl border border-line">
+          <FilterTable
+            columns={[
+              { label: "Community" }, { label: "City" }, { label: "Homes", numeric: true }, { label: "Live on MLS", numeric: true }, { label: "In approval", numeric: true },
+              { label: "Under contract", numeric: true }, { label: "Sold", numeric: true }, { label: "Price range" }, { label: "Avg days on MLS", numeric: true }, { label: "Open houses", numeric: true },
+              ...(staff ? [{ label: "Builder" }] : []),
+            ]}
+            rows={(communities ?? []).map((c) => {
+              const list = (homes ?? []).filter((h) => h.community_id === c.id);
+              const prices = list.map((h) => Number(h.list_price)).filter((n) => n > 0);
+              const live = list.filter((h) => h.workflow_status === "live_on_mls");
+              const onMarket = live.filter((h) => h.live_at && !["sold", "withdrawn"].includes(h.market_status ?? ""));
+              const avgDays = averageDays(onMarket.map((h) => h.live_at!));
+              const builderName = (c.builders as unknown as { name: string } | null)?.name.replace(" (demo)", "") ?? "";
+              return {
+                cells: [
+                  { text: c.name, href: `/communities/${c.id}` },
+                  { text: c.city },
+                  { text: String(list.length), sort: list.length },
+                  { text: String(live.length), sort: live.length },
+                  { text: String(list.filter((h) => h.workflow_status === "in_review" || h.workflow_status === "approved_for_mls").length) },
+                  { text: String(list.filter((h) => h.market_status === "under_contract").length) },
+                  { text: String(list.filter((h) => h.market_status === "sold").length) },
+                  { text: prices.length ? `${money(Math.min(...prices))} – ${money(Math.max(...prices))}` : "—", sort: prices.length ? Math.min(...prices) : -1 },
+                  { text: avgDays === null ? "—" : String(avgDays), sort: avgDays ?? -1, tone: avgDays !== null && avgDays > 90 ? "warn" : undefined },
+                  { text: String(upcoming.get(c.id) ?? 0), sort: upcoming.get(c.id) ?? 0 },
+                  ...(staff ? [{ text: builderName }] : []),
+                ],
+                tags: { city: c.city, builder: builderName },
+              };
+            })}
+            filters={["city", ...(staff ? ["builder"] : [])]}
+            noun="communities"
+            empty="No communities yet."
+            pageSize={500}
+            minWidth={staff ? 1180 : 1060}
+          />
+        </div>
+      )}
+
+      <div className={view === "list" ? "hidden" : "mt-8 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3"}>
+        {view === "cards" && communities?.map((c, i) => {
           const list = (homes ?? []).filter((h) => h.community_id === c.id);
           const prices = list.map((h) => Number(h.list_price)).filter((n) => n > 0);
           const live = list.filter((h) => h.workflow_status === "live_on_mls").length;
@@ -143,4 +188,12 @@ async function CommunityList() {
       )}
     </div>
   );
+}
+
+// Average days since each date (days on the MLS). Outside the component: the
+// page is drawn once per request.
+function averageDays(isos: string[]) {
+  if (!isos.length) return null;
+  const now = Date.now();
+  return Math.round(isos.reduce((t, d) => t + (now - new Date(d).getTime()) / 86_400_000, 0) / isos.length);
 }

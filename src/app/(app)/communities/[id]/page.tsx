@@ -6,7 +6,7 @@ import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { hasFeature } from "@/lib/features";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
 import { money } from "@/lib/format";
-import { HomeCard, HomeGrid, HOME_CARD_SELECT, type HomeCardData } from "@/components/home-card";
+import { HomeCard, HomeGrid, HOME_CARD_SELECT } from "@/components/home-card";
 import { cardIncentive, forHome, INCENTIVE_SELECT, type Incentive } from "@/lib/incentives";
 import { IncentiveList } from "@/components/incentive-list";
 import { canBulkChangePrices, canManageIncentives, canRequestComps } from "@/lib/permissions";
@@ -18,6 +18,10 @@ import { openHouseWhen } from "@/lib/time";
 import { setAssignments } from "@/app/(app)/admin/actions";
 import { Notice } from "@/components/notice";
 import { communityCompleteness, communitySections, mergeCommunityDetails, MLS_BOARD_SELECT, type MlsBoard } from "@/lib/mls-fields";
+import { HOME_LIST_COLUMNS, HOME_LIST_EXTRA, homeRow, type ListHome } from "@/lib/home-list";
+import { FilterTable } from "@/components/filter-table";
+import { viewPref } from "@/lib/view-pref";
+import { ViewToggle } from "@/components/view-toggle";
 
 export default function CommunityPage(props: PageProps<"/communities/[id]">) {
   return (
@@ -56,11 +60,12 @@ async function CommunityDetail({
 
   const { data: homeRows } = await supabase
     .from("homes")
-    .select(HOME_CARD_SELECT)
+    .select(HOME_CARD_SELECT + HOME_LIST_EXTRA)
     .eq("community_id", id)
     .is("deleted_at", null)
     .order("unparsed_address");
-  const all = (homeRows ?? []) as unknown as HomeCardData[];
+  const all = (homeRows ?? []) as unknown as ListHome[];
+  const view = await viewPref("homes");
   const homes = status ? all.filter((h) => h.workflow_status === status) : all;
   const [{ data: incentiveRows }, homeCovers, communityCovers] = await Promise.all([
     supabase.from("incentives").select(INCENTIVE_SELECT).eq("builder_id", community.builder_id).eq("status", "active").order("ends_on"),
@@ -238,7 +243,10 @@ async function CommunityDetail({
       <section className="mt-10">
         <div className="flex items-baseline justify-between">
           <h2 className="text-[22px] font-semibold">Homes in {community.name}</h2>
-          <Link href={`/homes?community=${community.id}`} className="text-sm font-semibold underline">Open in all homes</Link>
+          <div className="flex items-center gap-3">
+            <ViewToggle name="homes" view={view} />
+            <Link href={`/homes?community=${community.id}`} className="text-sm font-semibold underline">Open in all homes</Link>
+          </div>
         </div>
         <StatusChips
           active={status}
@@ -247,9 +255,17 @@ async function CommunityDetail({
           hrefFor={(s) => (s ? `/communities/${community.id}?status=${s}` : `/communities/${community.id}`)}
         />
         <div className="mt-8">
-          <HomeGrid>
-            {homes.map((h, i) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} cover={homeCovers.get(h.id)} priority={i < 4} />)}
-          </HomeGrid>
+          {view === "list" ? (
+            homes.length > 0 && (
+              <div className="rounded-2xl border border-line">
+                <FilterTable columns={HOME_LIST_COLUMNS(false, false)} rows={homes.map((h) => homeRow(h, false, false))} filters={["plan", "sale", "stage"]} empty="No homes here yet." pageSize={500} minWidth={1000} />
+              </div>
+            )
+          ) : (
+            <HomeGrid>
+              {homes.map((h, i) => <HomeCard key={h.id} h={h} showCommunity={false} incentive={cardIncentive(incentives, h)} cover={homeCovers.get(h.id)} priority={i < 4} />)}
+            </HomeGrid>
+          )}
           {homes.length === 0 && (
             <p className="rounded-2xl border border-dashed border-line px-6 py-12 text-center text-muted">No homes with this status here.</p>
           )}
