@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { HomeSection } from "@/components/home-section";
 import { cx, dateTime } from "@/lib/format";
 import { PendingButton } from "@/components/pending-button";
-import { deleteShareLink, extendShareLink, linkWebsiteListing, replaceShareLink, restoreShareLink, saveWebsitePage } from "@/app/(app)/homes/[id]/share-actions";
+import { deleteShareLink, extendShareLink, linkWebsiteListing, replaceAllShareLinks, replaceShareLink, restoreShareLink, saveWebsitePage } from "@/app/(app)/homes/[id]/share-actions";
 
 type Link = {
   id: string; token: string; recipient_name: string | null; recipient_email: string | null;
@@ -118,6 +118,17 @@ export async function ShareLinksPanel({
               </li>
             ))}
           </ul>
+          <form action={replaceAllShareLinks} className="border-t border-line px-4 py-3">
+            <input type="hidden" name="home_id" value={homeId} />
+            <PendingButton
+              pending="Turning them off…"
+              confirm="Turn off every link for this home, yours and your teammates’? They stop working right away; each person gets a new one the next time they copy it."
+              className="text-sm font-semibold text-red-700 underline"
+            >
+              Turn off everyone&rsquo;s links for this home
+            </PendingButton>
+            <p className="mt-1 text-xs text-muted">A salesperson&rsquo;s link also stops on its own when they&rsquo;re turned off or taken off this community.</p>
+          </form>
         </details>
       )}
 

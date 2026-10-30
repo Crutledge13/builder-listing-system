@@ -22,12 +22,23 @@ language sql stable security definer set search_path = '' as $$
     or (private.my_role() in ('builder_owner', 'manager', 'marketing') and p_builder = private.my_builder_id()), false)
 $$;
 revoke execute on function private.can_review_media(uuid) from public, anon;
+grant execute on function private.can_review_media(uuid) to authenticated;
 
 create or replace function public.media_review_guard() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   if tg_op = 'INSERT' then
     new.review_status := case when private.my_role() = 'photographer' then 'pending' end;
+    new.reviewed_by := null;
+    new.reviewed_at := null;
+    return new;
+  end if;
+  -- A photographer swapping the file behind one of their photos sends it back
+  -- for approval (and off the listing), so nothing unapproved slips onto the MLS.
+  if private.my_role() = 'photographer'
+     and (new.storage_path is distinct from old.storage_path or new.thumb_path is distinct from old.thumb_path
+          or new.web_path is distinct from old.web_path) then
+    new.review_status := 'pending';
     new.reviewed_by := null;
     new.reviewed_at := null;
     return new;
@@ -155,6 +166,26 @@ returns table(home_id uuid, media_id uuid) language sql stable set search_path =
   order by m.home_id, m.is_cover desc, lm.position nulls last, m.sort_order, m.created_at
 $$;
 
+-- Community banners and cards too.
+create or replace function public.community_cover_photos(p_communities uuid[])
+returns table(community_id uuid, media_id uuid) language sql stable set search_path = '' as $$
+  select distinct on (x.community_id) x.community_id, x.id
+  from (
+    select m.community_id, m.id, 0 as tier, m.is_cover, m.room = 'entrance' as entrance, null::integer as pos, m.sort_order, m.created_at
+    from public.media m
+    where m.community_id = any (p_communities) and m.home_id is null and m.plan_name is null
+      and m.kind = 'photo' and m.deleted_at is null and coalesce(m.review_status, 'approved') = 'approved'
+    union all
+    select h.community_id, m.id, 1, m.is_cover, false, lm.position, m.sort_order, m.created_at
+    from public.homes h
+    join public.media m on m.home_id = h.id and m.kind = 'photo' and m.deleted_at is null
+      and coalesce(m.review_status, 'approved') = 'approved'
+    left join public.listing_media lm on lm.media_id = m.id and lm.home_id = h.id
+    where h.community_id = any (p_communities) and h.deleted_at is null
+  ) x
+  order by x.community_id, x.tier, x.is_cover desc, x.entrance desc, x.pos nulls last, x.sort_order, x.created_at
+$$;
+
 -- Approve or set aside photographer files (as the person deciding).
 create or replace function public.review_media(p_ids uuid[], p_decision text) returns integer
 language plpgsql security invoker set search_path = '' as $$
@@ -202,5 +233,5 @@ create trigger media_requests_review_notice after update of status on public.med
 
 -- media_to_listing also runs when a file is approved or set aside.
 drop trigger media_to_listing on public.media;
-create trigger media_to_listing after insert or update of deleted_at, tags, review_status on public.media
+create trigger media_to_listing after insert or update of deleted_at, tags, review_status, storage_path, thumb_path, web_path on public.media
   for each row execute function public.media_to_listing();

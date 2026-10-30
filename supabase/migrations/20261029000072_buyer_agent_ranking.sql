@@ -24,13 +24,13 @@ begin
            h.buyer_agent_full_name as name, h.buyer_agent_mls_id as mls_id, h.buyer_office_name as office, false as co
     from public.homes h join public.communities c on c.id = h.community_id
     where h.market_status = 'sold' and h.deleted_at is null and not h.buyer_unrepresented
-      and nullif(btrim(h.buyer_agent_full_name), '') is not null
+      and nullif(btrim(h.buyer_agent_full_name), '') is not null and private.staff_for(h.builder_id)
     union all
     select h.id, h.builder_id, h.unparsed_address, h.city, h.close_date, h.close_price, h.mls_board, c.county, c.name,
            h.co_buyer_agent_full_name, null, h.co_buyer_office_name, true
     from public.homes h join public.communities c on c.id = h.community_id
     where h.market_status = 'sold' and h.deleted_at is null
-      and nullif(btrim(h.co_buyer_agent_full_name), '') is not null
+      and nullif(btrim(h.co_buyer_agent_full_name), '') is not null and private.staff_for(h.builder_id)
   ), named as (
     select s.*, lower(regexp_replace(btrim(s.name), '\s+', ' ', 'g')) || '|' || lower(regexp_replace(coalesce(btrim(s.office), ''), '\s+', ' ', 'g')) as nk
     from sales s
@@ -43,8 +43,7 @@ begin
   ), picked as (
     select s.*, coalesce('mls:' || upper(nullif(btrim(s.mls_id), '')), 'mls:' || i.mls_id, 'name:' || s.nk) as k
     from named s left join ids i on i.nk = s.nk
-    where private.staff_for(s.builder_id)
-      and (p_from is null or s.close_date >= p_from)
+    where (p_from is null or s.close_date >= p_from)
       and (p_to is null or s.close_date <= p_to)
       and (p_board is null or s.mls_board = p_board)
       and (p_county is null or s.county = p_county)

@@ -45,6 +45,7 @@ language sql stable security definer set search_path = '' as $$
                    where p.id = (select auth.uid()) and p.is_active and p.role = 'sales'), false)
 $$;
 revoke execute on function private.is_online_sales() from public, anon;
+grant execute on function private.is_online_sales() to authenticated;
 
 -- The join page names the role; an online sales link says so.
 drop function public.join_link_info(text);
@@ -64,6 +65,7 @@ language sql stable security definer set search_path = '' as $$
   where p_token is not null and length(p_token) >= 20 and l.token = p_token
 $$;
 -- Signed-out people read this on the join page.
+revoke all on function public.join_link_info(text) from public;
 grant execute on function public.join_link_info(text) to anon, authenticated;
 
 create or replace function public.redeem_join_link(p_token text, p_user uuid, p_email text, p_name text, p_phone text default null)

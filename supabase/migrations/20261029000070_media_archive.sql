@@ -27,7 +27,8 @@ on conflict (key) do nothing;
 create or replace function public.media_archive_guard() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  new.storage_class := old.storage_class;  -- only the storage move changes this
+  -- Only the storage move (trusted code, no signed-in person) changes this.
+  if auth.uid() is not null then new.storage_class := old.storage_class; end if;
   if new.archived_at is distinct from old.archived_at or new.archive_hold_until is distinct from old.archive_hold_until then
     if auth.uid() is not null and coalesce(private.my_role() not in ('platform_admin', 'builder_owner', 'manager', 'marketing'), true) then
       raise exception 'Only owners, managers, marketing and our admins archive media' using errcode = '42501';

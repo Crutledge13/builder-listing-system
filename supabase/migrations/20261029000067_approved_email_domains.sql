@@ -94,7 +94,7 @@ language sql stable security definer set search_path = '' as $$
     or exists (
       select 1 from public.builder_email_domains d
       where d.builder_id = p_builder and d.removed_at is null
-        and ((d.kind = 'domain' and lower(split_part(btrim(p_email), '@', 2)) = d.value)
+        and ((d.kind = 'domain' and lower(substring(btrim(p_email) from '@([^@]*)$')) = d.value)
           or (d.kind = 'address' and lower(btrim(p_email)) = d.value))),
     false)
 $$;

@@ -62,6 +62,51 @@ end $$;
 revoke all on function public.home_share_link(uuid) from public, anon;
 grant execute on function public.home_share_link(uuid) to authenticated;
 
+-- A person's link stops working when they're turned off, move to another
+-- builder, or (salespeople) come off the home's community. Links with no owner
+-- (older one-off links) work as before.
+create or replace function private.share_owner_ok(p_owner uuid, p_builder uuid, p_home uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select p_owner is null or coalesce((
+    select p.is_active
+      and (p.builder_id is null or p.builder_id = p_builder)
+      and (p.role <> 'sales' or exists (
+        select 1 from public.community_assignments a join public.homes h on h.community_id = a.community_id
+        where a.profile_id = p.id and h.id = p_home))
+    from public.profiles p where p.id = p_owner), false)
+$$;
+revoke all on function private.share_owner_ok(uuid, uuid, uuid) from public, anon, authenticated;
+
+create or replace function private.live_share(p_token text) returns public.share_links
+language sql stable security definer set search_path = '' as $$
+  select s.* from public.share_links s join public.homes h on h.id = s.home_id
+  where s.token = p_token and s.revoked_at is null and s.deleted_at is null
+    and (s.expires_at is null or s.expires_at > now()) and h.deleted_at is null
+    and private.share_owner_ok(s.owner_id, s.builder_id, s.home_id)
+$$;
+revoke all on function private.live_share(text) from public, anon, authenticated;
+
+-- Signed-out file access follows the same rule.
+create or replace function share_access.file_is_shared(p_bucket text, p_name text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select case p_bucket
+    when 'media' then exists (
+      select 1 from public.media m
+      join public.share_links s on s.revoked_at is null and s.deleted_at is null and (s.expires_at is null or s.expires_at > now())
+        and private.share_owner_ok(s.owner_id, s.builder_id, s.home_id)
+      where (m.storage_path = p_name or m.thumb_path = p_name or m.web_path = p_name)
+        and m.deleted_at is null and m.id in (select private.shared_media_ids(s.home_id)))
+    when 'branding' then exists (
+      select 1 from public.builder_branding bb
+      join public.share_links s on s.builder_id = bb.builder_id and s.revoked_at is null and s.deleted_at is null
+        and (s.expires_at is null or s.expires_at > now())
+        and private.share_owner_ok(s.owner_id, s.builder_id, s.home_id)
+      where bb.logo_path = p_name or bb.icon_path = p_name)
+    else false end
+$$;
+revoke all on function share_access.file_is_shared(text, text) from public;
+grant execute on function share_access.file_is_shared(text, text) to anon, authenticated;
+
 -- A switch for it in Realtor page settings (on unless turned off).
 alter table public.share_page_settings add column show_contact boolean not null default true;
 
