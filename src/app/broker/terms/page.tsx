@@ -24,7 +24,6 @@ async function Terms() {
       <ol className="mt-6 list-decimal space-y-3 rounded-2xl border border-line p-6 pl-10 text-[15px] leading-relaxed">
         <li>You use this site only to enter and update the listings builders send you on the MLS.</li>
         <li>Your sign-in is for you alone. Don’t share it or let anyone else use it.</li>
-        <li>Don’t copy, record, rebuild or reverse-engineer this software, its screens or how it works, or help anyone else do so.</li>
         <li>Listing details, photos and videos are the builder’s. Use them only for that builder’s MLS listings.</li>
         <li>Access ends when the builder removes you, and can be turned off at any time.</li>
       </ol>
