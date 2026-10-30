@@ -73,7 +73,7 @@ One feature at a time. Test each before starting the next.
 - Media library: upload, organize, search and download (details below)
 - AI photo tagging and quality checks
 - Approval step before a listing is "ready for MLS"
-- MLS entry sheet laid out like Matrix: same tabs, same labels, only the boxes that get a value, tick-box answers shown as the boxes to tick, Copy ticks the line (rebuilt 29 Oct 2026)
+- Broker's MLS entry sheet laid out like Matrix: same tabs, same labels, only the boxes that get a value, tick-box answers shown as the boxes to tick, Copy ticks the line (29 Oct 2026; your team's and builders' sheet unchanged)
 - Listing package: the same values as one RESO record, ready for an automatic upload if NTREIS ever approves one (nothing sends it today)
 - Broker mode: the builder's own broker gets the MLS work in a bare-bones sheet
 - MLS tracker: MLS number, status, last change, what needs updating (filled in automatically once the MLS feed is connected)

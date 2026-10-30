@@ -9,7 +9,8 @@ import { cx, dateTime, money } from "@/lib/format";
 import { openHouseWhen, whenCentral } from "@/lib/time";
 import { CONDITION, formatMls, MLS_FIELD_FOR_COLUMN } from "@/lib/mls-fields";
 import { Notice } from "@/components/notice";
-import { MlsScore, MlsSheetView } from "@/components/mls-sheet";
+import { MlsScore } from "@/components/mls-sheet";
+import { BrokerMlsSheet } from "@/components/broker-mls-sheet";
 import { OpenBesideMatrix } from "@/components/mls-sheet-client";
 import { CheckOff, CopyButton } from "@/components/mls-client";
 import { MediaPicture } from "@/components/media-tile";
@@ -139,7 +140,7 @@ function EntryWork({ t, sheet, check, closed, fileBase }: { t: BrokerTask; sheet
         />
         <MlsScore sheet={sheet} homeId={sheet.home.id} edit={false} />
         <div className="flex justify-end"><OpenBesideMatrix /></div>
-        <MlsSheetView sheet={sheet} check={check} fileBase={fileBase} broker />
+        <BrokerMlsSheet sheet={sheet} check={check} fileBase={fileBase} broker />
       </div>
       <aside>
         <div className="sticky top-24 space-y-4">
@@ -221,7 +222,7 @@ function UpdateWork({ t, sheet, check, fileBase, media }: { t: BrokerTask; sheet
         {t.details && <p className="text-sm text-muted">{t.details}</p>}
         <details className="rounded-2xl border border-line">
           <summary className="cursor-pointer px-4 py-3 font-semibold">Full MLS sheet for reference</summary>
-          <div className="p-4 pt-0"><MlsSheetView sheet={sheet} fileBase={fileBase} broker /></div>
+          <div className="p-4 pt-0"><BrokerMlsSheet sheet={sheet} fileBase={fileBase} broker /></div>
         </details>
       </div>
       <aside>

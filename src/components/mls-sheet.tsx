@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { cx } from "@/lib/format";
-import { sheetRuleProblems } from "@/lib/mls-fields";
-import { buildMlsPackage, leftBlank, missingRequired, roomKey, toEnter, type MlsLine, type MlsTab } from "@/lib/mls-package";
-import { SheetChecks, SheetCopy, SheetLineShell, SheetTabs, SheetTick, type SheetTabInfo } from "@/components/mls-sheet-client";
+import { formatMls, resolveField, sheetRuleProblems, type MlsField } from "@/lib/mls-fields";
 import type { MlsSheet } from "@/lib/mls-sheet";
 import { CheckOff, CopyButton } from "@/components/mls-client";
 import { MediaPicture } from "@/components/media-tile";
@@ -38,6 +36,14 @@ function packReadme(sheet: MlsSheet) {
   return lines.join("\n");
 }
 
+const FROM_TEXT: Record<string, string> = {
+  home: "Builder",
+  builder: "Builder",
+  "this home": "Our team",
+  community: "Community",
+  derived: "Automatic",
+};
+
 // Progress toward a complete MLS entry.
 export function MlsScore({ sheet, homeId, edit = true }: { sheet: MlsSheet; homeId: string; edit?: boolean }) {
   const { filled, required, missing } = sheet.score;
@@ -67,13 +73,7 @@ export function MlsScore({ sheet, homeId, edit = true }: { sheet: MlsSheet; home
   );
 }
 
-// The whole MLS entry, laid out like Matrix: its tabs in its order, each tab
-// showing only the boxes that get something, in Matrix's own wording. Pick-list
-// answers show as the boxes to tick; typed values have a Copy button that also
-// ticks the line. Empty optional boxes are listed once at the bottom of each
-// tab ("leave blank"). The values come from the listing package
-// (src/lib/mls-package.ts), the same record a future automatic upload would send.
-//
+// The whole MLS entry, in MLS order, ready to copy field by field.
 // broker: the broker's work sheet. Photos and videos come through the
 // broker's own checked file links (fileBase), and nothing links into the main app.
 export function MlsSheetView({
@@ -81,154 +81,69 @@ export function MlsSheetView({
   check,
   fileBase = "/api/media/",
   broker = false,
-  stickyClass,
 }: {
   sheet: MlsSheet;
   check?: { taskId: string; checked: string[]; action: (taskId: string, item: string, on: boolean) => Promise<void>; disabled?: boolean };
   fileBase?: string;
   broker?: boolean;
-  stickyClass?: string;
 }) {
-  const pkg = buildMlsPackage(sheet);
-  const roomsAt = pkg.tabs.findIndex((t) => /rooms/i.test(t.title));
-  const remarksAt = pkg.tabs.findIndex((t) => /remarks/i.test(t.title));
-  const roomItems = sheet.rooms.map((r, i) => (r.RoomLength && r.RoomWidth ? roomKey(i) : null)).filter((x): x is string => !!x);
-  const photoItems = [...(sheet.mlsPhotos.length ? ["photos"] : []), ...(sheet.videos.length || sheet.tours.length ? ["tours"] : [])];
-
-  const tabs: SheetTabInfo[] = pkg.tabs.map((t, i) => ({
-    id: `tab-${i}`,
-    title: t.title,
-    items: [...toEnter(t).map((l) => l.key), ...(i === roomsAt ? roomItems : [])],
-    missing: missingRequired(t).length,
-  }));
-  const panels = pkg.tabs.map((t, i) => (
-    <div key={t.title} className="space-y-4">
-      <TabFields tab={t} broker={broker} homeId={sheet.home.id} />
-      {i === roomsAt && <RoomRows sheet={sheet} broker={broker} />}
-      {i === remarksAt && <IncentiveSheet sheet={sheet} />}
+  return (
+    <div className="space-y-6">
+      {sheet.sections.map((section) => {
+        const done = check ? section.fields.filter((f) => check.checked.includes(f.key)).length : 0;
+        return (
+          <section key={section.title} className="overflow-hidden rounded-2xl border border-line">
+            <h3 className="flex items-baseline justify-between bg-soft px-4 py-2.5 font-semibold">
+              {section.title}
+              {check && <span className="text-xs font-normal text-muted">{done} of {section.fields.length} entered</span>}
+            </h3>
+            <dl className="divide-y divide-line">
+              {section.fields.map((f) => (
+                <SheetRow key={f.key} f={f} sheet={sheet} check={check} />
+              ))}
+            </dl>
+          </section>
+        );
+      })}
+      <RoomList sheet={sheet} check={check} broker={broker} />
+      <IncentiveSheet sheet={sheet} />
+      <PhotoList sheet={sheet} check={check} fileBase={fileBase} broker={broker} />
     </div>
-  ));
-  if (roomsAt < 0 && sheet.rooms.length) {
-    tabs.push({ id: "rooms", title: "Rooms", items: roomItems, missing: 0 });
-    panels.push(<RoomRows key="rooms" sheet={sheet} broker={broker} />);
-  }
-  if (remarksAt < 0 && sheet.incentives.length) panels[panels.length - 1] = <div key="last" className="space-y-4">{panels[panels.length - 1]}<IncentiveSheet sheet={sheet} /></div>;
-  tabs.push({ id: "photos", title: "Photos and tours", items: photoItems, missing: sheet.mlsPhotos.length ? 0 : 1 });
-  panels.push(<PhotoList key="photos" sheet={sheet} fileBase={fileBase} broker={broker} />);
-
-  return (
-    <SheetChecks taskId={check?.taskId} initial={check?.checked ?? []} action={check?.action} disabled={check?.disabled}>
-      <SheetTabs tabs={tabs} panels={panels} total={tabs.flatMap((t) => t.items)} stickyClass={stickyClass} />
-    </SheetChecks>
   );
 }
 
-const FROM_CHIP: Record<string, string> = { home: "Builder", builder: "Builder", "this home": "Our team", community: "Community", derived: "Automatic" };
-
-function TabFields({ tab, broker, homeId }: { tab: MlsTab; broker: boolean; homeId: string }) {
-  const lines = toEnter(tab);
-  const missing = missingRequired(tab);
-  const agentMissing = missing.filter((l) => l.agentSets);
-  const builderMissing = missing.filter((l) => !l.agentSets);
-  const blank = leftBlank(tab);
+function SheetRow({ f, sheet, check }: { f: MlsField; sheet: MlsSheet; check?: Parameters<typeof MlsSheetView>[0]["check"] }) {
+  const r = resolveField(f, sheet.home, sheet.homeDetails, sheet.communityDetails);
+  const text = formatMls(f, r.value);
+  const missing = r.from === "missing";
   return (
-    <section className="overflow-hidden rounded-2xl border border-line">
-      {agentMissing.length > 0 && (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <b>You set {agentMissing.length === 1 ? "this one" : "these"} in the MLS yourself:</b> {agentMissing.map((l) => l.label).join(", ")}.{" "}
-          {!broker && <Link href={`/homes/${homeId}/mls`} className="font-semibold underline">Save {agentMissing.length === 1 ? "it" : "them"} on the MLS sheet</Link>}
-        </div>
-      )}
-      {builderMissing.length > 0 && (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <b>The MLS needs {builderMissing.length === 1 ? "this" : "these"} from the builder, still blank:</b> {builderMissing.map((l) => l.label).join(", ")}.{" "}
-          {broker ? "Ask the builder in a note below." : <Link href={`/homes/${homeId}/mls`} className="font-semibold underline">Fill {builderMissing.length === 1 ? "it" : "them"} in</Link>}
-        </div>
-      )}
-      {lines.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-muted">Nothing to enter on this tab.</p>
+    <div className={cx("grid grid-cols-[auto_1fr] items-start gap-x-3 gap-y-1 px-4 py-2.5 sm:grid-cols-[auto_220px_1fr_auto]", missing && f.required && "bg-amber-50/60")}>
+      {check ? (
+        <CheckOff taskId={check.taskId} item={f.key} initial={check.checked.includes(f.key)} action={check.action} disabled={check.disabled} />
       ) : (
-        <div className="divide-y divide-line">
-          {lines.map((l) => <Line key={l.key} l={l} broker={broker} />)}
-        </div>
+        <span className="w-0" />
       )}
-      {blank.length > 0 && (
-        <details className="border-t border-line bg-soft/40 px-4 py-2.5 text-sm">
-          <summary className="cursor-pointer text-muted">Leave blank in the MLS ({blank.length})</summary>
-          <p className="mt-1.5 text-muted">{blank.map((l) => l.label).join(" · ")}</p>
-        </details>
-      )}
-    </section>
+      <dt className="text-sm">
+        <span className="font-medium">{f.label}</span>
+        {f.required && <span className="text-red-700"> *</span>}
+        <span className="block text-[11px] text-muted">{f.key}</span>
+      </dt>
+      <dd className={cx("col-start-2 min-w-0 whitespace-pre-line break-words text-[15px] sm:col-start-auto", missing && "text-amber-900")}>
+        {missing ? (f.required ? "Missing" : "—") : text}
+        {!missing && <span className="ml-2 rounded bg-soft px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">{FROM_TEXT[r.from]}</span>}
+      </dd>
+      <div className="col-start-2 sm:col-start-auto">{!missing && <CopyButton value={text} />}</div>
+    </div>
   );
 }
 
-function Line({ l, broker }: { l: MlsLine; broker: boolean }) {
-  const pick = l.choices.length > 0;
-  return (
-    <SheetLineShell item={l.key} className="flex items-start gap-3 px-4 py-3">
-      <SheetTick item={l.key} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
-          <span className="font-semibold">{l.label}</span>
-          {!broker && <span className="rounded bg-soft px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-muted">{FROM_CHIP[l.from]}</span>}
-        </div>
-        {pick ? (
-          <div className="sheet-value mt-1.5 flex flex-wrap gap-1.5">
-            {l.type === "multi" && <span className="self-center text-xs text-muted">Tick:</span>}
-            {l.type !== "multi" && <span className="self-center text-xs text-muted">Pick:</span>}
-            {l.choices.map((c) => (
-              <span key={c} className="rounded-md border border-accent/30 bg-accent-soft px-2 py-0.5 text-[15px] font-semibold text-accent">
-                {l.type === "multi" ? "☑ " : ""}{c}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className={cx("sheet-value mt-0.5 whitespace-pre-line break-words", l.type === "longtext" ? "text-[15px]" : "text-lg font-semibold tabular-nums")}>{l.text}</div>
-        )}
-        {l.hint && <p className="mt-1 text-xs text-muted">{l.hint}</p>}
-      </div>
-      {!pick && <SheetCopy value={l.paste} item={l.key} />}
-    </SheetLineShell>
-  );
-}
-
-// Matrix's room rows: type, level, length and width, one line each.
-function RoomRows({ sheet, broker }: { sheet: MlsSheet; broker: boolean }) {
-  return (
-    <section className="overflow-hidden rounded-2xl border border-line">
-      <h3 className="bg-soft px-4 py-2.5 font-semibold">Room list <span className="text-xs font-normal text-muted">add one row per room in the MLS</span></h3>
-      {sheet.rooms.length === 0 ? (
-        <p className="bg-amber-50/60 px-4 py-3 text-sm text-amber-900">{broker ? "No room sizes yet. Leave the builder a note below if the MLS needs them." : <>No room sizes yet. The builder pulls them from the floor plan on the home page (or our team adds the plan&rsquo;s rooms under Floor plans).</>}</p>
-      ) : (
-        <div className="divide-y divide-line">
-          <div className="grid grid-cols-[1.25rem_1fr_4.5rem_3.5rem_3.5rem] gap-x-3 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-            <span /><span>Type</span><span>Level</span><span>Length</span><span>Width</span>
-          </div>
-          {sheet.rooms.map((r, i) => {
-            const has = !!(r.RoomLength && r.RoomWidth);
-            return (
-              <SheetLineShell key={i} item={roomKey(i)} className="grid grid-cols-[1.25rem_1fr_4.5rem_3.5rem_3.5rem] items-center gap-x-3 px-4 py-2">
-                {has ? <SheetTick item={roomKey(i)} /> : <span />}
-                <span className="sheet-value font-medium">{r.RoomType}</span>
-                <span className="sheet-value text-sm">{r.RoomLevel ?? "—"}</span>
-                <span className={cx("sheet-value tabular-nums", !has && "text-amber-900")}>{r.RoomLength ? Number(r.RoomLength) : "?"}</span>
-                <span className={cx("sheet-value tabular-nums", !has && "text-amber-900")}>{r.RoomWidth ? Number(r.RoomWidth) : "?"}</span>
-              </SheetLineShell>
-            );
-          })}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function PhotoList({ sheet, fileBase, broker }: { sheet: MlsSheet; fileBase: string; broker: boolean }) {
+function PhotoList({ sheet, check, fileBase, broker }: { sheet: MlsSheet; check?: Parameters<typeof MlsSheetView>[0]["check"]; fileBase: string; broker: boolean }) {
   const list = sheet.mlsPhotos;
   return (
     <section className="overflow-hidden rounded-2xl border border-line">
       <h3 className="flex flex-wrap items-baseline justify-between gap-2 bg-soft px-4 py-2.5 font-semibold">
         <span className="flex items-center gap-3">
-          <SheetTick item="photos" />
+          {check && <CheckOff taskId={check.taskId} item="photos" initial={check.checked.includes("photos")} action={check.action} disabled={check.disabled} />}
           Photos, in MLS order ({list.length})
         </span>
         <span className="flex flex-wrap gap-3 text-sm">
@@ -261,7 +176,7 @@ function PhotoList({ sheet, fileBase, broker }: { sheet: MlsSheet; fileBase: str
       {(sheet.videos.length > 0 || sheet.tours.length > 0) && (
         <div className="border-t border-line px-4 py-3">
           <h4 className="flex items-center gap-3 text-sm font-semibold">
-            <SheetTick item="tours" />
+            {check && <CheckOff taskId={check.taskId} item="tours" initial={check.checked.includes("tours")} action={check.action} disabled={check.disabled} />}
             Video and virtual tours
           </h4>
           <p className="mt-0.5 text-xs text-muted">Enter the unbranded tour links on the MLS. Video files can be downloaded here.</p>
