@@ -25,7 +25,7 @@ Most expensive mistakes start here. Cheapest place to fix them.
 - Pick the 5–8 features for version one; park the rest
 - Decide how you charge builders (monthly, per listing). Broker mode: the builder pays; broker access is included (decided 29 Oct 2026)
 - Ask a Texas real estate attorney who may enter listings into the MLS and under whose license (legal)
-- Write short terms of use for outside brokers: no copying, sharing logins or reverse-engineering (legal)
+- Write short terms of use for outside brokers: use only for the builder's listings, no sharing logins (legal)
 
 ### Phase 2: Sketch the screens (no code)
 
