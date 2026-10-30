@@ -5,6 +5,7 @@ import { RequiredPill } from "@/components/required-pill";
 import { builderLabel, type MlsField } from "@/lib/mls-fields";
 import { ChoiceBox } from "@/components/choice-box";
 import { NTREIS_SECTIONS } from "@/lib/ntreis-fields";
+import { MONEY_INPUT, withCommas } from "@/lib/money-input";
 
 // The NTREIS questions a builder answers, in Matrix's order, with NTREIS's
 // exact choices, a plain-English question as each name (NTREIS's own label in
@@ -143,7 +144,10 @@ export function MlsInput({ f, name, start, disabled }: { f: MlsField; name: stri
   if (f.type === "longtext") {
     return <textarea name={name} defaultValue={text} rows={f.key === "PublicRemarks" ? 6 : 3} disabled={disabled} className="field-input leading-relaxed" />;
   }
-  const isNumber = f.type === "number" || f.type === "money";
+  if (f.type === "money") {
+    return <input name={name} defaultValue={withCommas(text)} disabled={disabled} placeholder="389,990" className="field-input" {...MONEY_INPUT} />;
+  }
+  const isNumber = f.type === "number";
   return (
     <input
       name={name}
@@ -152,7 +156,6 @@ export function MlsInput({ f, name, start, disabled }: { f: MlsField; name: stri
       type={f.type === "date" ? "date" : isNumber ? "number" : "text"}
       step={isNumber ? (f.column === "lot_size_acres" ? "0.001" : "1") : undefined}
       min={isNumber ? "0" : undefined}
-      placeholder={f.type === "money" ? "389990" : undefined}
       className="field-input"
     />
   );

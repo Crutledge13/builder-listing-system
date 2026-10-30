@@ -3,6 +3,7 @@ import { BuyerAgentFields } from "@/components/buyer-agent-fields";
 import { createClient } from "@/lib/supabase/server";
 import { cx, dateTime } from "@/lib/format";
 import { answerAvailability, resolveAlert } from "@/app/(app)/compliance/actions";
+import { MONEY_INPUT, withCommas } from "@/lib/money-input";
 
 export type Alert = {
   id: string;
@@ -89,7 +90,7 @@ export function AlertCard({ a, back, canAnswer, staff, showHome = true }: { a: A
               <input type="hidden" name="home_id" value={a.home_id} />
               <input type="hidden" name="answer" value="sold" />
               <label className="text-sm"><span className="mb-1 block font-medium">Close date</span><input type="date" name="date" required className="field-input py-1.5" /></label>
-              <label className="text-sm"><span className="mb-1 block font-medium">Close price</span><input name="price" required inputMode="decimal" defaultValue={a.homes?.list_price ?? ""} className="field-input w-36 py-1.5" /></label>
+              <label className="text-sm"><span className="mb-1 block font-medium">Close price</span><input name="price" required defaultValue={withCommas(a.homes?.list_price)} className="field-input w-36 py-1.5" {...MONEY_INPUT} /></label>
               <div className="w-full sm:w-80"><BuyerAgentFields compact /></div>
               <button className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-white">Save</button>
             </form>

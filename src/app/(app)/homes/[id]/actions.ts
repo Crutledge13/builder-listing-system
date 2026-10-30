@@ -21,6 +21,7 @@ import { sendQueuedEmails } from "@/lib/email";
 import { centralToUtc } from "@/lib/time";
 import { answerSources, canEditMlsAnswers, readMlsAnswers } from "@/lib/ntreis-form";
 import { cleanRooms, type Room } from "@/lib/rooms";
+import { parseGps } from "@/lib/gps";
 
 const NUMERIC: HomeField[] = [
   "list_price", "bedrooms_total", "bathrooms_full", "bathrooms_half", "living_area",
@@ -58,6 +59,13 @@ export async function saveHome(formData: FormData) {
     } else {
       patch[field] = raw === "" ? null : raw;
     }
+  }
+  // GPS coordinates (Location section): same people who can change the address.
+  if (formData.has("gps") && editableFields(me.role).includes("unparsed_address")) {
+    const gps = parseGps(String(formData.get("gps") ?? ""));
+    if (gps === "bad") back(id, { error: "We couldn’t read the GPS coordinates. Use two numbers like 32.776700, -96.797000, or leave it blank." });
+    patch.latitude = gps ? gps.latitude : null;
+    patch.longitude = gps ? gps.longitude : null;
   }
   // The builder's NTREIS answers, merged into what's saved.
   if (formData.has("mls_key") && canEditMlsAnswers(me.role)) {

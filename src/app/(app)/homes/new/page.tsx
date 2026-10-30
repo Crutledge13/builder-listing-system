@@ -16,6 +16,7 @@ import { RequiredPill } from "@/components/required-pill";
 import { RoomsEditor } from "@/components/rooms-editor";
 import { cleanRooms } from "@/lib/rooms";
 import { StartFrom, type CopyOption, type PlanOption, type Prefill, type WebsiteOption } from "@/components/start-from";
+import { GpsField } from "@/components/gps-field";
 
 export default function NewHomePage(props: PageProps<"/homes/new">) {
   return (
@@ -110,6 +111,7 @@ async function NewHomeForm({ searchParams }: { searchParams: PageProps<"/homes/n
             <Text name="postal_code" label="ZIP" required />
             <Text name="lot_number" label="Your lot reference" placeholder="B3-L12" help="However your team refers to the lot. The plat's lot and block numbers for the MLS are asked further down." />
             <Text name="plan_name" label="Floor plan" placeholder="Brazos" />
+            <GpsField />
           </div>
         </section>
 

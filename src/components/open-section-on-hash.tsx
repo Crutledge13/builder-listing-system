@@ -80,11 +80,23 @@ export function OpenSectionOnHash() {
     const onHash = () => {
       if (Date.now() - restoredAt > 1000) openHash(window.location.hash, true);
     };
-    // Clicking the same #link twice doesn't change the hash, so catch clicks too.
+    // A tile or link pointing at a section on this page (Reverse prospecting,
+    // Share link, Download media…): open the section and glide to it, instead of
+    // the browser's instant jump (owners, 29 Oct 2026). Also catches clicking the
+    // same #link twice, which doesn't change the hash.
     const onClick = (e: MouseEvent) => {
       const a = (e.target as HTMLElement | null)?.closest?.("a[href*='#']") as HTMLAnchorElement | null;
-      if (!a || a.pathname !== window.location.pathname) return;
-      openHash(a.hash, false);
+      if (!a || a.pathname !== window.location.pathname || a.search !== window.location.search) return;
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target === "_blank") return;
+      if (!a.hash || a.hash.length < 2) return;
+      const el = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+      if (!el) return;
+      e.preventDefault();
+      openEl(el);
+      if (window.location.hash !== a.hash) history.pushState(history.state, "", a.hash);
+      const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      // After the section has opened, so the glide ends at its real spot.
+      requestAnimationFrame(() => el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" }));
     };
     document.addEventListener("submit", onSubmit, true);
     window.addEventListener("hashchange", onHash);

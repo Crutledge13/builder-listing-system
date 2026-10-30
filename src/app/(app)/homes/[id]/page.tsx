@@ -76,6 +76,9 @@ import type { Incentive } from "@/lib/incentives";
 import { cleanRooms, levelLabel, roomSize } from "@/lib/rooms";
 import { Deliverables } from "@/components/deliverables";
 import { loadDeliverables } from "@/lib/deliverables";
+import { MONEY_INPUT, withCommas } from "@/lib/money-input";
+import { GpsField } from "@/components/gps-field";
+import { gpsText } from "@/lib/gps";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -88,7 +91,7 @@ export default function HomePage(props: PageProps<"/homes/[id]">) {
 type FieldDef = {
   name: HomeField;
   label: string;
-  type?: "text" | "number" | "date" | "textarea" | "stage";
+  type?: "text" | "number" | "date" | "textarea" | "stage" | "money";
   step?: string;
   wide?: boolean;
 };
@@ -530,7 +533,7 @@ async function HomeDetail({
             <form action={saveHome} className="flex flex-wrap items-end gap-3">
               <input type="hidden" name="id" value={home.id} />
               <div className="w-60">
-                <Field def={{ name: "list_price", label: "List price ($)", type: "number", step: "1" }} value={home.list_price} source={sources.list_price} canEdit={editable.has("list_price")} />
+                <Field def={{ name: "list_price", label: "List price ($)", type: "money" }} value={home.list_price} source={sources.list_price} canEdit={editable.has("list_price")} />
               </div>
               {editable.has("list_price") && <button className="rounded-xl bg-foreground px-5 py-2.5 font-semibold text-white hover:bg-black">Save price</button>}
               <input type="hidden" name="at" value="price" />
@@ -731,6 +734,9 @@ async function HomeDetail({
                   {section.fields.map((f) => (
                     <Field key={f.name} def={f} value={home[f.name]} source={sources[f.name]} canEdit={editable.has(f.name)} />
                   ))}
+                  {section.title === "Location" && (
+                    <GpsField initial={gpsText(home.latitude, home.longitude)} disabled={!editable.has("unparsed_address")} />
+                  )}
                 </div>
               </HomeSection>
             ))}
@@ -894,7 +900,7 @@ async function HomeDetail({
                               </label>
                               <label className="block text-sm">
                                 <span className="mb-1 block font-medium">Close price ($)</span>
-                                <input name="close_price" inputMode="decimal" required defaultValue={home.list_price ?? ""} className="field-input py-2" />
+                                <input name="close_price" required defaultValue={withCommas(home.list_price)} className="field-input py-2" {...MONEY_INPUT} />
                               </label>
                               {/* The MLS needs the buyer's agent on a closed sale too; filled in from the contract when there was one. */}
                               <BuyerAgentFields initial={{
@@ -1072,6 +1078,8 @@ function Field({ def, value, source, canEdit }: { def: FieldDef; value: unknown;
             <option key={k} value={k}>{label}</option>
           ))}
         </select>
+      ) : def.type === "money" ? (
+        <input {...common} defaultValue={withCommas(value as number | string | null)} {...MONEY_INPUT} />
       ) : (
         <input {...common} type={def.type ?? "text"} step={def.step} />
       )}
@@ -1092,6 +1100,7 @@ const FIELD_NAMES: Record<string, string> = {
   list_price: "price", public_remarks: "description", build_stage: "build stage",
   living_area: "square feet", bedrooms_total: "bedrooms", mls_number: "MLS number",
   estimated_completion: "completion date", unparsed_address: "address", mls_fields: "NTREIS details",
+  latitude: "GPS latitude", longitude: "GPS longitude", expected_close_date: "expected close date",
 };
 
 function describe(action: string, changes: Record<string, { from: unknown; to: unknown }>) {

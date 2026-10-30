@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ClickFeedback } from "@/components/click-feedback";
 import { NavTrail } from "@/components/nav-trail";
+import { MoneyCommas } from "@/components/money-commas";
 import { GeistMono } from "geist/font/mono";
 import "@fontsource-variable/figtree";
 import "./globals.css";
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense>
           <NavTrail />
         </Suspense>
+        <MoneyCommas />
       </body>
     </html>
   );
