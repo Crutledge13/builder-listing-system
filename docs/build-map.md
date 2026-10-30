@@ -4,11 +4,11 @@ Texas new-construction back office
 
 Every step from idea to working system, and how the tools connect.
 
-**Private system only.** Only your team and your builder clients log in. There is no public website. The MLS is the public outlet. Your team enters listings into it by hand, because the MLS doesn't accept data from outside systems. The MLS can send its data back to you through a read-only feed, which fills in MLS numbers and status and powers the comparison checker.
+**Private system only.** Only your team, your builder clients and (in broker mode) the builder's own listing broker log in. There is no public website. The MLS is the public outlet. Your team, the builder, or the builder's broker enters listings into it by hand, because the MLS doesn't accept data from outside systems. The MLS can send its data back to you through a read-only feed, which fills in MLS numbers and status and powers the comparison checker.
 
 ## How the pieces connect
 
-How it flows: You + Claude Code → GitHub (saves every version) → Vercel (runs staging and live) → Supabase (listings, logins, permission rules) + Cloudflare (photos and videos) → filtered by role → your team and builder teams. Your team enters listings into the MLS by hand. MLS data flows back in through a read-only feed. Builder websites (opt-in) feed listings in.
+How it flows: You + Claude Code → GitHub (saves every version) → Vercel (runs staging and live) → Supabase (listings, logins, permission rules) + Cloudflare (photos and videos) → filtered by role → your team, builder teams and outside brokers. Your team (or the builder, or the builder's broker) enters listings into the MLS by hand. MLS data flows back in through a read-only feed. Builder websites (opt-in) feed listings in, and can receive approved listings and photos back out.
 
 ## The build, A to Z
 
@@ -21,10 +21,11 @@ Most expensive mistakes start here. Cheapest place to fix them.
 - Get your MLS's listing input form and list every required field
 - Map those fields to the RESO standard so MLS data coming back in lines up with yours
 - Get your MLS's photo rules: max count, minimum size, branding limits
-- Ask the pilot builder what runs their website, and whether it already sends a listing feed to Zillow or similar sites
+- Ask the pilot builder what runs their website, whether it already sends a listing feed to Zillow or similar sites, and whether it can accept listings and photos sent in
 - Pick the 5–8 features for version one; park the rest
-- Decide how you charge builders (monthly, per listing)
+- Decide how you charge builders (monthly, per listing). Broker mode: the builder pays; broker access is included (decided 29 Oct 2026)
 - Ask a Texas real estate attorney who may enter listings into the MLS and under whose license (legal)
+- Write short terms of use for outside brokers: no copying, sharing logins or reverse-engineering (legal)
 
 ### Phase 2: Sketch the screens (no code)
 
@@ -36,6 +37,7 @@ A picture of each view is the clearest instruction you can give the AI.
 - Comparison checker: website vs. your system vs. MLS, side by side
 - Builder dashboard: their homes and status
 - Media library: folders, photo grid, search bar, download buttons
+- Broker sheet: the stripped-down broker view (see Broker mode below)
 - Your admin panel: all builders, users, billing
 
 ### Phase 3: Set up your toolbox (1 day)
@@ -55,9 +57,11 @@ Invisible to users, but everything sits on it. Get it right before features.
 - Builder companies as separate accounts, so data never mixes
 - Roles assigned to each user
 - Database rules that enforce the permission grid (critical)
+- Outside brokers can only reach listings from builders who invited them (critical)
+- Broker sheet built as its own small set of screens, separate from the main app
 - Listing fields stored in MLS/RESO format
 - Private photo and video storage, with uploads going straight to Cloudflare
-- Every field remembers where its value came from: website, staff, or MLS
+- Every field remembers where its value came from: website, staff, broker or MLS
 - Staging and live versions set up separately
 - Backup system running from day one, before any real data (critical)
 
@@ -70,10 +74,12 @@ One feature at a time. Test each before starting the next.
 - AI photo tagging and quality checks
 - Approval step before a listing is "ready for MLS"
 - MLS entry sheet laid out in the MLS's field order, for fast manual entry
+- Broker mode: the builder's own broker gets the MLS work in a bare-bones sheet
 - MLS tracker: MLS number, status, last change, what needs updating (filled in automatically once the MLS feed is connected)
 - Activity log: who changed what and when
 - Comparison checker, starting with website vs. your system
 - Website import with a "Start MLS listing" button (pilot builder first)
+- Website push: approved listings and photos sent to the builder's website
 - Dashboards for each role
 
 ### Phase 6: Test it hard
@@ -82,9 +88,11 @@ Try to break it before a customer does.
 
 - Log in as every role and confirm each sees only what it should
 - Confirm Builder A can never see Builder B's data, photos or videos
+- Log in as a broker; confirm they see only their MLS work, and none of the main app's screens load in their browser
 - Upload a few thousand test photos and a long video; check speed and search
 - Delete test data, then restore it from the vault; time how long it takes
 - Enter a few test listings into the MLS from the entry sheet; fix anything clumsy
+- Push a test listing to a test copy of the pilot builder's website; change a photo and confirm the website updates without looping back as a "new change"
 - Pay a developer for a security review (before real data)
 
 ### Phase 7: Launch with one builder
@@ -101,9 +109,10 @@ A friendly pilot customer tells you what's actually missing.
 The repeating loop: feedback, change in staging, test, publish live.
 
 - Add builders and roles as you sign them
+- Offer broker mode to builders who use their own listing broker
 - Apply for your MLS's read-only data feed; connect it when approved
 - Add the MLS column to the comparison checker once you have MLS data access
-- Turn on website feeds for each builder who opts in
+- Turn on website feeds (in) and website push (out) for each builder who opts in
 - Add billing (Stripe) and HubSpot syncing
 - Keep notes on how the system works, so anyone can fix it
 
@@ -113,7 +122,7 @@ The repeating loop: feedback, change in staging, test, publish live.
 
 **Listing coordinator:** Your staff. Enters approved listings into the MLS and logs MLS numbers.
 
-**Builder owner:** Everything for their company, plus adding staff.
+**Builder owner:** Everything for their company, plus adding staff and inviting their outside broker.
 
 **Manager:** Edits listings and approves them for the MLS; no billing.
 
@@ -121,11 +130,57 @@ The repeating loop: feedback, change in staging, test, publish live.
 
 **Marketing:** Listing descriptions, photos and media; no pricing changes.
 
+**Outside broker:** The builder's own listing broker (broker mode only). Sees only the broker sheet for that builder's MLS work. Not builder staff and not your staff.
+
 Platform admin and listing coordinator are your company's staff. These are starting suggestions; Phase 1's permission grid makes them final.
+
+## Broker mode
+
+For builders who list through their own broker instead of your team. The builder does all the work in the full system; the broker gets a bare-bones sheet with only what's needed to get the listing live on the MLS. The broker should never see how much the system does.
+
+Much of this already exists: builders set to enter their own MLS listings already get work sheets with copy buttons, ticks, the photo pack and "MLS number → mark live". Broker mode hands that same work to an outside person, inside a stripped-down shell.
+
+**How it flows**
+
+1. Builder enters the listing and photos, then clicks "Approve and send to broker"
+2. The MLS task goes to the builder's broker, who gets an email
+3. Broker signs in and sees only their to-do list
+4. Broker opens one: MLS fields in the MLS's screen order, each with a copy button, plus the MLS photo pack download
+5. Broker enters the MLS number and marks it live; the builder gets a notice and email, and the home shows its MLS number
+6. When the builder changes a live listing, the broker gets an update item showing only what changed; the builder is told when it's done
+
+**What the builder sees** (decided 29 Oct 2026)
+
+- An "Approve and send to broker" button instead of plain approve
+- "With your broker" on the home until it's live, then the MLS number
+- A notice and email each time the broker finishes something
+- Never the broker's view or work sheets
+
+**What the broker sees**
+
+- A to-do list: address, builder, kind (new listing, update, status change, open house)
+- The work sheet for each, with copy buttons and ticks
+- The MLS photo pack (approved photos, in order, sized to MLS rules), video downloads and tour links
+- One box for the MLS number and one "Mark live" button
+- Nothing else
+
+**What the broker never sees**
+
+- Communities, homes list, media library, reports, website check, AI tools, share links, other builders, internal notes, price history, activity log, billing
+
+**How it's kept private (build rules)**
+
+- The broker sheet is its own small set of screens with its own bare layout. The main app's screens are never sent to a broker's browser, so there's nothing to poke around in. (Hiding buttons alone isn't enough.)
+- Database rules limit a broker to MLS tasks for builders who invited them, and only the fields those tasks need
+- A broker can work for several builders with one login; each builder owner invites the broker and can remove them at any time
+- Photo links expire after a short time
+- Brokers accept the terms of use on first sign-in
+
+Once the MLS read-only feed is connected, the MLS number and status fill in automatically, so the broker only has to do the MLS entry itself.
 
 ## Builder website sync
 
-A home on a builder's website isn't always live on the MLS. Two connected features close that gap. Both are designed in from the start; the website feed is an opt-in add-on per builder.
+A home on a builder's website isn't always live on the MLS. Three connected features close that gap. All are designed in from the start; the website feed and website push are opt-in add-ons per builder.
 
 **1. Comparison checker**
 
@@ -135,13 +190,25 @@ A home on a builder's website isn't always live on the MLS. Two connected featur
 - "Use this value" button to fix a mismatch in one click
 - Website column works first; MLS column turns on with MLS data access
 
-**2. Website feed (opt-in)**
+**2. Website feed in (opt-in)**
 
 - Builder's website listings flow into your system automatically, around the clock
 - New and changed homes appear in a review queue, never overwriting staff edits silently
 - "Start MLS listing" button prefills every field the website has
 - Staff fill only the gaps; missing required MLS fields are highlighted
-- Each field shows its source: website, staff, or MLS
+- Each field shows its source: website, staff, broker or MLS
+
+**3. Website push out (opt-in)**
+
+The builder loads photos and details once, and their website gets them too.
+
+- Approved listings and photos are sent to the builder's website automatically
+- The website receives its own copies (web size), so your storage stays private; nothing on the website links back into your system
+- Photo order, cover photo and captions carry over; changes and new photos update the website within minutes
+- Sold or removed homes are taken down or marked sold on the website, per the builder's choice
+- The builder picks which fields are sent (for example, photos and description but never pricing)
+- Website photos can include builder branding; the MLS photo pack still follows MLS rules
+- The system recognizes its own changes when they come back through the feed, so they don't reappear in the review queue or loop back and forth
 
 **Example view** 1214 Pecan Ridge Dr · sample data
 
@@ -158,15 +225,15 @@ Price, baths and status don't match here. Dashes are fields the website doesn't 
 
 ### How the website connection could work, best option first
 
-**Existing listing feed:** Most reliable — Many builders already send a feed to Zillow or new-home sites. Ask for a copy of the same feed.
+**Existing listing feed:** Most reliable for data coming in — Many builders already send a feed to Zillow or new-home sites. Ask for a copy of the same feed.
 
-**Website platform connection:** Reliable — If their site runs on a platform with an API, connect to it directly.
+**Website platform connection:** Reliable, and the recommended route for pushing out — If their site runs on a platform with an API (WordPress and most builder-website platforms do), connect to it directly to read and write listings and photos.
 
-**Reading the website pages:** Last resort — With the builder's written permission. Breaks when they redesign the site.
+**Reading the website pages:** Last resort, in only — With the builder's written permission. Breaks when they redesign the site. Can't push anything back.
 
-**Spreadsheet upload:** Fallback — Works for any builder on day one.
+**Spreadsheet upload:** Fallback, in only — Works for any builder on day one.
 
-Design rule: build one import door that every source plugs into. Adding a new builder's website then means writing one small connector, not rebuilding the system.
+Design rule: build one import door and one export door that every source plugs into. Adding a new builder's website then means writing one small connector, not rebuilding the system.
 
 ## The media library
 
@@ -205,6 +272,7 @@ Photos and videos are a main feature, not an add-on. Files live in Cloudflare; t
 - Nothing public; every file is locked by default
 - Each view gets a link that expires after a short time
 - Builder A can never open Builder B's files
+- Website push sends copies; it never opens your storage to the public
 
 **Fast at any size**
 
@@ -290,7 +358,7 @@ The readable copies are deliberately not the main restore path. Spreadsheets and
 
 ### Add as you grow
 
-**System emails:** Resend — Approval alerts, password resets.
+**System emails:** Resend — Approval alerts, broker "new listing" alerts, password resets.
 
 **AI photo tagging:** Claude (through the API) — Labels rooms, flags problem photos, drafts captions.
 
@@ -298,7 +366,7 @@ The readable copies are deliberately not the main restore path. Spreadsheets and
 
 **CRM:** HubSpot — You already use it; sync builder accounts later.
 
-**Builder website feeds:** Custom connectors — Built by Claude Code, one per website source, all through one import door.
+**Builder website feeds and push:** Custom connectors — Built by Claude Code, one per website platform, all through one import door and one export door.
 
 **MLS connection:** Your MLS's read-only data feed — Brings MLS listings and status back in. Requires their approval; most use the RESO Web API.
 
@@ -332,7 +400,11 @@ The readable copies are deliberately not the main restore path. Spreadsheets and
 
 **Sync** — Keeping two systems matched automatically, like a builder's website and yours.
 
-**Connector** — A small piece of code that knows how to read one specific source, like one builder's website.
+**Two-way sync** — Data flows both directions: website into your system, and your approved listings and photos back out to the website.
+
+**Broker mode** — A setup where the builder's own broker, not your team, enters the listing into the MLS, using a stripped-down sheet.
+
+**Connector** — A small piece of code that knows how to read from (or send to) one specific source, like one builder's website.
 
 **Thumbnail** — A small preview copy of a photo, so grids load fast.
 
