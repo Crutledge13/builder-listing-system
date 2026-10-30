@@ -232,6 +232,5 @@ create trigger media_requests_review_notice after update of status on public.med
   for each row execute function public.media_requests_review_notice();
 
 -- media_to_listing also runs when a file is approved or set aside.
-drop trigger media_to_listing on public.media;
-create trigger media_to_listing after insert or update of deleted_at, tags, review_status, storage_path, thumb_path, web_path on public.media
+create or replace trigger media_to_listing after insert or update of deleted_at, tags, review_status, storage_path, thumb_path, web_path on public.media
   for each row execute function public.media_to_listing();
