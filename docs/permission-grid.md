@@ -2,7 +2,7 @@
 
 **Status: DRAFT for the owners to approve.** Owners' decision, 28 Oct 2026: marketing is the builder's main operator and can do everything a manager can (approve for the MLS, prices, status, communities, people for sales and marketing, reports); managers keep the same access and mostly follow along and read reports. Written from what the database enforces today (row-level security and triggers in `supabase/migrations/`) and confirmed by role-by-role tests against the test project. Once approved, this grid is final and CLAUDE.md's role table follows it. Any change here must be made in the database rules, `src/lib/permissions.ts` and this file together.
 
-Roles: **Admin** = platform admin, **Coord** = listing coordinator (both our company). **Owner**, **Mgr** = manager, **Sales**, **Mktg** = marketing (builder company). **Photo** = photographer (contractor).
+Roles: **Admin** = platform admin, **Coord** = listing coordinator (both our company). **Owner**, **Mgr** = manager, **Sales**, **Mktg** = marketing (builder company). **Photo** = photographer (contractor). **Online sales counselors** (29 Oct 2026) are salespeople with `profiles.online_sales` on: every **Sales** column applies to them exactly.
 
 Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assigned" = only communities they're assigned to · "jobs" = only homes/communities on their open photo jobs
 
@@ -18,6 +18,7 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Edit communities / move to another builder | ✅ | ➖ | own (no move) | own (no move) | ➖ | own (no move) | ➖ |
 | See people | all | all | own company | own company | own company | own company | self |
 | Add people | ✅ any role | ➖ | own: owner, mgr, sales, mktg | own: sales, mktg | ➖ | own: sales, mktg | ➖ |
+| Approve a builder's email domains or one-off addresses (only matching emails can be added) | ✅ | ➖ | 👁 own | 👁 own | ➖ | 👁 own | ➖ |
 | Change roles / turn off access | ✅ | ➖ | own (not self) | own sales, mktg (not self) | ➖ | own sales, mktg (not self) | ➖ |
 | Assign salespeople to communities | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | Edit own profile, headshot, email, password | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -36,7 +37,12 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | See homes | all | all | own | own | assigned | own | ➖ |
 | Add homes (as drafts) | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | Edit address, plan, specs, lot, build stage | ✅ | ➖ | ✅ | ✅ | build stage, completion only | ✅ | ➖ |
-| Edit price | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | ➖ |
+| Edit price | ✅ | ➖ | ✅ | ✅ | ➖ (send a price change request) | ✅ | ➖ |
+| Change prices in bulk across a community | ✅ | ➖ | own | own | ➖ | own | ➖ |
+| Ask for a price change | ➖ | ➖ | ➖ | ➖ | assigned | ➖ | ➖ |
+| Approve or decline a price change request | ✅ | ➖ | own | own | ➖ | own | ➖ |
+| Expected close date (asked when going under contract) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ |
+| GPS coordinates | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | ➖ |
 | Edit description | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | ➖ |
 | Submit for review / back to draft | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ | ➖ |
 | Approve for the MLS ("Ready for MLS") | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | ➖ |
@@ -68,10 +74,13 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Assign photographer | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Set shoot time, mark delivered | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ | their jobs |
 | Mark complete / send back | ✅ | ➖ | ✅ | ✅ | ➖ | ✅ | ➖ |
+| Approve our photographer's delivered files (or "Don't use") | ✅ | ➖ | own | own | ➖ | own | ➖ |
+| Archive a file / bring it back from the archive | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | Set "who photographers call" (shoot contact, access notes) | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | See builder name, logo, shoot contact and requester contact on a job | ✅ | ✅ | own | own | ➖ | own | their jobs |
 | Download photos at any size (incl. custom) | all | all | own | own | assigned | own | jobs |
 | Add download sizes, set the builder's default size | ✅ | ➖ | own | own | ➖ | own | ➖ |
+| Copy their own realtor link for a home (shows who to call) | ✅ | ✅ | own | own | assigned | own | ➖ |
 | Make or turn off realtor share links | ✅ | ➖ | own | own | ➖ | own | ➖ |
 | See share links and who opened them | all | all | own | own | ➖ | own | ➖ |
 | See photographer pay | all | all | ➖ | ➖ | ➖ | ➖ | their own |
@@ -108,6 +117,7 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 | Answer "still available / under contract / sold" | ✅ | ✅ | own | own | assigned | own | ➖ |
 | Close alerts by hand, run the compliance check | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Reports page (with filters) | all builders | all builders | own | own | assigned communities | own | ➖ |
+| Buyer's agent ranking (all builders, by market) | ✅ | their builders | ➖ | ➖ | ➖ | ➖ | ➖ |
 | Request comps | ✅ | ➖ | own | own | assigned | own | ➖ |
 | See comp requests and delivered comps | all | all | own | own | own requests + assigned | own | ➖ |
 | Add comps, deliver files | ✅ | ✅ | ➖ | ➖ | ➖ | ➖ | ➖ |
@@ -125,6 +135,7 @@ Key: ✅ yes · 👁 view only · ➖ no · "own" = their builder only · "assig
 - One builder never sees another builder's homes, people, photos, website or MLS data.
 - Turned-off people can't sign in and their role gives no access.
 - Nothing is sent to the MLS by the system; our team enters it by hand.
+- Only people whose email matches a builder's approved domains (or an address our admins approved) can be set up at that builder; builders with none approved yet aren't checked.
 - Nothing is public except realtor share links: one home each, unlisted, never indexed, replaceable or deletable at any time, every view and download logged. Each home's standing link has no end date (owners' decision, 27 Oct 2026); older one-off links still expire.
 - Emails are read and marked sent only by our server (service key), never by signed-in users.
 
