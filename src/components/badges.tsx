@@ -9,7 +9,8 @@ const DOT: Record<WorkflowStatus, string> = {
 };
 
 // A white pill with a colored dot: reads cleanly on top of a picture or on white.
-export function StatusBadge({ status, floating }: { status: WorkflowStatus; floating?: boolean }) {
+// label: an override for the text (a broker-mode builder's approved homes read "With your broker").
+export function StatusBadge({ status, floating, label }: { status: WorkflowStatus; floating?: boolean; label?: string }) {
   return (
     <span
       className={cx(
@@ -18,7 +19,7 @@ export function StatusBadge({ status, floating }: { status: WorkflowStatus; floa
       )}
     >
       <span className={cx("h-2 w-2 rounded-full", DOT[status])} />
-      {STATUS_LABELS[status]}
+      {label ?? STATUS_LABELS[status]}
     </span>
   );
 }

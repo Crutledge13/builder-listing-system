@@ -104,8 +104,10 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
   ]);
   const tasks = (rows ?? []) as unknown as Task[];
   // Builders who enter their own listings: our team can see that work but doesn't need to do it.
-  const { data: selfRows } = ownMls ? { data: [] } : await supabase.from("builder_settings").select("builder_id").eq("mls_entry", "builder");
-  const selfBuilders = new Set((selfRows ?? []).map((r) => r.builder_id));
+  const { data: selfRows } = ownMls ? { data: [] } : await supabase.from("builder_settings").select("builder_id, mls_entry").in("mls_entry", ["builder", "broker"]);
+  const selfBuilders = new Set((selfRows ?? []).filter((r) => r.mls_entry === "builder").map((r) => r.builder_id));
+  // Broker mode: the builder's own outside broker does this MLS work.
+  const brokerBuilders = new Set((selfRows ?? []).filter((r) => r.mls_entry === "broker").map((r) => r.builder_id));
   let uq = supabase.from("home_alerts").select("id", { count: "exact", head: true }).is("resolved_at", null).eq("severity", "urgent");
   if (focus) uq = uq.eq("builder_id", focus);
   const { count: urgentAlerts } = await uq;
@@ -258,6 +260,9 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
                       {t.builders && <span className="text-muted">{t.builders.name.replace(" (demo)", "")}</span>}
                       {!ownMls && t.builder_id && selfBuilders.has(t.builder_id) && MLS_KINDS.includes(t.kind) && (
                         <span className="rounded-full bg-soft px-2.5 py-1 font-semibold text-muted" title="This builder enters its own listings in the MLS">Builder enters this</span>
+                      )}
+                      {!ownMls && t.builder_id && brokerBuilders.has(t.builder_id) && MLS_KINDS.includes(t.kind) && (
+                        <span className="rounded-full bg-soft px-2.5 py-1 font-semibold text-muted" title="This builder lists through its own outside broker">Builder’s broker enters this</span>
                       )}
                     </div>
                     <h3 className="mt-2 font-semibold leading-snug">

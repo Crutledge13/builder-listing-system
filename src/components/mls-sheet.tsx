@@ -74,12 +74,18 @@ export function MlsScore({ sheet, homeId, edit = true }: { sheet: MlsSheet; home
 }
 
 // The whole MLS entry, in MLS order, ready to copy field by field.
+// broker: the broker's work sheet. Photos and videos come through the
+// broker's own checked file links (fileBase), and nothing links into the main app.
 export function MlsSheetView({
   sheet,
   check,
+  fileBase = "/api/media/",
+  broker = false,
 }: {
   sheet: MlsSheet;
   check?: { taskId: string; checked: string[]; action: (taskId: string, item: string, on: boolean) => Promise<void>; disabled?: boolean };
+  fileBase?: string;
+  broker?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -99,9 +105,9 @@ export function MlsSheetView({
           </section>
         );
       })}
-      <RoomList sheet={sheet} check={check} />
+      <RoomList sheet={sheet} check={check} broker={broker} />
       <IncentiveSheet sheet={sheet} />
-      <PhotoList sheet={sheet} check={check} />
+      <PhotoList sheet={sheet} check={check} fileBase={fileBase} broker={broker} />
     </div>
   );
 }
@@ -131,7 +137,7 @@ function SheetRow({ f, sheet, check }: { f: MlsField; sheet: MlsSheet; check?: P
   );
 }
 
-function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeof MlsSheetView>[0]["check"] }) {
+function PhotoList({ sheet, check, fileBase, broker }: { sheet: MlsSheet; check?: Parameters<typeof MlsSheetView>[0]["check"]; fileBase: string; broker: boolean }) {
   const list = sheet.mlsPhotos;
   return (
     <section className="overflow-hidden rounded-2xl border border-line">
@@ -142,9 +148,9 @@ function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeo
         </span>
         <span className="flex flex-wrap gap-3 text-sm">
           {list.length > 0 && (
-            <PhotoPackButton name={`mls-photos-${slug(sheet.home.unparsed_address)}`} photos={packPhotos(list)} readme={packReadme(sheet)} size={{ long_edge: 2048, format: "jpeg", quality: 85 }} />
+            <PhotoPackButton name={`mls-photos-${slug(sheet.home.unparsed_address)}`} photos={packPhotos(list)} readme={packReadme(sheet)} size={{ long_edge: 2048, format: "jpeg", quality: 85 }} fileBase={fileBase} />
           )}
-          <Link href={`/homes/${sheet.home.id}#listing-media`} className="font-semibold text-accent underline">Change what&rsquo;s on the listing</Link>
+          {!broker && <Link href={`/homes/${sheet.home.id}#listing-media`} className="font-semibold text-accent underline">Change what&rsquo;s on the listing</Link>}
         </span>
       </h3>
       {list.length === 0 ? (
@@ -153,8 +159,8 @@ function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeo
         <ol className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-5 lg:grid-cols-6">
           {list.map((m, i) => (
             <li key={m.id}>
-              <Link href={`/media/${m.id}`} className="relative block aspect-[3/2] overflow-hidden rounded-lg bg-soft">
-                <MediaPicture m={m} className="h-full w-full" />
+              <Link href={broker ? `${fileBase}${m.id}?size=web` : `/media/${m.id}`} target={broker ? "_blank" : undefined} prefetch={broker ? false : undefined} className="relative block aspect-[3/2] overflow-hidden rounded-lg bg-soft">
+                <MediaPicture m={m} className="h-full w-full" fileBase={fileBase} />
                 <span className="absolute left-1 top-1 rounded bg-white/95 px-1.5 text-[11px] font-bold">{i + 1}</span>
               </Link>
               <span className="mt-1 block truncate text-[11px] text-muted">{m.caption ?? m.title}</span>
@@ -187,7 +193,7 @@ function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeo
             {sheet.videos.map((v) => (
               <li key={v.id} className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">Video: {v.title}</span>
-                <a href={`/api/media/${v.id}?download=1`} className="text-accent underline">Download</a>
+                <a href={`${fileBase}${v.id}?download=1`} className="text-accent underline">Download</a>
               </li>
             ))}
           </ul>
@@ -198,7 +204,7 @@ function PhotoList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeo
 }
 
 // The home's room list (Rooms tab in Matrix): type, level, length × width.
-export function RoomList({ sheet, check }: { sheet: MlsSheet; check?: Parameters<typeof MlsSheetView>[0]["check"] }) {
+export function RoomList({ sheet, check, broker = false }: { sheet: MlsSheet; check?: Parameters<typeof MlsSheetView>[0]["check"]; broker?: boolean }) {
   if (sheet.board?.code && sheet.board.code !== "NTREIS" && !sheet.rooms.length) return null;
   const done = check ? sheet.rooms.filter((_, i) => check.checked.includes(`room-${i}`)).length : 0;
   return (
@@ -208,7 +214,7 @@ export function RoomList({ sheet, check }: { sheet: MlsSheet; check?: Parameters
         {check && sheet.rooms.length > 0 && <span className="text-xs font-normal text-muted">{done} of {sheet.rooms.length} entered</span>}
       </h3>
       {sheet.rooms.length === 0 ? (
-        <p className="bg-amber-50/60 px-4 py-3 text-sm text-amber-900">No room sizes yet. The builder pulls them from the floor plan on the home page (or our team adds the plan&rsquo;s rooms under Floor plans).</p>
+        <p className="bg-amber-50/60 px-4 py-3 text-sm text-amber-900">{broker ? "No room sizes yet. Leave the builder a note below if the MLS needs them." : <>No room sizes yet. The builder pulls them from the floor plan on the home page (or our team adds the plan&rsquo;s rooms under Floor plans).</>}</p>
       ) : (
         <dl className="divide-y divide-line">
           {sheet.rooms.map((r, i) => {

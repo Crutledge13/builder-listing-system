@@ -33,6 +33,10 @@ export async function proxy(request: NextRequest) {
   const { data: auth } = await supabase.auth.getClaims();
   const claims = auth?.claims;
   const user = claims?.sub ? { id: claims.sub, user_metadata: (claims.user_metadata ?? {}) as Record<string, unknown> } : null;
+  // Outside listing brokers (broker mode) live only in /broker. Their login
+  // carries role "broker" in app_metadata, which only our server can set, so
+  // this check needs no database call. The broker pages check again themselves.
+  const isBroker = (claims?.app_metadata as Record<string, unknown> | undefined)?.role === "broker";
 
   const isLogin = request.nextUrl.pathname.startsWith("/login");
   // Email confirmation links land here and sign the person in themselves.
@@ -61,9 +65,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // A broker anywhere outside their screens (and the few sign-in pages) goes to their MLS work.
+  const brokerAllowed = path === "/broker" || path.startsWith("/broker/") || path === "/welcome" || isConfirm || isAccept || path.startsWith("/signed-out");
+  if (user && isBroker && !brokerAllowed && !isLogin) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/broker";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   if (user && isLogin) {
     const url = request.nextUrl.clone();
-    url.pathname = "/communities";
+    url.pathname = isBroker ? "/broker" : "/communities";
     url.search = "";
     return NextResponse.redirect(url);
   }

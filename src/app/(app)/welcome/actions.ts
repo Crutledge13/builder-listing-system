@@ -34,6 +34,7 @@ export async function setFirstPassword(formData: FormData) {
 
   // Builders who run the setup go straight to their checklist.
   if (me.role === "photographer") redirect("/jobs");
+  if (me.role === "broker") redirect("/broker");
   if (await setupOpen(supabase, me.role, me.builder_id)) redirect("/setup?saved=" + encodeURIComponent("You’re in. Here’s everything we need to get your company set up."));
   redirect("/communities?saved=" + encodeURIComponent("You’re in. Welcome to Builder Listings."));
 }
