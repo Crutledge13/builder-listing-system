@@ -83,6 +83,7 @@ import { MONEY_INPUT, withCommas } from "@/lib/money-input";
 import { GpsField } from "@/components/gps-field";
 import { gpsText } from "@/lib/gps";
 import { loadPendingPhotos, PhotoApproval } from "@/components/photo-approval";
+import { BrokerHomeSection } from "@/components/broker-home-section";
 
 export default function HomePage(props: PageProps<"/homes/[id]">) {
   return (
@@ -425,6 +426,12 @@ async function HomeDetail({
           )}
 
           <p className="mt-10 border-b border-line pb-2 text-xs font-semibold uppercase tracking-wide text-muted first:mt-6">Day to day<span className="ml-2 font-normal normal-case tracking-normal">open houses, incentives, price and requests from the team</span></p>
+
+          {brokerMode && (staff || ["builder_owner", "manager", "marketing"].includes(me.role)) && (
+            <BrokerHomeSection homeId={home.id} builderId={home.builder_id} brokerId={home.broker_id ?? null}
+              origin={`${reqHeaders.get("x-forwarded-proto") ?? "https"}://${reqHeaders.get("host")}`}
+              open={at === "broker"} notice={sectionNotice("broker")} />
+          )}
 
           <HomeSection id="open-houses" title="Open houses" open={at === "open-houses"}
             badge={upcomingOH.length ? `${upcomingOH.length} scheduled` : activeSeries.length ? "Repeating" : null}
@@ -1020,7 +1027,7 @@ async function HomeDetail({
                     </span>
                     <span className={cx("text-[15px]", current ? "font-semibold" : reached ? "" : "text-muted")}>
                       {STATUS_LABELS[s]}
-                      {s === "live_on_mls" && home.mls_number && <span className="block text-sm font-normal text-muted">MLS {home.mls_number}</span>}
+                      {s === "live_on_mls" && home.mls_number && <span className="block text-sm font-normal text-muted">MLS {home.mls_number}{home.mls_listing_url && <> · <a href={home.mls_listing_url} target="_blank" rel="noopener noreferrer" className="text-accent underline">view listing</a></>}</span>}
                     </span>
                   </li>
                 );

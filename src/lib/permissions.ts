@@ -300,6 +300,7 @@ export const TASK_KIND_LABELS: Record<string, string> = {
 export const TASK_STATUS_LABELS: Record<string, string> = {
   todo: "To do",
   in_progress: "In progress",
+  submitted: "Sent to the builder to accept",
   done: "Done",
   cancelled: "Cancelled",
 };

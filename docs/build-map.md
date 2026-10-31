@@ -165,6 +165,17 @@ Much of this already exists: builders set to enter their own MLS listings alread
 - One box for the MLS number and one "Mark live" button
 - Nothing else
 
+**Work orders (built 30 Oct 2026, from Matt's write-up)**
+
+- Every job has a number (WO-1024) next to the address
+- The broker's screen has four views with counts: new listing requests, change requests, live listings, closed listings
+- A home can go to one particular broker, or any of the builder's brokers
+- The broker can send a work order back with corrections: a field and what it should be, or a photo and what's wrong. The builder answers each one on the home's page and resends it
+- When the broker is done they send it to the builder with the MLS number and a link to the live listing; the builder checks and accepts, and only then does the home show as live
+- Every view and action by the broker is logged for the builder
+- A one-off link sends one work order to a broker without an account, until it's accepted or turned off
+- Changes to live listings still go to the broker automatically
+
 **What the broker never sees**
 
 - Communities, homes list, media library, reports, website check, AI tools, share links, other builders, internal notes, price history, activity log, billing

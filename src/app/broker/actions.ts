@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
+import { after } from "next/server";
+import { sendQueuedEmails } from "@/lib/email";
+
+const mail = (taskId: string) => {
+  if (/^[0-9a-f-]{36}$/i.test(taskId)) after(() => sendQueuedEmails("tasks", taskId));
+};
 
 // The broker's buttons. Each one calls a database function that checks the
 // task belongs to a builder that invited this broker, so nothing here can
@@ -48,20 +54,41 @@ export async function brokerSetStatus(formData: FormData) {
   const { error } = await supabase.rpc("broker_set_status", { p_task: id, p_status: status });
   if (error) backTo(id, { error: say(error.message) });
   revalidatePath("/broker", "layout");
-  if (status === "done") redirect(`/broker?${new URLSearchParams({ saved: "Done. The builder has been told." })}`);
-  backTo(id, { saved: status === "in_progress" ? "Started." : "Moved back to your to-do list." });
+  backTo(id, { saved: status === "in_progress" ? "Started. It’s yours to work on." : "Moved back to your to-do list." });
 }
 
-export async function brokerMarkLive(formData: FormData) {
+// Done in the MLS: send it to the builder to check and accept (a new listing
+// needs its MLS number and the link to the live listing).
+export async function brokerSubmit(formData: FormData) {
   await brokerOnly();
   const id = String(formData.get("id") ?? "");
   const mls = String(formData.get("mls_number") ?? "").trim();
-  if (!mls) backTo(id, { error: "Enter the MLS number the MLS gave this listing." });
+  const url = String(formData.get("mls_url") ?? "").trim();
   const supabase = await createClient();
-  const { error } = await supabase.rpc("broker_mark_live", { p_task: id, p_mls: mls });
+  const { error } = await supabase.rpc("broker_submit", { p_task: id, p_mls: mls, p_url: url });
   if (error) backTo(id, { error: say(error.message) });
+  mail(id);
   revalidatePath("/broker", "layout");
-  redirect(`/broker?${new URLSearchParams({ saved: `Live on the MLS as #${mls}. The builder has been told.` })}`);
+  redirect(`/broker?${new URLSearchParams({ saved: "Sent to the builder. They’ll check it and accept it; you’ll get an email when they do." })}`);
+}
+
+// Something looks wrong: flag fields or photos and send it back to the builder.
+export async function brokerSendBack(formData: FormData) {
+  await brokerOnly();
+  const id = String(formData.get("id") ?? "");
+  let items: unknown = [];
+  try {
+    items = JSON.parse(String(formData.get("items") ?? "[]"));
+  } catch {
+    backTo(id, { error: "Couldn’t read that. Try again." });
+  }
+  const note = String(formData.get("note") ?? "").trim();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("broker_send_back", { p_task: id, p_items: items, p_note: note || null });
+  if (error) backTo(id, { error: say(error.message) });
+  mail(id);
+  revalidatePath("/broker", "layout");
+  backTo(id, { saved: "Sent back to the builder. You’ll get an email when they’ve answered." });
 }
 
 export async function brokerAddNote(formData: FormData) {
@@ -72,6 +99,7 @@ export async function brokerAddNote(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.rpc("broker_add_note", { p_task: id, p_body: body });
   if (error) backTo(id, { error: say(error.message) });
+  mail(id);
   revalidatePath(`/broker/tasks/${id}`);
   backTo(id, { saved: "Note sent to the builder." });
 }
