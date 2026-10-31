@@ -6,14 +6,15 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
 import { enterOwnMls } from "@/lib/mls-entry";
 import { isStaff, TASK_KIND_LABELS, TASK_STATUS_LABELS } from "@/lib/permissions";
-import { cx, dateTime, money } from "@/lib/format";
+import { cx, dateTime } from "@/lib/format";
 import { openHouseWhen, whenCentral } from "@/lib/time";
-import { CONDITION, formatMls, MLS_FIELD_FOR_COLUMN } from "@/lib/mls-fields";
 import { loadMlsSheet, type MlsSheet } from "@/lib/mls-sheet";
 import { MEDIA_SELECT, type MediaRow } from "@/lib/demo-media";
 import { Notice } from "@/components/notice";
-import { MlsScore, MlsSheetView } from "@/components/mls-sheet";
-import { CheckOff, CopyButton } from "@/components/mls-client";
+import { MlsWorkSheet } from "@/components/mls-work-sheet";
+import { CopyRow, OpenBesideMatrix } from "@/components/mls-sheet-client";
+import { CopyButton } from "@/components/mls-client";
+import { ChangeRows, FinishCard, Lead, type Change as SheetChange } from "@/components/mls-change-work";
 import { MediaPicture } from "@/components/media-tile";
 import { addTaskNote, assignTask, markListingLive, setTaskStatus, toggleTaskCheck } from "../actions";
 
@@ -105,16 +106,19 @@ async function Work({ params }: { params: PageProps<"/tasks/[id]">["params"] }) 
           <button className="rounded-lg px-2 py-1.5 text-sm font-semibold text-accent hover:bg-accent-soft">Assign</button>
         </form>
         <span className="ml-auto" />
-        {!closed && t.status === "todo" && <StatusButton id={t.id} back={back} status="in_progress" label="Start" />}
-        {!closed && t.kind !== "mls_entry" && <StatusButton id={t.id} back={back} status="done" label="Mark done" primary />}
+        {t.kind === "mls_entry" && sheet && !closed && <span className="hidden sm:block"><OpenBesideMatrix /></span>}
+        {t.kind === "mls_entry" && sheet && <Link href={`/homes/${sheet.home.id}/mls`} className="flex h-10 items-center rounded-xl border border-line px-3 text-sm font-semibold hover:border-foreground">Edit MLS sheet</Link>}
+        {!closed && t.status === "todo" && !isMlsKind(t.kind) && <StatusButton id={t.id} back={back} status="in_progress" label="Start" />}
+        {!closed && !isMlsKind(t.kind) && <StatusButton id={t.id} back={back} status="done" label="Mark done" primary />}
         {closed && <StatusButton id={t.id} back={back} status="todo" label="Reopen" />}
       </div>
 
       <div className="mt-8">
         {t.kind === "mls_entry" && sheet && <EntryWork t={t} sheet={sheet} check={check} closed={closed} />}
-        {t.kind === "mls_update" && sheet && <UpdateWork t={t} sheet={sheet} check={check} feedStatus={feed?.standard_status ?? null} />}
-        {t.kind === "listing_status" && sheet && <StatusWork t={t} sheet={sheet} check={check} />}
-        {t.kind === "open_house_mls" && <OpenHouseWork t={t} check={check} />}
+        {t.kind === "mls_update" && sheet && <UpdateWork t={t} sheet={sheet} feedStatus={feed?.standard_status ?? null} />}
+        {t.kind === "listing_status" && sheet && <StatusWork t={t} sheet={sheet} />}
+        {t.kind === "open_house_mls" && <OpenHouseWork t={t} />}
+        {isMlsKind(t.kind) && t.kind !== "mls_entry" && !closed && <DoneBox t={t} back={back} />}
         {!["mls_entry", "mls_update", "listing_status", "open_house_mls"].includes(t.kind) && <OtherWork t={t} />}
       </div>
 
@@ -152,148 +156,84 @@ function StatusButton({ id, back, status, label, primary }: { id: string; back: 
 
 type Check = { taskId: string; checked: string[]; action: typeof toggleTaskCheck; disabled: boolean };
 
-// A brand-new listing: the full MLS input, then the MLS number.
+const isMlsKind = (k: string) => ["mls_entry", "mls_update", "listing_status", "open_house_mls"].includes(k);
+
+// The one button that finishes an update, status change or open house task.
+function DoneBox({ t, back }: { t: Task; back: string }) {
+  const n = t.kind === "mls_update" ? Object.keys(t.changes ?? {}).length : 0;
+  return (
+    <FinishCard className="mt-6 flex flex-wrap items-center justify-between gap-3">
+      <span className="text-[15px]"><b>{n > 1 ? `Made all ${n} changes in the MLS?` : "Done in the MLS?"}</b> This closes the task.</span>
+      <form action={setTaskStatus}>
+        <input type="hidden" name="back" value={back} />
+        <input type="hidden" name="id" value={t.id} />
+        <input type="hidden" name="status" value="done" />
+        <button className="h-12 rounded-xl bg-accent px-6 text-base font-bold text-white hover:brightness-110">All done · Mark done</button>
+      </form>
+    </FinishCard>
+  );
+}
+
+// A brand-new listing: the whole MLS entry, tab by tab; the last tab ends
+// with the MLS number.
 function EntryWork({ t, sheet, check, closed }: { t: Task; sheet: MlsSheet; check: Check; closed: boolean }) {
-  return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
-      <div className="min-w-0 space-y-6">
-        <Steps
-          items={[
-            `Start a new listing in ${sheet.board?.short_name ?? "the MLS"} (Residential, For Sale).`,
-            "Copy each field below into the MLS, in order. Tick each line as you go.",
-            "Upload the photos in the order shown.",
-            "Submit the listing, then enter the MLS number on the right.",
-          ]}
-        />
-        <MlsScore sheet={sheet} homeId={sheet.home.id} />
-        <MlsSheetView sheet={sheet} check={check} />
-      </div>
-      <aside>
-        <div className="sticky top-28 space-y-4">
-          <Progress checked={check.checked.length} total={entryLines(sheet)} />
-          {sheet.home.workflow_status === "approved_for_mls" && !closed ? (
-            <form action={markListingLive} className="rounded-2xl border border-line p-4">
-              <input type="hidden" name="back" value={`/tasks/${t.id}`} />
-              <input type="hidden" name="home_id" value={sheet.home.id} />
-              <h3 className="font-semibold">Listing submitted?</h3>
-              <p className="mt-1 text-sm text-muted">Enter the MLS number. The home is marked live and this task closes.</p>
-              <input name="mls_number" required placeholder="MLS number" className="field-input mt-3" />
-              <button className="mt-3 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Mark live on the MLS</button>
-            </form>
-          ) : (
-            <p className="rounded-2xl bg-soft p-4 text-sm">
-              {sheet.home.workflow_status === "live_on_mls" ? `Live on the MLS as #${sheet.home.mls_number}.` : "This home isn’t approved for the MLS right now."}
-            </p>
-          )}
-          <Link href={`/homes/${sheet.home.id}/mls`} className="block rounded-xl border border-line px-4 py-2.5 text-center text-sm font-semibold hover:border-foreground">Edit MLS sheet</Link>
-        </div>
-      </aside>
-    </div>
+  const finish = sheet.home.workflow_status === "approved_for_mls" && !closed ? (
+    <FinishCard>
+      <form action={markListingLive} className="space-y-3">
+        <input type="hidden" name="back" value={`/tasks/${t.id}`} />
+        <input type="hidden" name="home_id" value={sheet.home.id} />
+        <h3 className="text-lg font-extrabold">Submitted it in the MLS? Mark it live</h3>
+        <label className="block max-w-xs text-sm font-semibold">MLS number
+          <input name="mls_number" required placeholder="e.g. 20841177" className="field-input mt-1" />
+        </label>
+        <button className="h-12 w-full rounded-xl bg-accent px-6 text-base font-bold text-white hover:brightness-110 sm:w-auto">Mark live on the MLS</button>
+        <p className="text-sm text-muted">The home shows its MLS number and this task closes.</p>
+      </form>
+    </FinishCard>
+  ) : (
+    <p className="rounded-2xl bg-soft p-4 text-sm">
+      {sheet.home.workflow_status === "live_on_mls" ? `Live on the MLS as #${sheet.home.mls_number}.` : "This home isn’t approved for the MLS right now."}
+    </p>
   );
-}
-
-// Every field this MLS asks for, plus the photos line.
-const entryLines = (sheet: MlsSheet) => sheet.sections.reduce((n, s) => n + s.fields.length, 0) + 1;
-
-function Progress({ checked, total }: { checked: number; total: number }) {
-  const pct = total ? Math.min(100, Math.round((checked / total) * 100)) : 0;
-  return (
-    <div className="rounded-2xl border border-line p-4">
-      <div className="flex justify-between text-sm"><span className="font-semibold">Entered in the MLS</span><span className="text-muted">{checked} of {total}</span></div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-soft"><div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} /></div>
-    </div>
-  );
-}
-
-function Steps({ items }: { items: string[] }) {
-  return (
-    <ol className="space-y-1.5 rounded-2xl bg-accent-soft/50 p-4 text-sm">
-      {items.map((s, i) => (
-        <li key={i} className="flex gap-2"><span className="font-bold text-accent">{i + 1}.</span> {s}</li>
-      ))}
-    </ol>
-  );
-}
-
-function showValue(key: string, v: unknown) {
-  if (v === null || v === undefined || v === "") return "";
-  if (key === "build_stage") return CONDITION[String(v)] ?? String(v);
-  if (key === "close_price") return money(v as number);
-  if (key === "close_date" || key === "purchase_contract_date") return formatMls({ type: "date" }, v);
-  const f = MLS_FIELD_FOR_COLUMN[key];
-  return f ? formatMls(f, v) : String(v);
+  return <MlsWorkSheet sheet={sheet} check={check} editHref={`/homes/${sheet.home.id}/mls`} finish={finish} />;
 }
 
 // A live listing changed: exactly what to change, old and new.
-async function UpdateWork({ t, sheet, check, feedStatus }: { t: Task; sheet: MlsSheet; check: Check; feedStatus: string | null }) {
-  const entries = Object.entries(t.changes ?? {}).filter(([k]) => k !== "photos");
+async function UpdateWork({ t, sheet, feedStatus }: { t: Task; sheet: MlsSheet; feedStatus: string | null }) {
+  const entries = Object.entries(t.changes ?? {}).filter(([k]) => k !== "photos") as [string, SheetChange][];
   const photos = t.changes?.photos;
   const ids = [...(photos?.added ?? []), ...(photos?.removed ?? [])];
   const supabase = await createClient();
   const { data: rows } = ids.length ? await supabase.from("media").select(MEDIA_SELECT).in("id", ids) : { data: [] };
   const media = new Map(((rows ?? []) as unknown as MediaRow[]).map((m) => [m.id, m]));
-  const lines = entries.length + (photos ? 1 : 0);
+  const n = entries.length + (photos ? 1 : 0);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
-      <div className="min-w-0 space-y-6">
-        <Steps
-          items={[
-            `Open MLS #${sheet.home.mls_number ?? "?"} and choose Change listing.`,
-            "Make each change below. Tick it once it’s saved in the MLS.",
-            "Mark this task done.",
-          ]}
-        />
-        {lines === 0 ? (
-          <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">Nothing left to change: the builder put everything back the way the MLS has it. You can mark this done.</p>
-        ) : (
-          <div className="overflow-hidden rounded-2xl border border-line">
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 bg-soft px-4 py-2 text-xs font-semibold text-muted sm:grid-cols-[auto_200px_1fr_1fr_auto]">
-              <span className="w-5" /><span>MLS field</span><span className="hidden sm:block">On the MLS now</span><span className="hidden sm:block">Change it to</span><span className="hidden sm:block" />
+    <div className="space-y-5">
+      <Lead>
+        Open <b>MLS #{sheet.home.mls_number ?? "?"}</b> and choose <b>Change listing</b>.{" "}
+        {n ? <>Make {n === 1 ? "this change" : `these ${n} changes`}, then mark it done.</> : null}
+        {feedStatus && <span className="text-muted"> The MLS feed shows it as {feedStatus}.</span>}
+      </Lead>
+      {n === 0 ? (
+        <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">Nothing left to change: the builder put everything back the way the MLS has it. You can mark this done.</p>
+      ) : (
+        <>
+          {entries.length > 0 && <ChangeRows entries={entries} />}
+          {photos && (
+            <div className="space-y-4 rounded-2xl border border-line p-4">
+              <p className="text-sm text-muted">Photos</p>
+              {(photos.added ?? []).length > 0 && <PhotoStrip title={`Add ${photos.added!.length} photo${photos.added!.length > 1 ? "s" : ""}`} ids={photos.added!} media={media} />}
+              {(photos.removed ?? []).length > 0 && <PhotoStrip title={`Remove ${photos.removed!.length} photo${photos.removed!.length > 1 ? "s" : ""}`} ids={photos.removed!} media={media} faded />}
             </div>
-            <div className="divide-y divide-line">
-              {entries.map(([key, c]) => {
-                const f = MLS_FIELD_FOR_COLUMN[key];
-                const to = showValue(key, c.to);
-                return (
-                  <div key={key} className="grid grid-cols-[auto_1fr] items-start gap-x-3 gap-y-1 px-4 py-3 sm:grid-cols-[auto_200px_1fr_1fr_auto]">
-                    <CheckOff taskId={t.id} item={key} initial={check.checked.includes(key)} action={check.action} disabled={check.disabled} />
-                    <div className="text-sm">
-                      <span className="font-medium">{f?.label ?? c.label}</span>
-                      {f && <span className="block text-[11px] text-muted">{f.key}</span>}
-                      {key.startsWith("incentive:") && <span className="block text-[11px] text-muted">In the remarks (no agent pay)</span>}
-                    </div>
-                    <div className="col-start-2 whitespace-pre-line text-[15px] text-muted line-through decoration-red-400 sm:col-start-auto">{showValue(key, c.from) || "—"}</div>
-                    <div className="col-start-2 whitespace-pre-line text-[15px] font-semibold sm:col-start-auto">{to || (key.startsWith("incentive:") ? "(take it out: it ended)" : "(clear it)")}</div>
-                    <div className="col-start-2 sm:col-start-auto"><CopyButton value={to} /></div>
-                  </div>
-                );
-              })}
-              {photos && (
-                <div className="grid grid-cols-[auto_1fr] items-start gap-x-3 px-4 py-3">
-                  <CheckOff taskId={t.id} item="photos" initial={check.checked.includes("photos")} action={check.action} disabled={check.disabled} />
-                  <div className="space-y-3">
-                    <span className="text-sm font-medium">Photos</span>
-                    {(photos.added ?? []).length > 0 && <PhotoStrip title={`Add ${photos.added!.length} photo${photos.added!.length > 1 ? "s" : ""}`} ids={photos.added!} media={media} />}
-                    {(photos.removed ?? []).length > 0 && <PhotoStrip title={`Remove ${photos.removed!.length} photo${photos.removed!.length > 1 ? "s" : ""}`} ids={photos.removed!} media={media} faded />}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        {t.details && <p className="text-sm text-muted">{t.details}</p>}
-        <details className="rounded-2xl border border-line">
-          <summary className="cursor-pointer px-4 py-3 font-semibold">Full MLS sheet for reference</summary>
-          <div className="p-4 pt-0"><MlsSheetView sheet={sheet} /></div>
-        </details>
-      </div>
-      <aside>
-        <div className="sticky top-28 space-y-4">
-          <Progress checked={check.checked.filter((k) => k === "photos" || entries.some(([e]) => e === k)).length} total={lines} />
-          {feedStatus && <p className="rounded-2xl bg-soft p-4 text-sm">The MLS feed shows this listing as <b>{feedStatus}</b>.</p>}
-        </div>
-      </aside>
+          )}
+        </>
+      )}
+      {t.details && <p className="text-sm text-muted">{t.details}</p>}
+      <details className="rounded-2xl border border-line">
+        <summary className="cursor-pointer px-4 py-3 font-semibold">See the whole listing</summary>
+        <div className="p-4 pt-0"><MlsWorkSheet sheet={sheet} editHref={`/homes/${sheet.home.id}/mls`} /></div>
+      </details>
     </div>
   );
 }
@@ -301,7 +241,7 @@ async function UpdateWork({ t, sheet, check, feedStatus }: { t: Task; sheet: Mls
 function PhotoStrip({ title, ids, media, faded }: { title: string; ids: string[]; media: Map<string, MediaRow>; faded?: boolean }) {
   return (
     <div>
-      <p className={cx("text-sm font-semibold", faded ? "text-red-800" : "text-emerald-800")}>{title}</p>
+      <p className={cx("text-sm font-bold", faded ? "text-red-800" : "text-emerald-800")}>{title}</p>
       <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
         {ids.map((id) => {
           const m = media.get(id);
@@ -316,51 +256,28 @@ function PhotoStrip({ title, ids, media, faded }: { title: string; ids: string[]
   );
 }
 
-// Status change (pending, closed, hold, withdrawn) with the details the MLS requires.
-// The order lines appear on a status change, matching the MLS form.
+// Status change (pending, closed, hold, withdrawn) with the details the MLS requires,
+// in the order the MLS form asks for them.
 const STATUS_ORDER = ["standard_status", "purchase_contract_date", "close_date", "close_price", "buyer_agent_full_name", "buyer_agent_mls_id",
   "buyer_agent_state_license", "buyer_office_name", "co_buyer_agent_full_name", "co_buyer_office_name"];
 
-function StatusWork({ t, sheet, check }: { t: Task; sheet: MlsSheet; check: Check }) {
+function StatusWork({ t, sheet }: { t: Task; sheet: MlsSheet }) {
   const rank = (k: string) => (STATUS_ORDER.indexOf(k) + 1 || 99);
-  const entries = Object.entries(t.changes ?? {}).sort(([a], [b]) => rank(a) - rank(b));
+  const entries = (Object.entries(t.changes ?? {}) as [string, SheetChange][]).sort(([a], [b]) => rank(a) - rank(b));
   const status = t.changes?.standard_status;
   return (
-    <div className="space-y-6">
-      <Steps
-        items={[
-          `Open MLS #${sheet.home.mls_number ?? "?"} and choose Change status.`,
-          `Set the status to ${String(status?.to ?? "the new status")} and fill in each detail below.`,
-          "Mark this task done.",
-        ]}
-      />
-      <div className="overflow-hidden rounded-2xl border border-line">
-        <div className="divide-y divide-line">
-          {entries.map(([key, c]) => {
-            const to = showValue(key, c.to);
-            return (
-              <div key={key} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3">
-                <CheckOff taskId={t.id} item={key} initial={check.checked.includes(key)} action={check.action} disabled={check.disabled} />
-                <div>
-                  <div className="text-sm font-medium">{c.label}</div>
-                  <div className="text-[15px]">
-                    {key === "standard_status" && <><span className="text-muted line-through">{String(c.from)}</span> → </>}
-                    {to ? <b>{to}</b> : <span className="font-semibold text-amber-900">Not given. Ask the builder before changing the MLS.</span>}
-                  </div>
-                </div>
-                <CopyButton value={to} />
-              </div>
-            );
-          })}
-        </div>
-      </div>
+    <div className="space-y-5">
+      <Lead>
+        Open <b>MLS #{sheet.home.mls_number ?? "?"}</b> and choose <b>Change status</b>. Set it to <b>{String(status?.to ?? "the new status")}</b> and fill in each detail below.
+      </Lead>
+      <ChangeRows entries={entries} showBefore={false} missingText="Not given. Ask the builder before changing the MLS." />
       {t.details && <p className="text-sm text-muted">{t.details}</p>}
     </div>
   );
 }
 
 // Open houses to add to (or take off) the MLS.
-async function OpenHouseWork({ t, check }: { t: Task; check: Check }) {
+async function OpenHouseWork({ t }: { t: Task }) {
   const supabase = await createClient();
   const removing = t.source_table === "open_houses_cancel" || t.source_table === "open_house_series_end";
   let q = supabase.from("open_houses").select("id, starts_at, ends_at, remarks, cancelled_at").order("starts_at");
@@ -370,30 +287,20 @@ async function OpenHouseWork({ t, check }: { t: Task; check: Check }) {
   const { data } = t.source_id ? await q : { data: [] };
   const list = data ?? [];
   return (
-    <div className="space-y-6">
-      <Steps
-        items={[
-          "Open the listing in the MLS and go to Open houses.",
-          removing ? "Delete each open house below." : "Add each open house below (times are Central).",
-          "Tick each one, then mark this task done.",
-        ]}
-      />
-      <div className="overflow-hidden rounded-2xl border border-line divide-y divide-line">
+    <div className="space-y-5">
+      <Lead>Open the listing in the MLS and go to <b>Open houses</b>. {removing ? "Delete each one below." : "Add each one below (times are Central)."}</Lead>
+      <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
         {list.map((o) => {
           const text = openHouseWhen(o.starts_at, o.ends_at);
+          const skip = !removing && !!o.cancelled_at;
           return (
-            <div key={o.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3">
-              <CheckOff taskId={t.id} item={o.id} initial={check.checked.includes(o.id)} action={check.action} disabled={check.disabled} />
-              <div>
-                <div className={cx("font-semibold", removing && "text-red-800")}>{removing ? "Remove: " : ""}{text}</div>
-                {o.remarks && <div className="text-sm text-muted">Remarks: {o.remarks}</div>}
-                {!removing && o.cancelled_at && <div className="text-sm text-red-800">Cancelled since this task was made. Skip it.</div>}
-              </div>
-              <div className="flex gap-1">
-                <CopyButton value={text} label="Copy time" />
-                {o.remarks && <CopyButton value={o.remarks} label="Copy remarks" />}
-              </div>
-            </div>
+            <CopyRow
+              key={o.id}
+              label={removing ? "Delete" : skip ? "Skip: cancelled since" : "Add"}
+              sub={o.remarks ? `Remarks: ${o.remarks}` : undefined}
+              value={<span className={cx(removing && "text-red-800", skip && "text-muted line-through")}>{text}</span>}
+              paste={skip ? "" : text}
+            />
           );
         })}
         {list.length === 0 && <p className="px-4 py-6 text-sm text-muted">{t.details ?? "No dates."}</p>}
