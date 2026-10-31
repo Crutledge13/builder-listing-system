@@ -20,6 +20,7 @@ import { Notice } from "@/components/notice";
 import { communityCompleteness, communitySections, mergeCommunityDetails, MLS_BOARD_SELECT, type MlsBoard } from "@/lib/mls-fields";
 import { HOME_LIST_COLUMNS, HOME_LIST_EXTRA, homeRow, type ListHome } from "@/lib/home-list";
 import { FilterTable } from "@/components/filter-table";
+import { loadNeedsYou } from "@/lib/needs-you";
 import { viewPref } from "@/lib/view-pref";
 import { ViewToggle } from "@/components/view-toggle";
 
@@ -67,10 +68,11 @@ async function CommunityDetail({
   const all = (homeRows ?? []) as unknown as ListHome[];
   const view = await viewPref("homes");
   const homes = status ? all.filter((h) => h.workflow_status === status) : all;
-  const [{ data: incentiveRows }, homeCovers, communityCovers] = await Promise.all([
+  const [{ data: incentiveRows }, homeCovers, communityCovers, needs] = await Promise.all([
     supabase.from("incentives").select(INCENTIVE_SELECT).eq("builder_id", community.builder_id).eq("status", "active").order("ends_on"),
     loadHomeCovers(supabase, all.map((h) => h.id)),
     loadCommunityCovers(supabase, [community.id]),
+    view === "list" ? loadNeedsYou(me.role, me.builder_id, all) : Promise.resolve(null),
   ]);
   const banner = communityCovers.get(community.id);
   const incentives = (incentiveRows ?? []) as Incentive[];
@@ -258,7 +260,7 @@ async function CommunityDetail({
           {view === "list" ? (
             homes.length > 0 && (
               <div className="rounded-2xl border border-line">
-                <FilterTable columns={HOME_LIST_COLUMNS(false, false)} rows={homes.map((h) => homeRow(h, false, false))} filters={["plan", "sale", "stage"]} empty="No homes here yet." pageSize={500} minWidth={1000} />
+                <FilterTable columns={HOME_LIST_COLUMNS(false, false, needs?.header)} rows={homes.map((h) => homeRow(h, false, false, needs?.reasons))} filters={["plan", "sale", "stage"]} empty="No homes here yet." pageSize={500} minWidth={1180} />
               </div>
             )
           ) : (

@@ -12,6 +12,7 @@ import { ViewToggle } from "@/components/view-toggle";
 import { viewPref } from "@/lib/view-pref";
 import { FilterTable } from "@/components/filter-table";
 import { HOME_LIST_COLUMNS, HOME_LIST_EXTRA, homeRow, type ListHome } from "@/lib/home-list";
+import { loadNeedsYou } from "@/lib/needs-you";
 
 export default function HomesPage(props: PageProps<"/homes">) {
   return (
@@ -66,7 +67,11 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
   let iq = supabase.from("incentives").select(INCENTIVE_SELECT).eq("status", "active");
   if (focus) iq = iq.eq("builder_id", focus);
   // The list view has no pictures, so it skips loading the cover photos.
-  const [{ data: incentiveRows }, covers] = await Promise.all([iq, view === "list" ? Promise.resolve(new Map()) : loadHomeCovers(supabase, homes.map((h) => h.id))]);
+  const [{ data: incentiveRows }, covers, needs] = await Promise.all([
+    iq,
+    view === "list" ? Promise.resolve(new Map()) : loadHomeCovers(supabase, homes.map((h) => h.id)),
+    view === "list" ? loadNeedsYou(me.role, me.builder_id, homes) : Promise.resolve(null),
+  ]);
   const incentives = (incentiveRows ?? []) as Incentive[];
 
   const counts = new Map<string, number>();
@@ -131,12 +136,12 @@ async function HomesList({ searchParams }: { searchParams: PageProps<"/homes">["
         homes.length > 0 && (
           <div className="mt-6 rounded-2xl border border-line">
             <FilterTable
-              columns={HOME_LIST_COLUMNS(staff)}
-              rows={homes.map((h) => homeRow(h, staff))}
+              columns={HOME_LIST_COLUMNS(staff, true, needs?.header)}
+              rows={homes.map((h) => homeRow(h, staff, true, needs?.reasons))}
               filters={["community", "plan", "status", "sale", "stage", ...(staff ? ["builder"] : [])]}
               empty="No homes here yet."
               pageSize={500}
-              minWidth={staff ? 1240 : 1120}
+              minWidth={staff ? 1420 : 1300}
             />
           </div>
         )

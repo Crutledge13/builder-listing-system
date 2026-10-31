@@ -15,6 +15,7 @@ import { SetupBanner } from "@/components/setup-banner";
 import { FilterTable } from "@/components/filter-table";
 import { viewPref } from "@/lib/view-pref";
 import { ViewToggle } from "@/components/view-toggle";
+import { loadNeedsYou } from "@/lib/needs-you";
 
 export default function CommunitiesPage(props: PageProps<"/communities">) {
   return (
@@ -33,7 +34,7 @@ async function CommunityList() {
 
   const [focus, view] = await Promise.all([builderFocus(me.role), viewPref("communities")]);
   let cq = supabase.from("communities").select("id, name, city, county, builder_id, builders(name, builder_branding(logo_updated_at))").order("name");
-  let hq = supabase.from("homes").select("id, community_id, stories, list_price, workflow_status, market_status, live_at").is("deleted_at", null);
+  let hq = supabase.from("homes").select("id, community_id, builder_id, stories, list_price, workflow_status, market_status, live_at").is("deleted_at", null);
   if (focus) {
     cq = cq.eq("builder_id", focus);
     hq = hq.eq("builder_id", focus);
@@ -53,9 +54,10 @@ async function CommunityList() {
 
   // Builders: what needs an answer from them (still available? completion date passed?).
   // A real photo for each card: the community's cover (or one of its homes').
-  const [alerts, communityCovers] = await Promise.all([
+  const [alerts, communityCovers, needs] = await Promise.all([
     staff ? Promise.resolve([]) : loadAlerts(),
     view === "list" ? Promise.resolve(new Map()) : loadCommunityCovers(supabase, (communities ?? []).map((c) => c.id)),
+    view === "list" ? loadNeedsYou(me.role, me.builder_id, homes ?? []) : Promise.resolve(null),
   ]);
   const title = me.role === "sales" ? "Your communities" : "Communities";
   const subtitle =
@@ -93,7 +95,7 @@ async function CommunityList() {
         <div className="mt-8 rounded-2xl border border-line">
           <FilterTable
             columns={[
-              { label: "Community" }, { label: "City" }, { label: "Homes", numeric: true }, { label: "Live on MLS", numeric: true }, { label: "In approval", numeric: true },
+              { label: "Community" }, { label: needs?.header ?? "Needs you", numeric: true }, { label: "City" }, { label: "Homes", numeric: true }, { label: "Live on MLS", numeric: true }, { label: "In approval", numeric: true },
               { label: "Under contract", numeric: true }, { label: "Sold", numeric: true }, { label: "Price range" }, { label: "Avg days on MLS", numeric: true }, { label: "Open houses", numeric: true },
               ...(staff ? [{ label: "Builder" }] : []),
             ]}
@@ -104,14 +106,33 @@ async function CommunityList() {
               const onMarket = live.filter((h) => h.live_at && !["sold", "withdrawn"].includes(h.market_status ?? ""));
               const avgDays = averageDays(onMarket.map((h) => h.live_at!));
               const builderName = (c.builders as unknown as { name: string } | null)?.name.replace(" (demo)", "") ?? "";
+              const needing = list.filter((h) => needs?.reasons.has(h.id)).length;
+              const inApproval = list.filter((h) => h.workflow_status === "in_review" || h.workflow_status === "approved_for_mls").length;
+              const underContract = list.filter((h) => h.market_status === "under_contract").length;
+              const priceRange = prices.length ? (prices.length > 1 && Math.min(...prices) !== Math.max(...prices) ? `${money(Math.min(...prices))} – ${money(Math.max(...prices))}` : money(prices[0])) : "";
               return {
+                // Phones: what needs the person first, then where the homes stand.
+                summary: {
+                  title: c.name,
+                  href: `/communities/${c.id}`,
+                  right: needing ? { text: `${needing} ${needs?.label}`, tone: "warn" as const } : { text: "All set", tone: "muted" as const },
+                  sub: [c.city, `${list.length} ${list.length === 1 ? "home" : "homes"}`, priceRange, staff && builderName].filter(Boolean).join(" · "),
+                  chips: [
+                    ...(live.length ? [{ text: `${live.length} live`, tone: "good" as const }] : []),
+                    ...(inApproval ? [{ text: `${inApproval} in approval`, tone: "accent" as const }] : []),
+                    ...(underContract ? [{ text: `${underContract} under contract`, tone: "muted" as const }] : []),
+                    ...(upcoming.get(c.id) ? [{ text: `${upcoming.get(c.id)} open ${upcoming.get(c.id) === 1 ? "house" : "houses"}`, tone: "accent" as const }] : []),
+                  ],
+                  flag: needing > 0,
+                },
                 cells: [
                   { text: c.name, href: `/communities/${c.id}` },
+                  { text: needing ? String(needing) : "—", sort: needing, tone: needing ? ("warn" as const) : undefined },
                   { text: c.city },
                   { text: String(list.length), sort: list.length },
                   { text: String(live.length), sort: live.length },
-                  { text: String(list.filter((h) => h.workflow_status === "in_review" || h.workflow_status === "approved_for_mls").length) },
-                  { text: String(list.filter((h) => h.market_status === "under_contract").length) },
+                  { text: String(inApproval), sort: inApproval },
+                  { text: String(underContract), sort: underContract },
                   { text: String(list.filter((h) => h.market_status === "sold").length) },
                   { text: prices.length ? `${money(Math.min(...prices))} – ${money(Math.max(...prices))}` : "—", sort: prices.length ? Math.min(...prices) : -1 },
                   { text: avgDays === null ? "—" : String(avgDays), sort: avgDays ?? -1, tone: avgDays !== null && avgDays > 90 ? "warn" : undefined },
@@ -125,7 +146,7 @@ async function CommunityList() {
             noun="communities"
             empty="No communities yet."
             pageSize={500}
-            minWidth={staff ? 1180 : 1060}
+            minWidth={staff ? 1300 : 1180}
           />
         </div>
       )}
