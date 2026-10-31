@@ -44,7 +44,8 @@ export function homeRow(h: ListHome, staff: boolean, community = true, needs?: M
       title: h.unparsed_address,
       href: `/homes/${h.id}`,
       right: { text: h.list_price ? money(h.list_price) : "No price", tone: h.list_price ? undefined : "muted" },
-      sub: [community && communityName, h.plan_name, bedBath, h.living_area ? `${num(h.living_area)} sq ft` : "", staff && builderName].filter(Boolean).join(" · "),
+      owner: staff ? builderName : undefined,
+      sub: [community && communityName, h.plan_name, bedBath, h.living_area ? `${num(h.living_area)} sq ft` : ""].filter(Boolean).join(" · "),
       chips: [
         ...(why ? [{ text: why, tone: "warn" as const }] : []),
         { text: h.workflow_status === "live_on_mls" && days !== null ? `${listing}, ${days} days` : listing, tone: h.workflow_status === "live_on_mls" ? "good" as const : h.workflow_status === "draft" ? "muted" as const : "accent" as const },

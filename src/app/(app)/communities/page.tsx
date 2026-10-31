@@ -109,14 +109,17 @@ async function CommunityList() {
               const needing = list.filter((h) => needs?.reasons.has(h.id)).length;
               const inApproval = list.filter((h) => h.workflow_status === "in_review" || h.workflow_status === "approved_for_mls").length;
               const underContract = list.filter((h) => h.market_status === "under_contract").length;
-              const priceRange = prices.length ? (prices.length > 1 && Math.min(...prices) !== Math.max(...prices) ? `${money(Math.min(...prices))} – ${money(Math.max(...prices))}` : money(prices[0])) : "";
+              const fromPrice = prices.length ? `From ${money(Math.min(...prices))}` : "";
               return {
                 // Phones: what needs the person first, then where the homes stand.
                 summary: {
                   title: c.name,
                   href: `/communities/${c.id}`,
                   right: needing ? { text: `${needing} ${needs?.label}`, tone: "warn" as const } : { text: "All set", tone: "muted" as const },
-                  sub: [c.city, `${list.length} ${list.length === 1 ? "home" : "homes"}`, priceRange, staff && builderName].filter(Boolean).join(" · "),
+                  // Our staff see the builder's name on its own line instead of a price;
+                  // builders see the starting price (owners, 30 Oct 2026).
+                  owner: staff ? builderName : undefined,
+                  sub: [c.city, `${list.length} ${list.length === 1 ? "home" : "homes"}`, !staff && fromPrice].filter(Boolean).join(" · "),
                   chips: [
                     ...(live.length ? [{ text: `${live.length} live`, tone: "good" as const }] : []),
                     ...(inApproval ? [{ text: `${inApproval} in approval`, tone: "accent" as const }] : []),

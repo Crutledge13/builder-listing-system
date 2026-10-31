@@ -20,6 +20,7 @@ export type FSummary = {
   title: string;
   href?: string;
   right?: { text: string; tone?: "warn" | "muted" };
+  owner?: string; // a line of its own in dark type (our staff: the builder's name)
   sub?: string;
   chips?: FChip[];
   flag?: boolean; // needs the person: shown first until they pick a sort
@@ -170,6 +171,7 @@ export function FilterTable({
                   </span>
                 )}
               </div>
+              {s.owner && <p className="mt-0.5 truncate text-[13px] font-semibold">{s.owner}</p>}
               {s.sub && <p className="mt-0.5 truncate text-[13px] text-muted">{s.sub}</p>}
               {!!s.chips?.length && (
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
