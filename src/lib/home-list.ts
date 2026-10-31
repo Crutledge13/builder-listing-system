@@ -37,23 +37,23 @@ export function homeRow(h: ListHome, staff: boolean, community = true, needs?: M
   const bedBath = h.bedrooms_total ? `${h.bedrooms_total}/${baths(h.bathrooms_full, h.bathrooms_half) || "—"}` : "";
   const listing = STATUS_LABELS[h.workflow_status];
   const sold = h.market_status === "sold" || h.market_status === "under_contract";
-  // One status for the phone: the sale when there is one, else where the listing is.
+  // The MLS status for the phone: the sale when there is one, else where the listing is.
   const status: FChip = sold
     ? { text: sale, tone: "good" }
     : h.workflow_status === "live_on_mls"
       ? { text: days !== null ? `Live · ${days} days` : "Live", tone: "good" }
       : { text: listing, tone: h.workflow_status === "draft" ? "muted" : "accent" };
   return {
-    // The phone summary, kept to one chip (owners, 30 Oct 2026: "still a
-    // little crowded"): what needs the person if anything does, else the
-    // home's status. Stage and the rest are under All details.
+    // The phone summary (owners, 30 Oct 2026): the home's MLS status always
+    // comes first ("the point of this software"), then what needs the person
+    // if anything does. Stage and the rest are under All details.
     summary: {
       title: h.unparsed_address,
       href: `/homes/${h.id}`,
       right: { text: h.list_price ? money(h.list_price) : "No price", tone: h.list_price ? undefined : "muted" },
       owner: staff ? builderName : undefined,
       sub: [community && communityName, h.plan_name, bedBath, h.living_area ? `${num(h.living_area)} sf` : ""].filter(Boolean).join(" · "),
-      chips: [why ? { text: why, tone: "warn" } : status],
+      chips: [status, ...(why ? [{ text: why, tone: "warn" as const }] : [])],
       flag: !!why,
     },
     cells: [
