@@ -4,14 +4,13 @@ import { workOrder } from "@/lib/broker";
 import type { MlsSheet } from "@/lib/mls-sheet";
 import type { MediaRow } from "@/lib/demo-media";
 import { TASK_KIND_LABELS } from "@/lib/permissions";
-import { cx, dateTime, money } from "@/lib/format";
+import { cx, dateTime } from "@/lib/format";
 import { openHouseWhen, whenCentral } from "@/lib/time";
-import { CONDITION, formatMls, MLS_FIELD_FOR_COLUMN } from "@/lib/mls-fields";
 import { buildMlsPackage } from "@/lib/mls-package";
-import { MlsScore } from "@/components/mls-sheet";
-import { BrokerMlsSheet } from "@/components/broker-mls-sheet";
-import { OpenBesideMatrix } from "@/components/mls-sheet-client";
-import { CheckOff, CopyButton } from "@/components/mls-client";
+import { MlsWorkSheet } from "@/components/mls-work-sheet";
+import { CopyRow, OpenBesideMatrix } from "@/components/mls-sheet-client";
+import { CopyButton } from "@/components/mls-client";
+import { ChangeRows, FinishCard, Lead, type Change } from "@/components/mls-change-work";
 import { MediaPicture } from "@/components/media-tile";
 import { SendBackForm } from "@/components/broker-send-back";
 
@@ -67,7 +66,10 @@ export function BrokerWorkOrder({
         <span className="rounded-full bg-soft px-2.5 py-1 font-semibold">{waiting.length ? "Waiting on the builder" : STATUS_TEXT[t.status] ?? t.status}</span>
         <span className="text-muted">{builderName}</span>
       </div>
-      <h1 className="mt-2 break-words text-[26px] font-bold leading-tight tracking-tight">{sheet?.home.unparsed_address ?? t.title}</h1>
+      <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+        <h1 className="break-words text-[26px] font-bold leading-tight tracking-tight">{sheet?.home.unparsed_address ?? t.title}</h1>
+        {t.kind === "mls_entry" && sheet && !closed && <span className="hidden sm:block"><OpenBesideMatrix /></span>}
+      </div>
       <p className="mt-1 text-sm text-muted">
         <b className="font-semibold text-foreground">{workOrder(t.work_order_no)}</b> · {t.title}. Sent {dateTime(t.created_at)}
         {t.due_at && t.status !== "done" ? `. Due ${whenCentral(t.due_at)}` : ""}
@@ -95,21 +97,13 @@ export function BrokerWorkOrder({
       {waiting.length > 0 && <RequestList title="Sent back to the builder. Waiting for their answers" items={waiting} tone="amber" media={work} fileBase={fileBase} />}
       {waiting.length === 0 && answered.length > 0 && <RequestList title="The builder’s answers" items={answered.slice(-20)} tone="plain" media={work} fileBase={fileBase} />}
 
-      {actions.setStatus && t.status === "todo" && (
-        <form action={actions.setStatus} className="mt-4">
-          {hidden}
-          <input type="hidden" name="status" value="in_progress" />
-          <button className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-foreground">Mark started</button>
-        </form>
-      )}
-
       <div className="mt-8">
         {t.kind === "mls_entry" && sheet && <EntryWork t={t} sheet={sheet} check={check} closed={closed} waiting={waiting.length > 0} fileBase={fileBase} actions={actions} hidden={hidden} />}
-        {t.kind === "mls_update" && sheet && <UpdateWork t={t} sheet={sheet} check={check} fileBase={fileBase} media={work.changeMedia} />}
-        {t.kind === "listing_status" && sheet && <StatusWork t={t} sheet={sheet} check={check} />}
-        {t.kind === "open_house_mls" && <OpenHouseWork t={t} check={check} list={work.openHouses} />}
+        {t.kind === "mls_update" && sheet && <UpdateWork t={t} sheet={sheet} fileBase={fileBase} media={work.changeMedia} />}
+        {t.kind === "listing_status" && sheet && <StatusWork t={t} sheet={sheet} />}
+        {t.kind === "open_house_mls" && <OpenHouseWork t={t} list={work.openHouses} />}
         {!sheet && t.kind !== "open_house_mls" && <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">This home is no longer available.</p>}
-        {t.kind !== "mls_entry" && !closed && <FinishBox actions={actions} hidden={hidden} waiting={waiting.length > 0} />}
+        {t.kind !== "mls_entry" && !closed && <FinishBox t={t} actions={actions} hidden={hidden} waiting={waiting.length > 0} />}
       </div>
 
       {!closed && sheet && (
@@ -180,130 +174,85 @@ function RequestList({ title, items, tone, media, fileBase }: { title: string; i
   );
 }
 
-function Steps({ items }: { items: string[] }) {
-  return (
-    <ol className="space-y-1.5 rounded-2xl bg-accent-soft/50 p-4 text-sm">
-      {items.map((s, i) => (
-        <li key={i} className="flex gap-2"><span className="font-bold text-accent">{i + 1}.</span> {s}</li>
-      ))}
-    </ol>
-  );
-}
-
-function FinishBox({ actions, hidden, waiting }: { actions: WorkActions; hidden: React.ReactNode; waiting: boolean }) {
+function FinishBox({ t, actions, hidden, waiting }: { t: BrokerTask; actions: WorkActions; hidden: React.ReactNode; waiting: boolean }) {
   if (waiting) return null;
+  const n = t.kind === "mls_update" ? Object.keys(t.changes ?? {}).length : 0;
   return (
-    <form action={actions.submit} className="mt-6 rounded-2xl border border-line p-4">
-      {hidden}
-      <h3 className="font-semibold">Made every change in the MLS?</h3>
-      <p className="mt-1 text-sm text-muted">Send it to the builder. They check it and accept it, and that closes the work order.</p>
-      <input name="mls_url" type="url" maxLength={500} placeholder="Link to the listing (optional)" className="field-input mt-3" />
-      <button className="mt-3 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110 sm:w-auto">Send to the builder</button>
-    </form>
+    <FinishCard className="mt-6">
+      <form action={actions.submit} className="space-y-3">
+        {hidden}
+        <h3 className="text-lg font-extrabold">{n > 1 ? `Made all ${n} changes in the MLS?` : "Done in the MLS?"}</h3>
+        <p className="text-sm text-muted">Send it to the builder. They check it and accept it, and that closes the work order.</p>
+        <input name="mls_url" type="url" maxLength={500} placeholder="Link to the listing (optional)" className="field-input" />
+        <button className="h-12 w-full rounded-xl bg-accent px-6 text-base font-bold text-white hover:brightness-110 sm:w-auto">All done · Send to the builder</button>
+      </form>
+    </FinishCard>
   );
 }
 
-// A brand-new listing: the full MLS input, then the MLS number and link.
+// A brand-new listing: the whole MLS entry, tab by tab, finishing with the
+// MLS number and the link on the last tab.
 function EntryWork({ t, sheet, check, closed, waiting, fileBase, actions, hidden }: {
   t: BrokerTask; sheet: MlsSheet; check: Check; closed: boolean; waiting: boolean; fileBase: string; actions: WorkActions; hidden: React.ReactNode;
 }) {
-  return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
-      <div className="min-w-0 space-y-6">
-        <Steps
-          items={[
-            `Start a new listing in ${sheet.board?.short_name ?? "the MLS"} (Residential, For Sale).`,
-            "Go tab by tab, same as the MLS. Copy each value (it ticks itself) or tick the boxes shown.",
-            "On the last tab, download the photo pack and upload the photos in that order.",
-            "Submit it in the MLS, then send the MLS number and the listing link to the builder.",
-          ]}
-        />
-        <MlsScore sheet={sheet} homeId={sheet.home.id} edit={false} />
-        <div className="hidden justify-end sm:flex"><OpenBesideMatrix /></div>
-        <BrokerMlsSheet sheet={sheet} check={check} fileBase={fileBase} broker />
-      </div>
-      <aside>
-        <div className="space-y-4 lg:sticky lg:top-24">
-          {!closed && !waiting && sheet.home.workflow_status === "approved_for_mls" ? (
-            <form action={actions.submit} className="rounded-2xl border border-line p-4">
-              {hidden}
-              <h3 className="font-semibold">Entered it in the MLS?</h3>
-              <p className="mt-1 text-sm text-muted">Send the builder the MLS number and the link to the live listing. They check it and accept it.</p>
-              <input name="mls_number" required maxLength={40} placeholder="MLS number" className="field-input mt-3" />
-              <input name="mls_url" type="url" required maxLength={500} placeholder="Link to the live listing (https://…)" className="field-input mt-2" />
-              <button className="mt-3 w-full rounded-xl bg-accent px-4 py-2.5 font-semibold text-white hover:brightness-110">Send to the builder</button>
-            </form>
-          ) : (
-            <p className="rounded-2xl bg-soft p-4 text-sm">
-              {t.status === "submitted" ? "Sent to the builder to check and accept."
-                : t.status === "done" ? `Accepted. Live on the MLS${sheet.home.mls_number ? ` as #${sheet.home.mls_number}` : ""}.`
-                : waiting ? "Waiting on the builder’s answers to what you sent back."
-                : "The builder took this back for changes. You’ll get an email when it’s ready again."}
-            </p>
-          )}
+  const canSend = !closed && !waiting && sheet.home.workflow_status === "approved_for_mls";
+  const finish = canSend ? (
+    <FinishCard>
+      <form action={actions.submit} className="space-y-3">
+        {hidden}
+        <h3 className="text-lg font-extrabold">Submitted it in the MLS? Send it to the builder</h3>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <label className="flex-1 text-sm font-semibold">MLS number
+            <input name="mls_number" required maxLength={40} placeholder="e.g. 20841177" className="field-input mt-1" />
+          </label>
+          <label className="flex-[2] text-sm font-semibold">Link to the live listing
+            <input name="mls_url" type="url" required maxLength={500} placeholder="https://…" className="field-input mt-1" />
+          </label>
         </div>
-      </aside>
-    </div>
+        <button className="h-12 w-full rounded-xl bg-accent px-6 text-base font-bold text-white hover:brightness-110 sm:w-auto">Send to the builder</button>
+        <p className="text-sm text-muted">The builder checks it on the MLS and accepts it. That closes this work order.</p>
+      </form>
+    </FinishCard>
+  ) : (
+    <p className="rounded-2xl bg-soft p-4 text-sm">
+      {t.status === "submitted" ? "Sent to the builder to check and accept."
+        : t.status === "done" ? `Accepted. Live on the MLS${sheet.home.mls_number ? ` as #${sheet.home.mls_number}` : ""}.`
+        : waiting ? "Waiting on the builder’s answers to what you sent back."
+        : "The builder took this back for changes. You’ll get an email when it’s ready again."}
+    </p>
   );
-}
-
-function showValue(key: string, v: unknown) {
-  if (v === null || v === undefined || v === "") return "";
-  if (key === "build_stage") return CONDITION[String(v)] ?? String(v);
-  if (key === "close_price") return money(v as number);
-  if (key === "close_date" || key === "purchase_contract_date") return formatMls({ type: "date" }, v);
-  const f = MLS_FIELD_FOR_COLUMN[key];
-  return f ? formatMls(f, v) : String(v);
+  return <MlsWorkSheet sheet={sheet} check={check} fileBase={fileBase} broker finish={finish} />;
 }
 
 // A live listing changed: exactly what to change, old and new.
-function UpdateWork({ t, sheet, check, fileBase, media }: { t: BrokerTask; sheet: MlsSheet; check: Check; fileBase: string; media: Map<string, MediaRow> }) {
-  const entries = Object.entries(t.changes ?? {}).filter(([k]) => k !== "photos");
+function UpdateWork({ t, sheet, fileBase, media }: { t: BrokerTask; sheet: MlsSheet; fileBase: string; media: Map<string, MediaRow> }) {
+  const entries = Object.entries(t.changes ?? {}).filter(([k]) => k !== "photos") as [string, Change][];
   const photos = t.changes?.photos;
-  const lines = entries.length + (photos ? 1 : 0);
+  const n = entries.length + (photos ? 1 : 0);
   return (
-    <div className="space-y-6">
-      <Steps items={[`Open MLS #${sheet.home.mls_number ?? "?"} and choose Change listing.`, "Make each change below. Tick it once it’s saved in the MLS.", "Send it to the builder to accept."]} />
-      {lines === 0 ? (
+    <div className="space-y-5">
+      <Lead>
+        Open <b>MLS #{sheet.home.mls_number ?? "?"}</b> in the MLS and choose <b>Change listing</b>.{" "}
+        {n ? <>Make {n === 1 ? "this change" : `these ${n} changes`}, then send it.</> : null}
+      </Lead>
+      {n === 0 ? (
         <p className="rounded-2xl border border-dashed border-line px-6 py-10 text-center text-muted">Nothing left to change: the builder put everything back the way the MLS has it. You can send it to the builder.</p>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line">
-          <div className="divide-y divide-line">
-            {entries.map(([key, c]) => {
-              const f = MLS_FIELD_FOR_COLUMN[key];
-              const to = showValue(key, c.to);
-              return (
-                <div key={key} className="flex items-start gap-3 px-4 py-3">
-                  <CheckOff taskId={check.taskId} item={key} initial={check.checked.includes(key)} action={check.action} disabled={check.disabled} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">{f?.label ?? c.label}</div>
-                    {key.startsWith("incentive:") && <div className="text-[11px] text-muted">In the remarks (no agent pay)</div>}
-                    <div className="mt-1 grid gap-1 sm:grid-cols-2">
-                      <div className="whitespace-pre-line break-words text-[15px] text-muted"><span className="text-xs">Now: </span><span className="line-through decoration-red-400">{showValue(key, c.from) || "—"}</span></div>
-                      <div className="whitespace-pre-line break-words text-[15px] font-semibold"><span className="text-xs font-normal text-muted">Change to: </span>{to || (key.startsWith("incentive:") ? "(take it out: it ended)" : "(clear it)")}</div>
-                    </div>
-                  </div>
-                  <CopyButton value={to} />
-                </div>
-              );
-            })}
-            {photos && (
-              <div className="flex items-start gap-3 px-4 py-3">
-                <CheckOff taskId={check.taskId} item="photos" initial={check.checked.includes("photos")} action={check.action} disabled={check.disabled} />
-                <div className="min-w-0 flex-1 space-y-3">
-                  <span className="text-sm font-semibold">Photos</span>
-                  {(photos.added ?? []).length > 0 && <PhotoStrip title={`Add ${photos.added!.length} photo${photos.added!.length > 1 ? "s" : ""}`} ids={photos.added!} media={media} fileBase={fileBase} />}
-                  {(photos.removed ?? []).length > 0 && <PhotoStrip title={`Remove ${photos.removed!.length} photo${photos.removed!.length > 1 ? "s" : ""}`} ids={photos.removed!} media={media} fileBase={fileBase} faded />}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <>
+          {entries.length > 0 && <ChangeRows entries={entries} />}
+          {photos && (
+            <div className="space-y-4 rounded-2xl border border-line p-4">
+              <p className="text-sm text-muted">Photos</p>
+              {(photos.added ?? []).length > 0 && <PhotoStrip title={`Add ${photos.added!.length} photo${photos.added!.length > 1 ? "s" : ""}`} ids={photos.added!} media={media} fileBase={fileBase} />}
+              {(photos.removed ?? []).length > 0 && <PhotoStrip title={`Remove ${photos.removed!.length} photo${photos.removed!.length > 1 ? "s" : ""}`} ids={photos.removed!} media={media} fileBase={fileBase} faded />}
+            </div>
+          )}
+        </>
       )}
       {t.details && <p className="text-sm text-muted">{t.details}</p>}
       <details className="rounded-2xl border border-line">
-        <summary className="cursor-pointer px-4 py-3 font-semibold">Full MLS sheet for reference</summary>
-        <div className="p-4 pt-0"><BrokerMlsSheet sheet={sheet} fileBase={fileBase} broker /></div>
+        <summary className="cursor-pointer px-4 py-3 font-semibold">See the whole listing</summary>
+        <div className="p-4 pt-0"><MlsWorkSheet sheet={sheet} fileBase={fileBase} broker /></div>
       </details>
     </div>
   );
@@ -312,7 +261,7 @@ function UpdateWork({ t, sheet, check, fileBase, media }: { t: BrokerTask; sheet
 function PhotoStrip({ title, ids, media, fileBase, faded }: { title: string; ids: string[]; media: Map<string, MediaRow>; fileBase: string; faded?: boolean }) {
   return (
     <div>
-      <p className={cx("text-sm font-semibold", faded ? "text-red-800" : "text-emerald-800")}>{title}</p>
+      <p className={cx("text-sm font-bold", faded ? "text-red-800" : "text-emerald-800")}>{title}{!faded && <span className="font-normal text-muted"> · click one to download it</span>}</p>
       <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
         {ids.map((id) => {
           const m = media.get(id);
@@ -330,57 +279,38 @@ function PhotoStrip({ title, ids, media, fileBase, faded }: { title: string; ids
 const STATUS_ORDER = ["standard_status", "purchase_contract_date", "close_date", "close_price", "buyer_agent_full_name", "buyer_agent_mls_id",
   "buyer_agent_state_license", "buyer_office_name", "co_buyer_agent_full_name", "co_buyer_office_name"];
 
-function StatusWork({ t, sheet, check }: { t: BrokerTask; sheet: MlsSheet; check: Check }) {
+function StatusWork({ t, sheet }: { t: BrokerTask; sheet: MlsSheet }) {
   const rank = (k: string) => (STATUS_ORDER.indexOf(k) + 1 || 99);
-  const entries = Object.entries(t.changes ?? {}).sort(([a], [b]) => rank(a) - rank(b));
+  const entries = (Object.entries(t.changes ?? {}) as [string, Change][]).sort(([a], [b]) => rank(a) - rank(b));
   const status = t.changes?.standard_status;
   return (
-    <div className="space-y-6">
-      <Steps items={[`Open MLS #${sheet.home.mls_number ?? "?"} and choose Change status.`, `Set the status to ${String(status?.to ?? "the new status")} and fill in each detail below.`, "Send it to the builder to accept."]} />
-      <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
-        {entries.map(([key, c]) => {
-          const to = showValue(key, c.to);
-          return (
-            <div key={key} className="flex items-start gap-3 px-4 py-3">
-              <CheckOff taskId={check.taskId} item={key} initial={check.checked.includes(key)} action={check.action} disabled={check.disabled} />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium">{c.label}</div>
-                <div className="break-words text-[15px]">
-                  {key === "standard_status" && <><span className="text-muted line-through">{String(c.from)}</span> → </>}
-                  {to ? <b>{to}</b> : <span className="font-semibold text-amber-900">Not given. Send it back or ask the builder in a note.</span>}
-                </div>
-              </div>
-              <CopyButton value={to} />
-            </div>
-          );
-        })}
-      </div>
+    <div className="space-y-5">
+      <Lead>
+        Open <b>MLS #{sheet.home.mls_number ?? "?"}</b> and choose <b>Change status</b>. Set it to <b>{String(status?.to ?? "the new status")}</b> and fill in each detail below.
+      </Lead>
+      <ChangeRows entries={entries} showBefore={false} missingText="Not given. Send it back or ask the builder in a note." />
       {t.details && <p className="text-sm text-muted">{t.details}</p>}
     </div>
   );
 }
 
-function OpenHouseWork({ t, check, list }: { t: BrokerTask; check: Check; list: BrokerOpenHouse[] }) {
+function OpenHouseWork({ t, list }: { t: BrokerTask; list: BrokerOpenHouse[] }) {
   const removing = t.source_table === "open_houses_cancel" || t.source_table === "open_house_series_end";
   return (
-    <div className="space-y-6">
-      <Steps items={["Open the listing in the MLS and go to Open houses.", removing ? "Delete each open house below." : "Add each open house below (times are Central).", "Tick each one, then send it to the builder."]} />
+    <div className="space-y-5">
+      <Lead>Open the listing in the MLS and go to <b>Open houses</b>. {removing ? "Delete each one below." : "Add each one below (times are Central)."}</Lead>
       <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line">
         {list.map((o) => {
           const text = openHouseWhen(o.starts_at, o.ends_at);
+          const skip = !removing && !!o.cancelled_at;
           return (
-            <div key={o.id} className="flex flex-wrap items-start gap-3 px-4 py-3">
-              <CheckOff taskId={check.taskId} item={o.id} initial={check.checked.includes(o.id)} action={check.action} disabled={check.disabled} />
-              <div className="min-w-0 flex-1">
-                <div className={cx("font-semibold", removing && "text-red-800")}>{removing ? "Remove: " : ""}{text}</div>
-                {o.remarks && <div className="text-sm text-muted">Remarks: {o.remarks}</div>}
-                {!removing && o.cancelled_at && <div className="text-sm text-red-800">Cancelled since this was sent. Skip it.</div>}
-              </div>
-              <div className="flex gap-1">
-                <CopyButton value={text} label="Copy time" />
-                {o.remarks && <CopyButton value={o.remarks} label="Copy remarks" />}
-              </div>
-            </div>
+            <CopyRow
+              key={o.id}
+              label={removing ? "Delete" : skip ? "Skip: cancelled since" : "Add"}
+              sub={o.remarks ? `Remarks: ${o.remarks}` : undefined}
+              value={<span className={cx(removing && "text-red-800", skip && "text-muted line-through")}>{text}</span>}
+              paste={skip ? "" : text}
+            />
           );
         })}
         {list.length === 0 && <p className="px-4 py-6 text-sm text-muted">{t.details ?? "No dates."}</p>}
