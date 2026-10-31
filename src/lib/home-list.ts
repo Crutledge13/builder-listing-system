@@ -1,4 +1,4 @@
-import type { FColumn, FRow } from "@/components/filter-table";
+import type { FChip, FColumn, FRow } from "@/components/filter-table";
 import type { HomeCardData } from "@/components/home-card";
 import { baths, money, num } from "@/lib/format";
 import { MARKET_LABELS, STAGE_LABELS, STATUS_LABELS, type MarketStatus } from "@/lib/permissions";
@@ -34,24 +34,26 @@ export function homeRow(h: ListHome, staff: boolean, community = true, needs?: M
   const communityName = h.communities?.name ?? "";
   const builderName = (h.builders?.name ?? "").replace(" (demo)", "");
   const why = needs?.get(h.id);
-  const bedBath = h.bedrooms_total ? `${h.bedrooms_total} bd / ${baths(h.bathrooms_full, h.bathrooms_half) || "—"} ba` : "";
+  const bedBath = h.bedrooms_total ? `${h.bedrooms_total}/${baths(h.bathrooms_full, h.bathrooms_half) || "—"}` : "";
   const listing = STATUS_LABELS[h.workflow_status];
   const sold = h.market_status === "sold" || h.market_status === "under_contract";
+  // One status for the phone: the sale when there is one, else where the listing is.
+  const status: FChip = sold
+    ? { text: sale, tone: "good" }
+    : h.workflow_status === "live_on_mls"
+      ? { text: days !== null ? `Live · ${days} days` : "Live", tone: "good" }
+      : { text: listing, tone: h.workflow_status === "draft" ? "muted" : "accent" };
   return {
-    // The phone summary: address and price, one grey line, then what needs
-    // the person, where the listing is, and the sale.
+    // The phone summary, kept to one chip (owners, 30 Oct 2026: "still a
+    // little crowded"): what needs the person if anything does, else the
+    // home's status. Stage and the rest are under All details.
     summary: {
       title: h.unparsed_address,
       href: `/homes/${h.id}`,
       right: { text: h.list_price ? money(h.list_price) : "No price", tone: h.list_price ? undefined : "muted" },
       owner: staff ? builderName : undefined,
-      sub: [community && communityName, h.plan_name, bedBath, h.living_area ? `${num(h.living_area)} sq ft` : ""].filter(Boolean).join(" · "),
-      chips: [
-        ...(why ? [{ text: why, tone: "warn" as const }] : []),
-        { text: h.workflow_status === "live_on_mls" && days !== null ? `${listing}, ${days} days` : listing, tone: h.workflow_status === "live_on_mls" ? "good" as const : h.workflow_status === "draft" ? "muted" as const : "accent" as const },
-        ...(sold ? [{ text: sale, tone: "good" as const }] : []),
-        ...(h.workflow_status !== "live_on_mls" ? [{ text: stage, tone: "muted" as const }] : []),
-      ],
+      sub: [community && communityName, h.plan_name, bedBath, h.living_area ? `${num(h.living_area)} sf` : ""].filter(Boolean).join(" · "),
+      chips: [why ? { text: why, tone: "warn" } : status],
       flag: !!why,
     },
     cells: [

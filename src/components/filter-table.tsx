@@ -174,7 +174,7 @@ export function FilterTable({
               {s.owner && <p className="mt-0.5 truncate text-[13px] font-semibold">{s.owner}</p>}
               {s.sub && <p className="mt-0.5 truncate text-[13px] text-muted">{s.sub}</p>}
               {!!s.chips?.length && (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <div className="mt-1 flex flex-wrap gap-1.5">
                   {s.chips.map((c) => (
                     <span key={c.text} className={cx("rounded-full px-2 py-0.5 text-xs font-semibold", CHIP[c.tone ?? "muted"])}>{c.text}</span>
                   ))}
@@ -189,9 +189,9 @@ export function FilterTable({
         return (
           <li key={i} className={cx(!all && i >= pageSize && "hidden")}>
             {s.href ? (
-              <Link href={s.href} className="flex items-center gap-3 px-4 py-3 active:bg-soft">{body}</Link>
+              <Link href={s.href} className="flex items-center gap-3 px-4 py-2.5 active:bg-soft">{body}</Link>
             ) : (
-              <div className="flex items-center gap-3 px-4 py-3">{body}</div>
+              <div className="flex items-center gap-3 px-4 py-2.5">{body}</div>
             )}
           </li>
         );
