@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfile, sendPhotographersToJobs } from "@/lib/auth";
 import { hasFeature } from "@/lib/features";
 import { canAddHomes, isStaff, STATUS_LABELS, type WorkflowStatus } from "@/lib/permissions";
-import { money } from "@/lib/format";
+import { cx, money } from "@/lib/format";
 import { HomeCard, HomeGrid, HOME_CARD_SELECT } from "@/components/home-card";
 import { cardIncentive, forHome, INCENTIVE_SELECT, type Incentive } from "@/lib/incentives";
 import { IncentiveList } from "@/components/incentive-list";
@@ -146,9 +146,11 @@ async function CommunityDetail({
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      {/* Phones (owners, 30 Oct 2026): "Add a home here" across the full width,
+          the rest as equal tiles two to a row. Computers keep the row of pills. */}
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         {canAddHomes(me.role) && (
-          <Link href={`/homes/new?community=${community.id}`} className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110">
+          <Link href={`/homes/new?community=${community.id}`} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white hover:brightness-110 sm:rounded-full sm:py-2.5">
             <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
             Add a home here
           </Link>
@@ -156,34 +158,37 @@ async function CommunityDetail({
         {setup && (
           <Link
             href={`/communities/${community.id}/setup`}
-            className={setup.filled < setup.required
-              ? "rounded-full border border-accent bg-accent-soft px-4 py-2.5 text-sm font-semibold text-accent hover:brightness-95"
-              : "rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft"}
+            className={cx(TILE, setup.filled < setup.required ? "border-accent bg-accent-soft text-accent hover:brightness-95 sm:border-accent" : "hover:bg-soft")}
           >
-            Community setup {setup.filled < setup.required ? `(${setup.filled} of ${setup.required})` : "✓"}
+            <TileIcon d="M3 4h10M3 8h10M3 12h6" />
+            <span className="sm:hidden">Setup</span><span className="hidden sm:inline">Community setup</span>
+            {setup.filled < setup.required ? ` (${setup.filled} of ${setup.required})` : " ✓"}
           </Link>
         )}
         {canBulkChangePrices(me.role) && all.length > 0 && (
-          <Link href={`/communities/${community.id}/prices`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
+          <Link href={`/communities/${community.id}/prices`} className={cx(TILE, "hover:bg-soft")}>
+            <TileIcon d="M8 2v12M11 4.5H6.75a2 2 0 0 0 0 4h2.5a2 2 0 0 1 0 4H5" />
             Change prices
           </Link>
         )}
-        <Link href={`/media?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
-          Community photos and videos
+        <Link href={`/media?community=${community.id}`} className={cx(TILE, "hover:bg-soft")}>
+          <TileIcon d="M2 4h12v9H2zM2 11l3.5-3.5 3 3 2-2L14 12" />
+          <span className="sm:hidden">Photos and videos</span><span className="hidden sm:inline">Community photos and videos</span>
         </Link>
         {canRequestComps(me.role) && compsOn && (
-          <Link href={`/comps/new?community=${community.id}`} className="rounded-full border border-foreground px-4 py-2.5 text-sm font-semibold hover:bg-soft">
+          <Link href={`/comps/new?community=${community.id}`} className={cx(TILE, "hover:bg-soft")}>
+            <TileIcon d="M3 13V8M8 13V3M13 13V6" />
             Request comps
           </Link>
         )}
         {salesTeam.length > 0 && me.role !== "sales" && (
-          <span className="text-sm text-muted">Sales team: {salesTeam.join(", ")}</span>
+          <span className="col-span-2 mt-1 text-sm text-muted sm:mt-0">Sales team: {salesTeam.join(", ")}</span>
         )}
       </div>
 
       {canManageTeam && builderSales && (
         <details className="mt-4 rounded-2xl border border-line p-4">
-          <summary className="cursor-pointer font-semibold">Manage the sales team for {community.name}</summary>
+          <summary className="cursor-pointer text-[15px] font-semibold sm:text-base">Manage the sales team<span className="hidden sm:inline"> for {community.name}</span></summary>
           <p className="mt-2 text-sm text-muted">Salespeople only see the communities they’re on.</p>
           <div className="mt-3 space-y-2">
             {builderSales.map((p) => (
@@ -275,4 +280,11 @@ async function CommunityDetail({
       </section>
     </div>
   );
+}
+
+// The quick-link buttons under a community's banner: tiles on phones, pills on computers.
+const TILE = "inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-line px-3 py-3 text-center text-sm font-semibold sm:rounded-full sm:border-foreground sm:px-4 sm:py-2.5";
+
+function TileIcon({ d }: { d: string }) {
+  return <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" aria-hidden><path d={d} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
