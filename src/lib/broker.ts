@@ -50,6 +50,29 @@ export type BrokerTask = {
   source_table: string | null;
   source_id: string | null;
   home_id: string | null;
+  work_order_no: number;
+  submitted_at: string | null;
+  submitted_by_name: string | null;
+  submitted_mls_number: string | null;
+  submitted_mls_url: string | null;
+};
+
+// A correction the broker sent back (a field with the right value, or a photo note).
+export type BrokerRequest = {
+  id: string;
+  kind: "field" | "photo";
+  field_key: string | null;
+  field_label: string | null;
+  current_text: string | null;
+  proposed_text: string | null;
+  media_id: string | null;
+  note: string | null;
+  status: "open" | "accepted" | "changed" | "declined";
+  decision_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+  resent_at: string | null;
+  created_by_name: string;
 };
 
 export type BrokerNote = { id: string; body: string; created_at: string; author: string; mine: boolean };
@@ -59,6 +82,8 @@ type Raw = {
   task: BrokerTask;
   builder_name: string;
   notes: BrokerNote[];
+  requests?: BrokerRequest[];
+  link?: { name: string };
   home?: Parameters<typeof assembleMlsSheet>[0]["home"];
   mls_rows?: { home_id: string | null; community_id: string | null; data: unknown }[];
   board?: MlsBoard | null;
@@ -69,21 +94,20 @@ type Raw = {
   open_houses?: BrokerOpenHouse[];
 };
 
-// One work sheet, built the same way our team's is, from the database's checked answer.
-export async function loadBrokerTask(taskId: string): Promise<null | {
+export type BrokerWork = {
   task: BrokerTask;
   builderName: string;
   notes: BrokerNote[];
+  requests: BrokerRequest[];
   sheet: MlsSheet | null;
   changeMedia: Map<string, MediaRow>;
   openHouses: BrokerOpenHouse[];
-}> {
-  if (!/^[0-9a-f-]{36}$/i.test(taskId)) return null;
-  const supabase = await createClient();
-  const { data } = await supabase.rpc("broker_task_sheet", { p_task: taskId });
-  const raw = data as Raw | null;
-  if (!raw?.task) return null;
+  linkName: string | null;
+};
 
+// One work order, built the same way our team's sheet is, from the database's checked answer.
+function parseWork(raw: Raw | null): BrokerWork | null {
+  if (!raw?.task) return null;
   let sheet: MlsSheet | null = null;
   if (raw.home) {
     const media = (raw.listing ?? []).map((i) => i.media).filter((m): m is MediaRow => !!m);
@@ -106,11 +130,32 @@ export async function loadBrokerTask(taskId: string): Promise<null | {
     task: raw.task,
     builderName: raw.builder_name,
     notes: raw.notes ?? [],
+    requests: raw.requests ?? [],
     sheet,
     changeMedia: new Map((raw.change_media ?? []).map((m) => [m.id, m])),
     openHouses: raw.open_houses ?? [],
+    linkName: raw.link?.name ?? null,
   };
 }
 
+// Signed-in broker. Opening it is logged for the builder (once per half hour).
+export async function loadBrokerTask(taskId: string): Promise<BrokerWork | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(taskId)) return null;
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("broker_task_sheet", { p_task: taskId });
+  return parseWork(data as Raw | null);
+}
+
+// One-off link (signed out): the same work order, while the link is live.
+export async function loadLinkTask(token: string): Promise<BrokerWork | null> {
+  if (!/^[\w-]{20,64}$/.test(token)) return null;
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("broker_link_sheet", { p_token: token });
+  return parseWork(data as Raw | null);
+}
+
+export const workOrder = (n: number | null | undefined) => (n ? `WO-${n}` : "");
+
 // Where a broker's photo and video links go: checked against the task each time.
 export const brokerFileBase = (taskId: string) => `/broker/file/${taskId}/`;
+export const linkFileBase = (token: string) => `/w/${token}/file/`;

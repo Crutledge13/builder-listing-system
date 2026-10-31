@@ -84,7 +84,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
   let q = supabase
     .from("tasks")
     .select("id, kind, title, details, status, priority, due_at, home_id, builder_id, assignee_id, source_table, source_id, created_at, completed_at, changes, homes(unparsed_address), builders(name)");
-  q = view === "done" ? q.in("status", ["done", "cancelled"]).order("completed_at", { ascending: false, nullsFirst: false }).limit(60) : q.in("status", ["todo", "in_progress"]);
+  q = view === "done" ? q.in("status", ["done", "cancelled"]).order("completed_at", { ascending: false, nullsFirst: false }).limit(60) : q.in("status", ["todo", "in_progress", "submitted"]);
   if (view === "mine") q = q.eq("assignee_id", me.id);
   // One builder picked in the top bar: that builder's tasks plus general ones (like help reports).
   const focus = await builderFocus(me.role);
@@ -256,6 +256,7 @@ async function Board({ searchParams }: { searchParams: PageProps<"/tasks">["sear
                       <span className={cx("rounded-full px-2.5 py-1 font-semibold", KIND_STYLE[t.kind])}>{TASK_KIND_LABELS[t.kind]}</span>
                       {t.priority === "high" && <span className="rounded-full bg-red-100 px-2.5 py-1 font-semibold text-red-800">High</span>}
                       {t.status === "in_progress" && <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-900">In progress</span>}
+                      {t.status === "submitted" && <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-800">Broker done: builder to accept</span>}
                       {closed && <span className="rounded-full bg-soft px-2.5 py-1 font-semibold">{TASK_STATUS_LABELS[t.status]}</span>}
                       {t.builders && <span className="text-muted">{t.builders.name.replace(" (demo)", "")}</span>}
                       {!ownMls && t.builder_id && selfBuilders.has(t.builder_id) && MLS_KINDS.includes(t.kind) && (

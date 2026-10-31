@@ -45,10 +45,12 @@ export async function proxy(request: NextRequest) {
   const isShare = request.nextUrl.pathname.startsWith("/s/");
   // Join links: the page checks the link's code itself (see /join/[token]).
   const isJoin = request.nextUrl.pathname.startsWith("/join/");
+  // One-off broker links: the page checks the link itself (see /w/[token]).
+  const isWorkLink = request.nextUrl.pathname.startsWith("/w/");
   // Invite links: the page checks the link itself and signs in only on its Continue button (see /accept/[token]).
   const isAccept = request.nextUrl.pathname.startsWith("/accept/");
 
-  if (!user && !isLogin && !isConfirm && !isShare && !isJoin && !isAccept) {
+  if (!user && !isLogin && !isConfirm && !isShare && !isJoin && !isAccept && !isWorkLink) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
@@ -66,7 +68,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // A broker anywhere outside their screens (and the few sign-in pages) goes to their MLS work.
-  const brokerAllowed = path === "/broker" || path.startsWith("/broker/") || path === "/welcome" || isConfirm || isAccept || path.startsWith("/signed-out");
+  const brokerAllowed = path === "/broker" || path.startsWith("/broker/") || isWorkLink || path === "/welcome" || isConfirm || isAccept || path.startsWith("/signed-out");
   if (user && isBroker && !brokerAllowed && !isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = "/broker";
